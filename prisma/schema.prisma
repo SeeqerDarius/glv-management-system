@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  STAFF
+}
+
+enum AccountStatus {
+  ACTIVE
+  COMPLETED
+  OVERDUE
+  CANCELLED
+  SUSPENDED
+}
+
+model User {
+  id       String @id @default(cuid())
+  name     String
+  email    String @unique
+  password String
+
+  role UserRole
+
+  mustChangePassword Boolean @default(true)
+
+  staffId String? @unique
+  staff   Staff?  @relation(fields: [staffId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model Staff {
+  id String @id @default(cuid())
+
+  code String @unique
+
+  fullName String
+
+  email String @unique
+
+  phone String?
+
+  active Boolean @default(true)
+
+  user User?
+
+  customers Customer[]
+
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id String @id @default(cuid())
+
+  customerId String @unique
+
+  fullName String
+
+  phone String
+
+  address String?
+
+  nationalId String?
+
+  photoUrl String?
+
+  staffId String
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  accounts CustomerAccount[]
+
+  createdAt DateTime @default(now())
+}
+
+model Product {
+  id String @id @default(cuid())
+
+  name String
+
+  category String
+
+  imageUrl String?
+
+  costPrice Float
+
+  cashPrice Float
+
+  layawayPrice Float
+
+  dailyAmount Float
+
+  duration Int
+
+  active Boolean @default(true)
+
+  accounts CustomerAccount[]
+}
+
+model CustomerAccount {
+  id String @id @default(cuid())
+
+  customerId String
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  productId String
+
+  product Product @relation(fields: [productId], references: [id])
+
+  startDate DateTime
+
+  expectedEndDate DateTime
+
+  targetAmount Float
+
+  dailyAmount Float
+
+  totalPaid Float @default(0)
+
+  balance Float
+
+  status AccountStatus @default(ACTIVE)
+
+  payments Payment[]
+
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id String @id @default(cuid())
+
+  receiptNo String @unique
+
+  accountId String
+
+  account CustomerAccount @relation(fields: [accountId], references: [id])
+
+  amount Float
+
+  paymentDate DateTime
+
+  method String
+
+  notes String?
+
+  receivedBy String
+
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  userId String
+
+  action String
+
+  entity String
+
+  entityId String
+
+  oldValue String?
+
+  newValue String?
+
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id String @id @default(cuid())
+
+  companyName String
+
+  phone String
+
+  address String?
+
+  createdAt DateTime @default(now())
+}
