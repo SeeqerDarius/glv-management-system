@@ -13,7 +13,11 @@ export default async function NewPaymentPage() {
         gt: 0,
       },
       status: {
-        notIn: [AccountStatus.COMPLETED, AccountStatus.CANCELLED],
+        notIn: [
+          AccountStatus.COMPLETED,
+          AccountStatus.CANCELLED,
+          AccountStatus.SUSPENDED,
+        ],
       },
       ...(isStaff && session.user.staffId
         ? {

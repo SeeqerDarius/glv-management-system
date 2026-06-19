@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { UserRole } from "@prisma/client";
+import { HouseIcon } from "lucide-react";
 import { auth } from "@/lib/auth";
+import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
+import { isAdminRole } from "@/lib/roles";
 
 export default async function DashboardLayout({
   children,
@@ -9,99 +11,48 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const session = await auth();
-  const isAdmin = session?.user?.role === UserRole.ADMIN;
+  const isAdmin = isAdminRole(session?.user?.role);
 
   return (
-    <div className="min-h-screen bg-gray-50 lg:flex">
-      <aside className="bg-green-800 text-white lg:sticky lg:top-0 lg:h-screen lg:w-72">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4 lg:block lg:p-5">
-          <div>
-            <h2 className="text-xl font-bold tracking-wide">GLV SYSTEM</h2>
-            <p className="text-sm text-lime-200">Pay Small. Own Big.</p>
+    <div className="glv-app-shell min-h-screen lg:flex">
+      <aside className="glv-sidebar relative z-20 text-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-72 lg:flex-col">
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 p-4 lg:p-5">
+          <div className="flex items-center gap-3">
+            <span className="glv-brand-mark">GLV</span>
+            <div>
+              <h2 className="text-base font-bold text-white">Management System</h2>
+              <p className="text-xs text-lime-200">Pay Small. Own Big.</p>
+            </div>
           </div>
-          <div className="lg:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
+            <Link
+              href="/dashboard"
+              className="inline-flex size-9 items-center justify-center rounded-md border border-white/15 text-lime-100 hover:bg-white/10"
+              title="Dashboard"
+            >
+              <HouseIcon className="size-4" />
+              <span className="sr-only">Dashboard/Home</span>
+            </Link>
             <LogoutButton />
           </div>
         </div>
 
-        <nav className="flex gap-2 overflow-x-auto p-3 lg:block lg:space-y-2 lg:overflow-visible lg:p-5">
-          <Link
-            href="/dashboard"
-            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-          >
-            Dashboard
-          </Link>
+        <DashboardNav isAdmin={isAdmin} />
 
-          {isAdmin ? (
-            <Link
-              href="/staff"
-              className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-            >
-              Staff
-            </Link>
-          ) : null}
-
-          <Link
-            href="/customers"
-            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-          >
-            Customers
-          </Link>
-
-          <Link
-            href="/accounts"
-            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-          >
-            Accounts
-          </Link>
-
-          {isAdmin ? (
-            <Link
-              href="/products"
-              className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-            >
-              Products
-            </Link>
-          ) : null}
-
-          <Link
-            href="/payments"
-            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-          >
-            Payments
-          </Link>
-
-          {isAdmin ? (
-            <Link
-              href="/reports"
-              className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-            >
-              Reports
-            </Link>
-          ) : null}
-
-          {isAdmin ? (
-            <Link
-              href="/audit-logs"
-              className="block whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium hover:bg-lime-500/20"
-            >
-              Audit Logs
-            </Link>
-          ) : null}
-        </nav>
-
-        <div className="hidden border-t border-white/10 p-5 lg:block">
-          <p className="mb-3 text-sm text-lime-100">
+        <div className="mt-auto hidden border-t border-white/10 p-4 lg:block">
+          <div className="mb-3 rounded-md border border-white/10 bg-white/5 p-3">
+            <p className="truncate text-sm font-medium text-white">
             {session?.user?.name}
-            <span className="block text-xs text-lime-300">
+            </p>
+            <span className="mt-0.5 block text-xs text-lime-300">
               {session?.user?.role}
             </span>
-          </p>
+          </div>
           <LogoutButton />
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
+      <main className="glv-main-content min-w-0 flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
     </div>

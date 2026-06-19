@@ -11,12 +11,12 @@ export function LoginForm() {
   return (
     <form
       action={formAction}
-      className="w-full max-w-md border rounded-lg bg-white p-6 space-y-4 shadow-sm"
+      className="w-full space-y-5 rounded-lg border border-white/10 bg-white p-6 shadow-2xl"
     >
       <div>
-        <h1 className="text-2xl font-bold text-gray-950">GLV Login</h1>
+        <h2 className="text-xl font-bold text-gray-950">Welcome back</h2>
         <p className="mt-1 text-sm text-gray-600">
-          Sign in to manage God&apos;s Love Ventures.
+          Sign in to your GLV workspace.
         </p>
       </div>
 
@@ -51,7 +51,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full bg-green-600 text-white p-3 rounded disabled:cursor-not-allowed disabled:opacity-70"
+        className="w-full rounded-md bg-[#176b3a] p-3 font-medium text-white shadow-md hover:bg-[#125c31] disabled:cursor-not-allowed disabled:opacity-70"
       >
         {pending ? "Signing in..." : "Login"}
       </button>

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deactivateProduct } from "@/actions/products";
+import { deactivateProduct, deleteProduct } from "@/actions/products";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { prisma } from "@/lib/prisma";
 
 type ProductDetailsPageProps = {
@@ -69,6 +70,14 @@ export default async function ProductDetailsPage({
               </Button>
             </form>
           ) : null}
+          <ConfirmDeleteForm
+            action={deleteProduct}
+            id={product.id}
+            title={`Delete ${product.name}?`}
+            description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
+          >
+            Delete
+          </ConfirmDeleteForm>
         </div>
       </div>
 

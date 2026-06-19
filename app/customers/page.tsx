@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { UserRole } from "@prisma/client";
+import { deleteCustomer } from "@/actions/customers";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
-export default async function CustomersPage() {
+type CustomersPageProps = {
+  searchParams: Promise<Record<string, string | undefined>>;
+};
+
+export default async function CustomersPage({ searchParams }: CustomersPageProps) {
+  const { error, deleted } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
 
@@ -44,6 +51,30 @@ export default async function CustomersPage() {
         </Button>
       </div>
 
+      {error === "delete-confirmation-required" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Type DELETE in the confirmation box before deleting customer records.
+        </div>
+      ) : null}
+
+      {error === "admin-password-required" || error === "invalid-admin-password" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter a valid admin password before deleting customer records.
+        </div>
+      ) : null}
+
+      {error === "customer-delete-blocked" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Customer deletion was blocked by related records. Remove or correct the related records first.
+        </div>
+      ) : null}
+
+      {deleted === "customer" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Customer and all related accounts and payments were permanently deleted.
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
           <thead>
@@ -65,13 +96,25 @@ export default async function CustomersPage() {
                 <td className="p-3">{customer.fullName}</td>
                 <td className="p-3">{customer.phone}</td>
                 <td className="p-3">
-                  {customer.staff.fullName} ({customer.staff.code})
+                  {customer.staff.code}
                 </td>
                 <td className="p-3">{customer.accounts.length}</td>
                 <td className="p-3 text-right">
-                  <Button asChild variant="outline" size="sm">
-                    <Link href={`/customers/${customer.id}`}>View</Link>
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/customers/${customer.id}`}>View</Link>
+                    </Button>
+                    {!isStaff ? (
+                      <ConfirmDeleteForm
+                        action={deleteCustomer}
+                        id={customer.id}
+                        title={`Delete ${customer.fullName}?`}
+                        description="This permanently deletes the customer, every related account, and all payment records. This cannot be undone."
+                      >
+                        Delete
+                      </ConfirmDeleteForm>
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             ))}

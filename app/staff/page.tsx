@@ -1,29 +1,59 @@
 import Link from "next/link";
-import { PencilIcon, UserXIcon } from "lucide-react";
-import { deactivateStaff } from "@/actions/staff";
+import type { Prisma } from "@prisma/client";
+import { PencilIcon, Trash2Icon, UserXIcon } from "lucide-react";
+import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { prisma } from "@/lib/prisma";
 
 type StaffPageProps = {
   searchParams: Promise<Record<string, string | undefined>>;
 };
 
+type StaffListItem = Prisma.StaffGetPayload<{
+  include: {
+    user: true;
+    _count: {
+      select: {
+        customers: true;
+      };
+    };
+  };
+}>;
+
 export default async function StaffPage({ searchParams }: StaffPageProps) {
-  await searchParams;
-  const staff = await prisma.staff.findMany({
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
-      user: true,
-      _count: {
-        select: {
-          customers: true,
+  const { error, deleted } = await searchParams;
+  let staff: StaffListItem[];
+
+  try {
+    staff = await prisma.staff.findMany({
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        user: true,
+        _count: {
+          select: {
+            customers: true,
+          },
         },
       },
-    },
-  });
+    });
+  } catch {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-950">Staff Management</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Manage GLV staff profiles and assignment codes.
+          </p>
+        </div>
+        <DatabaseUnavailable retryHref="/staff" title="Staff data is temporarily unavailable" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -41,6 +71,30 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           <Link href="/staff/new">Add Staff</Link>
         </Button>
       </div>
+
+      {error === "staff-has-history" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Staff with assigned customers cannot be deleted. Deactivate the staff member instead.
+        </div>
+      ) : null}
+
+      {error === "delete-confirmation-required" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Type DELETE in the confirmation box before deleting staff records.
+        </div>
+      ) : null}
+
+      {error === "admin-password-required" || error === "invalid-admin-password" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter a valid admin password before deleting staff records.
+        </div>
+      ) : null}
+
+      {deleted === "staff" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Staff record deleted.
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
@@ -99,6 +153,15 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                         </Button>
                       </form>
                     ) : null}
+                    <ConfirmDeleteForm
+                      action={deleteStaff}
+                      id={member.id}
+                      title={`Delete ${member.fullName}?`}
+                      buttonSize="icon-sm"
+                    >
+                      <Trash2Icon />
+                      <span className="sr-only">Delete staff</span>
+                    </ConfirmDeleteForm>
                   </div>
                 </td>
               </tr>

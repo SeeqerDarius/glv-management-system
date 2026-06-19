@@ -49,6 +49,14 @@ export const authConfig = {
       }
 
       if (
+        role !== "STAFF" &&
+        role !== "ADMIN" &&
+        role !== "SUPER_ADMIN"
+      ) {
+        return Response.redirect(new URL("/login", request.nextUrl));
+      }
+
+      if (
         role === "STAFF" &&
         !staffAllowedRoutes.some((route) => pathname.startsWith(route))
       ) {
@@ -73,7 +81,11 @@ export const authConfig = {
           session.user.id = token.id;
         }
 
-        if (token.role === "ADMIN" || token.role === "STAFF") {
+        if (
+          token.role === "ADMIN" ||
+          token.role === "SUPER_ADMIN" ||
+          token.role === "STAFF"
+        ) {
           session.user.role = token.role;
         }
 

@@ -3,13 +3,21 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum UserRole {
+  SUPER_ADMIN
   ADMIN
   STAFF
+}
+
+enum StaffApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum AccountStatus {
@@ -52,6 +60,24 @@ model Staff {
   user User?
 
   customers Customer[]
+
+  createdAt DateTime @default(now())
+}
+
+model StaffApplication {
+  id String @id @default(cuid())
+
+  fullName String
+
+  email String @unique
+
+  phone String?
+
+  status StaffApplicationStatus @default(PENDING)
+
+  reviewedBy String?
+
+  reviewedAt DateTime?
 
   createdAt DateTime @default(now())
 }

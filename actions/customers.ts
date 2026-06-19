@@ -3,8 +3,11 @@
 import { UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
+import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 async function requireUser() {
   const session = await auth();
@@ -158,6 +161,39 @@ export async function updateCustomer(formData: FormData): Promise<void> {
     },
   });
 
+  if (!existingCustomer) {
+    redirect("/customers?error=customer-not-found");
+  }
+
+  if (existingCustomer.staffId !== staffId) {
+    if (!isAdminRole(user.role)) {
+      throw new Error("Unauthorized");
+    }
+
+    const adminPassword = cleanInput(formData.get("adminPassword"));
+
+    if (!adminPassword) {
+      redirect(`/customers/${id}/edit?error=admin-password-required`);
+    }
+
+    const adminUser = await prisma.user.findUnique({
+      where: {
+        id: user.id,
+      },
+      select: {
+        password: true,
+      },
+    });
+
+    const passwordValid = adminUser
+      ? await bcrypt.compare(adminPassword, adminUser.password)
+      : false;
+
+    if (!passwordValid) {
+      redirect(`/customers/${id}/edit?error=invalid-admin-password`);
+    }
+  }
+
   const customer = await prisma.customer.update({
     where: {
       id,
@@ -179,7 +215,103 @@ export async function updateCustomer(formData: FormData): Promise<void> {
     newValue: customer,
   });
 
+  if (existingCustomer.staffId !== staffId) {
+    await logCustomerAudit({
+      userId: user.id,
+      action: "REASSIGN_CUSTOMER_STAFF",
+      customerId: customer.id,
+      oldValue: {
+        oldStaffId: existingCustomer.staffId,
+        customerId: customer.id,
+        adminUserId: user.id,
+      },
+      newValue: {
+        oldStaffId: existingCustomer.staffId,
+        newStaffId: staffId,
+        customerId: customer.id,
+        adminUserId: user.id,
+      },
+    });
+  }
+
   revalidatePath("/customers");
   revalidatePath(`/customers/${id}`);
   redirect(`/customers/${id}`);
+}
+
+export async function deleteCustomer(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = cleanInput(formData.get("id"));
+
+  if (!isAdminRole(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/customers",
+  });
+
+  const customer = await prisma.customer.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      accounts: {
+        include: {
+          payments: true,
+        },
+      },
+    },
+  });
+
+  if (!customer) {
+    redirect("/customers?error=customer-not-found");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const accountIds = customer.accounts.map((account) => account.id);
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "DELETE_CUSTOMER",
+          entity: "Customer",
+          entityId: customer.id,
+          oldValue: JSON.stringify(customer),
+        },
+      });
+
+      if (accountIds.length > 0) {
+        await tx.payment.deleteMany({
+          where: {
+            accountId: {
+              in: accountIds,
+            },
+          },
+        });
+
+        await tx.customerAccount.deleteMany({
+          where: {
+            id: {
+              in: accountIds,
+            },
+          },
+        });
+      }
+
+      await tx.customer.delete({
+        where: {
+          id: customer.id,
+        },
+      });
+    });
+  } catch {
+    redirect("/customers?error=customer-delete-blocked");
+  }
+
+  revalidatePath("/customers");
+  redirect("/customers?deleted=customer");
 }

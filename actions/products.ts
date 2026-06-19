@@ -1,10 +1,11 @@
 "use server";
 
-import { UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
+import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 export type ProductFormState = {
   errors?: {
@@ -32,7 +33,7 @@ type ProductInput = {
 async function requireAdmin() {
   const session = await auth();
 
-  if (session?.user?.role !== UserRole.ADMIN || !session.user.id) {
+  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
@@ -296,4 +297,81 @@ export async function deactivateProduct(formData: FormData): Promise<void> {
 
   revalidatePath("/products");
   revalidatePath(`/products/${id}`);
+}
+
+export async function deleteProduct(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/products",
+  });
+
+  const product = await prisma.product.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      accounts: {
+        include: {
+          payments: {
+            orderBy: {
+              paymentDate: "desc",
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!product) {
+    redirect("/products?error=product-not-found");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const accountIds = product.accounts.map((account) => account.id);
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "DELETE_PRODUCT",
+          entity: "Product",
+          entityId: product.id,
+          oldValue: JSON.stringify(product),
+        },
+      });
+
+      if (accountIds.length > 0) {
+        await tx.payment.deleteMany({
+          where: {
+            accountId: {
+              in: accountIds,
+            },
+          },
+        });
+
+        await tx.customerAccount.deleteMany({
+          where: {
+            id: {
+              in: accountIds,
+            },
+          },
+        });
+      }
+
+      await tx.product.delete({
+        where: {
+          id: product.id,
+        },
+      });
+    });
+  } catch {
+    redirect("/products?error=product-delete-blocked");
+  }
+
+  revalidatePath("/products");
+  redirect("/products?deleted=product");
 }

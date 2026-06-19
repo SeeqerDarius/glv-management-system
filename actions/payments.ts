@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+import { isAdminRole } from "@/lib/roles";
 
 export type PaymentFormState = {
   errors?: {
@@ -28,6 +30,16 @@ async function requireUser() {
     role: session.user.role,
     staffId: session.user.staffId,
   };
+}
+
+async function requireAdmin() {
+  const user = await requireUser();
+
+  if (!isAdminRole(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  return user;
 }
 
 function cleanInput(value: FormDataEntryValue | null) {
@@ -130,10 +142,14 @@ export async function recordPayment(
     };
   }
 
-  if (account.status === AccountStatus.CANCELLED) {
+  if (
+    account.status === AccountStatus.CANCELLED ||
+    account.status === AccountStatus.SUSPENDED
+  ) {
     return {
       errors: {
-        accountId: "Payments cannot be recorded for a cancelled account.",
+        accountId:
+          "Payments cannot be recorded for a cancelled or suspended account.",
       },
     };
   }
@@ -225,4 +241,92 @@ export async function recordPayment(
   revalidatePath(`/accounts/${account.id}`);
   revalidatePath(`/customers/${account.customer.id}`);
   redirect(`/accounts/${account.id}?payment=${createdPayment.receiptNo}`);
+}
+
+export async function deletePayment(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/payments",
+  });
+
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      account: {
+        include: {
+          customer: true,
+          product: true,
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    redirect("/payments?error=payment-not-found");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "DELETE_PAYMENT",
+          entity: "Payment",
+          entityId: payment.id,
+          oldValue: JSON.stringify(payment),
+        },
+      });
+
+      await tx.payment.delete({
+        where: {
+          id: payment.id,
+        },
+      });
+
+      const remainingPayments = await tx.payment.aggregate({
+        where: {
+          accountId: payment.accountId,
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+      const nextTotalPaid = remainingPayments._sum.amount ?? 0;
+      const nextBalance = Math.max(
+        payment.account.targetAmount - nextTotalPaid,
+        0
+      );
+      const nextStatus =
+        nextBalance <= 0
+          ? AccountStatus.COMPLETED
+          : payment.account.status === AccountStatus.COMPLETED
+            ? AccountStatus.ACTIVE
+            : payment.account.status;
+
+      await tx.customerAccount.update({
+        where: {
+          id: payment.accountId,
+        },
+        data: {
+          totalPaid: nextTotalPaid,
+          balance: nextBalance,
+          status: nextStatus,
+        },
+      });
+    });
+  } catch {
+    redirect("/payments?error=payment-delete-blocked");
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${payment.accountId}`);
+  revalidatePath(`/customers/${payment.account.customerId}`);
+  redirect("/payments?deleted=payment");
 }

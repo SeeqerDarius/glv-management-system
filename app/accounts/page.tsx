@@ -1,10 +1,25 @@
 import Link from "next/link";
-import { UserRole } from "@prisma/client";
+import { AccountStatus, Prisma, UserRole } from "@prisma/client";
+import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
+type AccountsPageProps = {
+  searchParams: Promise<{
+    q?: string;
+    staffId?: string;
+    status?: string;
+    productId?: string;
+    page?: string;
+    error?: string;
+    deleted?: string;
+  }>;
+};
+
+const pageSize = 20;
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -14,31 +29,152 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
-export default async function AccountsPage() {
+function buildPageHref(params: URLSearchParams, page: number) {
+  const nextParams = new URLSearchParams(params);
+  nextParams.set("page", String(page));
+  return `/accounts?${nextParams.toString()}`;
+}
+
+export default async function AccountsPage({ searchParams }: AccountsPageProps) {
+  const params = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const query = params.q?.trim() ?? "";
+  const selectedStatus = params.status || AccountStatus.ACTIVE;
+  const selectedStaffId = params.staffId || "";
+  const selectedProductId = params.productId || "";
+  const error = params.error || "";
+  const deleted = params.deleted || "";
+  const currentPage = Math.max(Number(params.page || "1"), 1);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const accounts = await prisma.customerAccount.findMany({
-    where:
-      isStaff && session.user.staffId
-        ? {
-            customer: {
-              staffId: session.user.staffId,
-            },
-          }
-        : undefined,
-    orderBy: {
-      createdAt: "desc",
-    },
-    include: {
+  const filters: Prisma.CustomerAccountWhereInput[] = [];
+
+  if (isStaff && session.user.staffId) {
+    filters.push({
       customer: {
-        include: {
-          staff: true,
-        },
+        staffId: session.user.staffId,
       },
-      product: true,
-    },
-  });
+    });
+  } else if (selectedStaffId) {
+    filters.push({
+      customer: {
+        staffId: selectedStaffId,
+      },
+    });
+  }
+
+  if (selectedProductId) {
+    filters.push({
+      productId: selectedProductId,
+    });
+  }
+
+  if (query) {
+    filters.push({
+      OR: [
+        {
+          customer: {
+            fullName: {
+              contains: query,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          customer: {
+            customerId: {
+              contains: query,
+              mode: "insensitive",
+            },
+          },
+        },
+        {
+          product: {
+            name: {
+              contains: query,
+              mode: "insensitive",
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  if (selectedStatus === "OVERDUE") {
+    filters.push({
+      status: AccountStatus.ACTIVE,
+      balance: {
+        gt: 0,
+      },
+      expectedEndDate: {
+        lt: today,
+      },
+    });
+  } else if (selectedStatus === "ALL") {
+    // No status filter.
+  } else if (selectedStatus === AccountStatus.ACTIVE) {
+    filters.push({
+      status: AccountStatus.ACTIVE,
+      balance: {
+        gt: 0,
+      },
+      expectedEndDate: {
+        gte: today,
+      },
+    });
+  } else {
+    filters.push({
+      status: selectedStatus as AccountStatus,
+    });
+  }
+
+  const where: Prisma.CustomerAccountWhereInput =
+    filters.length > 0
+      ? {
+          AND: filters,
+        }
+      : {};
+
+  const [accounts, totalAccounts, staff, products] = await Promise.all([
+    prisma.customerAccount.findMany({
+      where,
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: (currentPage - 1) * pageSize,
+      take: pageSize,
+      include: {
+        customer: {
+          include: {
+            staff: true,
+          },
+        },
+        product: true,
+      },
+    }),
+    prisma.customerAccount.count({ where }),
+    isStaff
+      ? Promise.resolve([])
+      : prisma.staff.findMany({
+          orderBy: {
+            fullName: "asc",
+          },
+        }),
+    prisma.product.findMany({
+      orderBy: {
+        name: "asc",
+      },
+    }),
+  ]);
+
+  const totalPages = Math.max(Math.ceil(totalAccounts / pageSize), 1);
+  const urlParams = new URLSearchParams();
+  if (query) urlParams.set("q", query);
+  if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
+  if (selectedStatus) urlParams.set("status", selectedStatus);
+  if (selectedProductId) urlParams.set("productId", selectedProductId);
 
   return (
     <div className="space-y-6">
@@ -55,16 +191,72 @@ export default async function AccountsPage() {
         </Button>
       </div>
 
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-5">
+        <input
+          name="q"
+          defaultValue={query}
+          placeholder="Search customer or product"
+          className="rounded border p-3 md:col-span-2"
+        />
+
+        {!isStaff ? (
+          <select name="staffId" defaultValue={selectedStaffId} className="rounded border p-3">
+            <option value="">All staff</option>
+            {staff.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.code}
+              </option>
+            ))}
+          </select>
+        ) : null}
+
+        <select name="status" defaultValue={selectedStatus} className="rounded border p-3">
+          <option value="ALL">All statuses</option>
+          <option value={AccountStatus.ACTIVE}>Active</option>
+          <option value="OVERDUE">Overdue</option>
+          <option value={AccountStatus.COMPLETED}>Completed</option>
+          <option value={AccountStatus.CANCELLED}>Cancelled</option>
+          <option value={AccountStatus.SUSPENDED}>Suspended</option>
+        </select>
+
+        <select name="productId" defaultValue={selectedProductId} className="rounded border p-3">
+          <option value="">All products</option>
+          {products.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name}
+            </option>
+          ))}
+        </select>
+
+        <Button type="submit" variant="outline">
+          Filter
+        </Button>
+      </form>
+
+      {error === "account-not-found" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Account could not be found.
+        </div>
+      ) : null}
+
+      {deleted === "account" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account and all related payments were permanently deleted.
+        </div>
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               <th className="p-3 font-medium">Customer</th>
+              <th className="p-3 font-medium">Staff</th>
               <th className="p-3 font-medium">Product</th>
               <th className="p-3 font-medium">Target</th>
               <th className="p-3 font-medium">Paid</th>
               <th className="p-3 font-medium">Balance</th>
               <th className="p-3 font-medium">Daily</th>
+              <th className="p-3 font-medium">Paid Progress</th>
               <th className="p-3 font-medium">Status</th>
               <th className="p-3 font-medium">Start</th>
               <th className="p-3 font-medium">Expected End</th>
@@ -85,11 +277,19 @@ export default async function AccountsPage() {
                       {account.customer.customerId}
                     </div>
                   </td>
+                  <td className="p-3">{account.customer.staff.code}</td>
                   <td className="p-3">{account.product.name}</td>
                   <td className="p-3">{formatMoney(account.targetAmount)}</td>
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">{formatMoney(account.dailyAmount)}</td>
+                  <td className="p-3">
+                    <AccountDaysProgress
+                      totalPaid={account.totalPaid}
+                      dailyAmount={account.dailyAmount}
+                      duration={account.product.duration}
+                    />
+                  </td>
                   <td className="p-3">
                     <Badge variant={status === "OVERDUE" ? "destructive" : "default"}>
                       {status}
@@ -113,6 +313,30 @@ export default async function AccountsPage() {
             No customer accounts found.
           </div>
         ) : null}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <p>
+          Showing page {currentPage} of {totalPages} ({totalAccounts} accounts)
+        </p>
+        <div className="flex gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={buildPageHref(urlParams, Math.max(currentPage - 1, 1))}
+              aria-disabled={currentPage <= 1}
+            >
+              Previous
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link
+              href={buildPageHref(urlParams, Math.min(currentPage + 1, totalPages))}
+              aria-disabled={currentPage >= totalPages}
+            >
+              Next
+            </Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

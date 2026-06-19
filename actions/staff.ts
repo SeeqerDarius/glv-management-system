@@ -7,6 +7,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
+import { isAdminRole } from "@/lib/roles";
+import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 export type StaffFormState = {
   errors?: {
@@ -33,7 +35,7 @@ const codeOverrides: Record<string, string> = {
 async function requireAdmin() {
   const session = await auth();
 
-  if (session?.user?.role !== UserRole.ADMIN || !session.user.id) {
+  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
@@ -321,4 +323,66 @@ export async function deactivateStaff(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/staff");
+}
+
+export async function deleteStaff(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/staff",
+  });
+
+  const staff = await prisma.staff.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      user: true,
+      _count: {
+        select: {
+          customers: true,
+        },
+      },
+    },
+  });
+
+  if (!staff) {
+    redirect("/staff?error=staff-not-found");
+  }
+
+  if (staff._count.customers > 0) {
+    redirect("/staff?error=staff-has-history");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "DELETE_STAFF",
+        entity: "Staff",
+        entityId: staff.id,
+        oldValue: JSON.stringify(staff),
+      },
+    });
+
+    if (staff.user) {
+      await tx.user.delete({
+        where: {
+          id: staff.user.id,
+        },
+      });
+    }
+
+    await tx.staff.delete({
+      where: {
+        id: staff.id,
+      },
+    });
+  });
+
+  revalidatePath("/staff");
+  redirect("/staff?deleted=staff");
 }

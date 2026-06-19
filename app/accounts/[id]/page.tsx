@@ -1,16 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UserRole } from "@prisma/client";
+import { deleteAccount } from "@/actions/accounts";
+import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
 
 type AccountDetailsPageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 };
 
 function formatDate(date: Date) {
@@ -23,10 +28,13 @@ function formatDate(date: Date) {
 
 export default async function AccountDetailsPage({
   params,
+  searchParams,
 }: AccountDetailsPageProps) {
   const { id } = await params;
+  const { error } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const isAdmin = isAdminRole(session?.user?.role);
 
   const account = await prisma.customerAccount.findFirst({
     where: {
@@ -59,6 +67,9 @@ export default async function AccountDetailsPage({
   }
 
   const status = getEffectiveAccountStatus(account);
+  const canRecordPayment =
+    account.balance > 0 &&
+    !["COMPLETED", "CANCELLED", "SUSPENDED"].includes(account.status);
 
   return (
     <div className="space-y-6">
@@ -81,11 +92,47 @@ export default async function AccountDetailsPage({
           <Button asChild variant="outline">
             <Link href="/accounts">Back</Link>
           </Button>
-          <Button asChild>
-            <Link href="/payments/new">Record Payment</Link>
-          </Button>
+          {isAdmin ? (
+            <ConfirmDeleteForm
+              action={deleteAccount}
+              id={account.id}
+              title={`Delete ${account.product.name} account?`}
+              description="This permanently deletes the account and every related payment record. This cannot be undone."
+            >
+              Delete
+            </ConfirmDeleteForm>
+          ) : null}
+          {canRecordPayment ? (
+            <Button asChild>
+              <Link href="/payments/new">Record Payment</Link>
+            </Button>
+          ) : null}
         </div>
       </div>
+
+      {status === "COMPLETED" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          This account is completed. The product is ready for release/collection.
+        </div>
+      ) : null}
+
+      {error === "account-delete-blocked" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This account could not be deleted. Review its related records and try again.
+        </div>
+      ) : null}
+
+      {error === "delete-confirmation-required" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Type DELETE in the confirmation box before deleting account records.
+        </div>
+      ) : null}
+
+      {error === "admin-password-required" || error === "invalid-admin-password" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter a valid admin password before deleting account records.
+        </div>
+      ) : null}
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-lg border bg-white p-5">
@@ -172,6 +219,15 @@ export default async function AccountDetailsPage({
             {formatMoney(account.balance)}
           </p>
         </div>
+      </section>
+
+      <section className="rounded-lg border bg-white p-5">
+        <AccountDaysProgress
+          totalPaid={account.totalPaid}
+          dailyAmount={account.dailyAmount}
+          duration={account.product.duration}
+          showLabel
+        />
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">

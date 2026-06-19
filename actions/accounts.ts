@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isAdminRole } from "@/lib/roles";
+import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 export type AccountFormState = {
   errors?: {
@@ -27,6 +29,16 @@ async function requireUser() {
     role: session.user.role,
     staffId: session.user.staffId,
   };
+}
+
+async function requireAdmin() {
+  const user = await requireUser();
+
+  if (!isAdminRole(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  return user;
 }
 
 function cleanInput(value: FormDataEntryValue | null) {
@@ -191,4 +203,66 @@ export async function createAccount(
       },
     };
   }
+}
+
+export async function deleteAccount(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: `/accounts/${id}`,
+  });
+
+  const account = await prisma.customerAccount.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      customer: true,
+      product: true,
+      payments: {
+        orderBy: {
+          paymentDate: "desc",
+        },
+      },
+    },
+  });
+
+  if (!account) {
+    redirect("/accounts?error=account-not-found");
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "DELETE_ACCOUNT",
+          entity: "CustomerAccount",
+          entityId: account.id,
+          oldValue: JSON.stringify(account),
+        },
+      });
+
+      await tx.payment.deleteMany({
+        where: {
+          accountId: account.id,
+        },
+      });
+
+      await tx.customerAccount.delete({
+        where: {
+          id: account.id,
+        },
+      });
+    });
+  } catch {
+    redirect(`/accounts/${id}?error=account-delete-blocked`);
+  }
+
+  revalidatePath("/accounts");
+  revalidatePath(`/customers/${account.customerId}`);
+  redirect("/accounts?deleted=account");
 }

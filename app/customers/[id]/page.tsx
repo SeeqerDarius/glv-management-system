@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UserRole } from "@prisma/client";
+import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -36,11 +37,6 @@ export default async function CustomerProfilePage({
         },
         include: {
           product: true,
-          payments: {
-            orderBy: {
-              paymentDate: "desc",
-            },
-          },
         },
       },
     },
@@ -134,7 +130,7 @@ export default async function CustomerProfilePage({
               <th className="p-3 font-medium">Paid</th>
               <th className="p-3 font-medium">Balance</th>
               <th className="p-3 font-medium">Status</th>
-              <th className="p-3 font-medium">Payments</th>
+              <th className="p-3 font-medium">Paid Progress</th>
               <th className="p-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -149,7 +145,13 @@ export default async function CustomerProfilePage({
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">{status}</td>
-                  <td className="p-3">{account.payments.length}</td>
+                  <td className="p-3">
+                    <AccountDaysProgress
+                      totalPaid={account.totalPaid}
+                      dailyAmount={account.dailyAmount}
+                      duration={account.product.duration}
+                    />
+                  </td>
                   <td className="p-3 text-right">
                     <Button asChild variant="outline" size="sm">
                       <Link href={`/accounts/${account.id}`}>View</Link>
