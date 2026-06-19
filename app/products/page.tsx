@@ -115,6 +115,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               <th className="p-3 font-medium">Layaway</th>
               <th className="p-3 font-medium">Daily</th>
               <th className="p-3 font-medium">Duration</th>
+              <th className="p-3 font-medium">Quantity</th>
+              <th className="p-3 font-medium">Expected Profit</th>
               <th className="p-3 font-medium">Status</th>
               <th className="p-3 font-medium">Accounts</th>
               <th className="p-3 text-right font-medium">Actions</th>
@@ -130,6 +132,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <td className="p-3">{money(product.layawayPrice)}</td>
                 <td className="p-3">{money(product.dailyAmount)}</td>
                 <td className="p-3">{product.duration} days</td>
+                <td className="p-3">{product.quantityOnSale}</td>
+                <td className="p-3">
+                  {money(
+                    (product.layawayPrice -
+                      product.costPrice -
+                      product.transportCost) * product.quantityOnSale
+                  )}
+                </td>
                 <td className="p-3">
                   <Badge variant={product.active ? "default" : "secondary"}>
                     {product.active ? "Active" : "Inactive"}
@@ -156,6 +166,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       action={deleteProduct}
                       id={product.id}
                       title={`Delete ${product.name}?`}
+                      hasLinkedHistory={product._count.accounts > 0}
                       description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
                     >
                       Delete

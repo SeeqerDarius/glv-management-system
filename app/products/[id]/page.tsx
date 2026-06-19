@@ -37,8 +37,15 @@ export default async function ProductDetailsPage({
     notFound();
   }
 
-  const profitAmount = product.layawayPrice - product.costPrice;
-  const profitPercentage = (profitAmount / product.costPrice) * 100;
+  const retailProfit = product.cashPrice - product.costPrice;
+  const retailProfitPercentage = (retailProfit / product.costPrice) * 100;
+  const layawayProfit =
+    product.layawayPrice - product.costPrice - product.transportCost;
+  const layawayProfitPercentage = (layawayProfit / product.costPrice) * 100;
+  const expectedRetailRevenue = product.cashPrice * product.quantityOnSale;
+  const expectedLayawayRevenue = product.layawayPrice * product.quantityOnSale;
+  const expectedRetailProfit = retailProfit * product.quantityOnSale;
+  const expectedLayawayProfit = layawayProfit * product.quantityOnSale;
 
   return (
     <div className="space-y-6">
@@ -53,6 +60,9 @@ export default async function ProductDetailsPage({
             </Badge>
           </div>
           <p className="mt-1 text-sm text-gray-600">{product.category}</p>
+          {product.description ? (
+            <p className="mt-2 max-w-2xl text-sm text-gray-600">{product.description}</p>
+          ) : null}
         </div>
 
         <div className="flex gap-2">
@@ -74,6 +84,7 @@ export default async function ProductDetailsPage({
             action={deleteProduct}
             id={product.id}
             title={`Delete ${product.name}?`}
+            hasLinkedHistory={product._count.accounts > 0}
             description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
           >
             Delete
@@ -108,7 +119,7 @@ export default async function ProductDetailsPage({
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Duration</p>
           <p className="mt-2 text-xl font-semibold text-gray-950">
@@ -116,16 +127,32 @@ export default async function ProductDetailsPage({
           </p>
         </div>
         <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Profit Amount</p>
+          <p className="text-sm text-gray-500">Transport Cost</p>
           <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(profitAmount)}
+            {money(product.transportCost)}
           </p>
         </div>
         <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Profit Percentage</p>
+          <p className="text-sm text-gray-500">Quantity On Sale</p>
           <p className="mt-2 text-xl font-semibold text-gray-950">
-            {profitPercentage.toFixed(2)}%
+            {product.quantityOnSale}
           </p>
+        </div>
+        <div className="rounded-lg border bg-white p-5">
+          <p className="text-sm text-gray-500">Layaway Profit / Unit</p>
+          <p className="mt-2 text-xl font-semibold text-gray-950">{money(layawayProfit)}</p>
+        </div>
+      </section>
+
+      <section className="rounded-lg border bg-white p-5">
+        <h2 className="text-base font-semibold text-gray-950">Product Profitability</h2>
+        <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div><p className="text-gray-500">Retail Profit</p><p className="mt-1 font-semibold">{money(retailProfit)} ({retailProfitPercentage.toFixed(1)}%)</p></div>
+          <div><p className="text-gray-500">Layaway Profit</p><p className="mt-1 font-semibold">{money(layawayProfit)} ({layawayProfitPercentage.toFixed(1)}%)</p></div>
+          <div><p className="text-gray-500">Expected Retail Revenue</p><p className="mt-1 font-semibold">{money(expectedRetailRevenue)}</p></div>
+          <div><p className="text-gray-500">Expected Retail Profit</p><p className="mt-1 font-semibold">{money(expectedRetailProfit)}</p></div>
+          <div><p className="text-gray-500">Expected Layaway Revenue</p><p className="mt-1 font-semibold">{money(expectedLayawayRevenue)}</p></div>
+          <div><p className="text-gray-500">Expected Layaway Profit</p><p className="mt-1 font-semibold">{money(expectedLayawayProfit)}</p></div>
         </div>
       </section>
 

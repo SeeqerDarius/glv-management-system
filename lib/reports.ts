@@ -2,54 +2,54 @@ import { AccountStatus } from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
 
+export function getCurrentWeekRange(now = new Date()) {
+  const day = now.getDay();
+  const start = new Date(now);
+  start.setDate(now.getDate() + (day === 0 ? -6 : 1 - day));
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function getCurrentMonthRange(now = new Date()) {
+  return {
+    start: new Date(now.getFullYear(), now.getMonth(), 1),
+    end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
+  };
+}
+
+function accountCost(account: {
+  product: { costPrice: number; transportCost: number };
+}) {
+  return account.product.costPrice + account.product.transportCost;
+}
+
 export async function getAdminReportSummary() {
-  const [
-    totalCustomers,
-    totalStaff,
-    accounts,
-    paymentAggregate,
-    recentPayments,
-  ] = await prisma.$transaction([
-    prisma.customer.count(),
-    prisma.staff.count(),
-    prisma.customerAccount.findMany({
-      include: {
-        customer: {
-          include: {
-            staff: true,
-          },
+  const [totalCustomers, staff, accounts, paymentAggregate, salaryAggregate, recentPayments] =
+    await prisma.$transaction([
+      prisma.customer.count(),
+      prisma.staff.findMany({ select: { expectedSalary: true } }),
+      prisma.customerAccount.findMany({
+        include: {
+          customer: { include: { staff: true } },
+          product: true,
         },
-        product: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    }),
-    prisma.payment.aggregate({
-      _sum: {
-        amount: true,
-      },
-    }),
-    prisma.payment.findMany({
-      take: 8,
-      orderBy: {
-        paymentDate: "desc",
-      },
-      include: {
-        account: {
-          include: {
-            customer: true,
-            product: true,
-          },
-        },
-      },
-    }),
-  ]);
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.payment.aggregate({ _sum: { amount: true } }),
+      prisma.staffSalaryPayment.aggregate({ _sum: { amount: true } }),
+      prisma.payment.findMany({
+        take: 8,
+        orderBy: { paymentDate: "desc" },
+        include: { account: { include: { customer: true, product: true } } },
+      }),
+    ]);
 
   const statusCounts = accounts.reduce(
     (totals, account) => {
-      const status = getEffectiveAccountStatus(account);
-      totals[status] += 1;
+      totals[getEffectiveAccountStatus(account)] += 1;
       return totals;
     },
     {
@@ -60,143 +60,111 @@ export async function getAdminReportSummary() {
       [AccountStatus.SUSPENDED]: 0,
     }
   );
-
-  const expectedReceivables = accounts.reduce((total, account) => {
-    const status = getEffectiveAccountStatus(account);
-
-    if (
-      status === AccountStatus.ACTIVE ||
-      status === AccountStatus.OVERDUE
-    ) {
-      return total + account.balance;
-    }
-
-    return total;
-  }, 0);
-
-  const profitEstimate = accounts.reduce((total, account) => {
-    if (account.status === AccountStatus.CANCELLED) return total;
-
-    return total + (account.targetAmount - account.product.costPrice);
-  }, 0);
-
-  const totalTargetAmount = accounts.reduce(
-    (total, account) => total + account.targetAmount,
+  const includedAccounts = accounts.filter(
+    (account) => account.status !== AccountStatus.CANCELLED
+  );
+  const expectedReceivables = accounts
+    .filter((account) => {
+      const status = getEffectiveAccountStatus(account);
+      return status === AccountStatus.ACTIVE || status === AccountStatus.OVERDUE;
+    })
+    .reduce((total, account) => total + account.balance, 0);
+  const totalCollected = paymentAggregate._sum.amount ?? 0;
+  const totalProductCost = includedAccounts.reduce(
+    (total, account) => total + accountCost(account),
     0
   );
-
-  const totalOutstandingBalance = accounts.reduce(
-    (total, account) => total + account.balance,
+  const totalExpectedProfit = includedAccounts.reduce(
+    (total, account) => total + account.targetAmount - accountCost(account),
     0
   );
+  const totalSalaryPaid = salaryAggregate._sum.amount ?? 0;
+  const totalExpectedSalary = staff.reduce(
+    (total, member) => total + member.expectedSalary,
+    0
+  );
+  const netProfitSoFar = totalCollected - totalProductCost - totalSalaryPaid;
+  const projectedNetProfit = totalExpectedProfit - totalExpectedSalary;
 
   return {
     totalCustomers,
-    totalStaff,
+    totalStaff: staff.length,
     totalAccounts: accounts.length,
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
     overdueAccounts: statusCounts.OVERDUE,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
-    totalPaymentsCollected: paymentAggregate._sum.amount ?? 0,
+    totalPaymentsCollected: totalCollected,
     expectedReceivables,
-    profitEstimate,
-    totalTargetAmount,
-    totalOutstandingBalance,
+    totalOutstandingBalance: accounts.reduce(
+      (total, account) => total + account.balance,
+      0
+    ),
+    totalProductCost,
+    totalExpectedProfit,
+    totalSalaryPaid,
+    totalExpectedSalary,
+    netProfitSoFar,
+    projectedNetProfit,
+    gainLossStatus:
+      projectedNetProfit > 0
+        ? "Projected Profit"
+        : projectedNetProfit < 0
+          ? "Projected Loss"
+          : "Break Even",
+    currentPositionStatus:
+      netProfitSoFar < 0 ? "Currently Negative / Recovering Capital" : "Currently Positive",
+    profitEstimate: totalExpectedProfit,
     recentAccounts: accounts.slice(0, 8),
     recentPayments,
   };
 }
 
-function getCurrentWeekRange() {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const start = new Date(now);
-  start.setDate(now.getDate() + diffToMonday);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-
-  return {
-    start,
-    end,
-  };
-}
-
-export async function getWeeklyStaffPerformanceReport() {
-  const { start, end } = getCurrentWeekRange();
-  const [staff, customers, accounts, payments] = await prisma.$transaction([
-    prisma.staff.findMany({
-      orderBy: {
-        code: "asc",
-      },
-    }),
-    prisma.customer.findMany({
-      where: {
-        createdAt: {
-          gte: start,
-          lte: end,
+export async function getWeeklyStaffPerformanceReport(now = new Date()) {
+  const { start, end } = getCurrentWeekRange(now);
+  const month = getCurrentMonthRange(now);
+  const [staff, customers, accounts, payments, salaryPayments, products, users] =
+    await prisma.$transaction([
+      prisma.staff.findMany({ orderBy: { code: "asc" } }),
+      prisma.customer.findMany({ select: { staffId: true, createdAt: true } }),
+      prisma.customerAccount.findMany({
+        include: {
+          customer: { select: { staffId: true } },
+          product: true,
         },
-      },
-      select: {
-        staffId: true,
-      },
-    }),
-    prisma.customerAccount.findMany({
-      include: {
-        customer: {
-          select: {
-            staffId: true,
-          },
+      }),
+      prisma.payment.findMany({
+        include: {
+          account: { include: { customer: { select: { staffId: true } } } },
         },
-      },
-    }),
-    prisma.payment.findMany({
-      where: {
-        paymentDate: {
-          gte: start,
-          lte: end,
-        },
-      },
-      include: {
-        account: {
-          include: {
-            customer: {
-              select: {
-                staffId: true,
-              },
-            },
-          },
-        },
-      },
-    }),
-  ]);
+      }),
+      prisma.staffSalaryPayment.findMany({
+        orderBy: { paymentDate: "desc" },
+        include: { staff: true },
+      }),
+      prisma.product.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
+      prisma.user.findMany({ select: { id: true, name: true } }),
+    ]);
 
   const rows = staff.map((member) => {
-    const staffCustomersAdded = customers.filter(
-      (customer) => customer.staffId === member.id
-    ).length;
-    const staffAccounts = accounts.filter(
+    const memberAccounts = accounts.filter(
       (account) => account.customer.staffId === member.id
     );
-    const accountsOpened = staffAccounts.filter(
-      (account) => account.createdAt >= start && account.createdAt <= end
-    ).length;
-    const totalCollected = payments
-      .filter((payment) => payment.account.customer.staffId === member.id)
+    const memberPayments = payments.filter(
+      (payment) => payment.account.customer.staffId === member.id
+    );
+    const salaryPaid = salaryPayments
+      .filter((payment) => payment.staffId === member.id)
       .reduce((total, payment) => total + payment.amount, 0);
-    const completedAccounts = staffAccounts.filter(
-      (account) => account.status === AccountStatus.COMPLETED
-    ).length;
-    const overdueAccounts = staffAccounts.filter(
-      (account) => getEffectiveAccountStatus(account) === AccountStatus.OVERDUE
-    ).length;
-    const outstandingBalance = staffAccounts.reduce(
-      (total, account) => total + account.balance,
+    const expectedProfit = memberAccounts
+      .filter((account) => account.status !== AccountStatus.CANCELLED)
+      .reduce(
+        (total, account) => total + account.targetAmount - accountCost(account),
+        0
+      );
+    const totalCollected = memberPayments.reduce(
+      (total, payment) => total + payment.amount,
       0
     );
 
@@ -204,33 +172,140 @@ export async function getWeeklyStaffPerformanceReport() {
       staffId: member.id,
       staffCode: member.code,
       staffName: member.fullName,
-      customersAdded: staffCustomersAdded,
-      accountsOpened,
+      assignedCustomers: customers.filter(
+        (customer) => customer.staffId === member.id
+      ).length,
+      customersAdded: customers.filter(
+        (customer) =>
+          customer.staffId === member.id &&
+          customer.createdAt >= start &&
+          customer.createdAt <= end
+      ).length,
+      activeAccounts: memberAccounts.filter(
+        (account) => getEffectiveAccountStatus(account) === AccountStatus.ACTIVE
+      ).length,
+      completedAccounts: memberAccounts.filter(
+        (account) => account.status === AccountStatus.COMPLETED
+      ).length,
+      accountsOpened: memberAccounts.filter(
+        (account) => account.createdAt >= start && account.createdAt <= end
+      ).length,
+      totalContractValue: memberAccounts.reduce(
+        (total, account) => total + account.targetAmount,
+        0
+      ),
       totalCollected,
-      completedAccounts,
-      overdueAccounts,
-      outstandingBalance,
+      outstandingBalance: memberAccounts.reduce(
+        (total, account) => total + account.balance,
+        0
+      ),
+      weeklyCollection: memberPayments
+        .filter(
+          (payment) => payment.paymentDate >= start && payment.paymentDate <= end
+        )
+        .reduce((total, payment) => total + payment.amount, 0),
+      monthlyCollection: memberPayments
+        .filter(
+          (payment) =>
+            payment.paymentDate >= month.start && payment.paymentDate <= month.end
+        )
+        .reduce((total, payment) => total + payment.amount, 0),
+      expectedTotalCollection: memberAccounts.reduce(
+        (total, account) => total + account.targetAmount,
+        0
+      ),
+      salaryPaid,
+      expectedSalary: member.expectedSalary,
+      salaryBalance: Math.max(member.expectedSalary - salaryPaid, 0),
+      netPosition: totalCollected - salaryPaid,
+      expectedProfit,
+      projectedProfitAfterSalary: expectedProfit - member.expectedSalary,
+      overdueAccounts: memberAccounts.filter(
+        (account) => getEffectiveAccountStatus(account) === AccountStatus.OVERDUE
+      ).length,
     };
   });
 
-  rows.sort((a, b) => {
-    if (b.totalCollected !== a.totalCollected) {
-      return b.totalCollected - a.totalCollected;
-    }
+  rows.sort(
+    (a, b) =>
+      b.weeklyCollection - a.weeklyCollection ||
+      b.totalCollected - a.totalCollected ||
+      b.accountsOpened - a.accountsOpened
+  );
 
-    if (b.accountsOpened !== a.accountsOpened) {
-      return b.accountsOpened - a.accountsOpened;
-    }
-
-    return b.customersAdded - a.customersAdded;
-  });
+  const totalCollected = payments.reduce((total, payment) => total + payment.amount, 0);
+  const totalSalaryPaid = salaryPayments.reduce(
+    (total, payment) => total + payment.amount,
+    0
+  );
+  const totalExpectedSalary = staff.reduce(
+    (total, member) => total + member.expectedSalary,
+    0
+  );
+  const includedAccounts = accounts.filter(
+    (account) => account.status !== AccountStatus.CANCELLED
+  );
+  const totalProductCost = includedAccounts.reduce(
+    (total, account) => total + accountCost(account),
+    0
+  );
+  const totalExpectedProfit = includedAccounts.reduce(
+    (total, account) => total + account.targetAmount - accountCost(account),
+    0
+  );
+  const projectedNetProfit = totalExpectedProfit - totalExpectedSalary;
+  const userNames = new Map(users.map((user) => [user.id, user.name]));
 
   return {
     start,
     end,
-    rows: rows.map((row, index) => ({
-      ...row,
-      rank: index + 1,
+    rows: rows.map((row, index) => ({ ...row, rank: index + 1 })),
+    products: products.map((product) => {
+      const retailProfit = product.cashPrice - product.costPrice;
+      const layawayProfit =
+        product.layawayPrice - product.costPrice - product.transportCost;
+      return {
+        ...product,
+        retailProfit,
+        retailProfitPercentage:
+          product.costPrice > 0 ? (retailProfit / product.costPrice) * 100 : 0,
+        layawayProfit,
+        layawayProfitPercentage:
+          product.costPrice > 0 ? (layawayProfit / product.costPrice) * 100 : 0,
+        expectedRetailRevenue: product.cashPrice * product.quantityOnSale,
+        expectedRetailProfit: retailProfit * product.quantityOnSale,
+        expectedLayawayRevenue: product.layawayPrice * product.quantityOnSale,
+        expectedLayawayProfit: layawayProfit * product.quantityOnSale,
+      };
+    }),
+    salaryPayments: salaryPayments.map((payment) => ({
+      ...payment,
+      paidByName: userNames.get(payment.paidBy) ?? "System User",
     })),
+    summary: {
+      totalExpectedReceivables: accounts
+        .filter((account) => {
+          const status = getEffectiveAccountStatus(account);
+          return status === AccountStatus.ACTIVE || status === AccountStatus.OVERDUE;
+        })
+        .reduce((total, account) => total + account.balance, 0),
+      totalCollected,
+      totalOutstandingBalance: accounts.reduce(
+        (total, account) => total + account.balance,
+        0
+      ),
+      totalProductCost,
+      totalExpectedProfit,
+      totalSalaryPaid,
+      totalExpectedSalary,
+      netProfitSoFar: totalCollected - totalProductCost - totalSalaryPaid,
+      projectedNetProfit,
+      gainLossStatus:
+        projectedNetProfit > 0
+          ? "Projected Profit"
+          : projectedNetProfit < 0
+            ? "Projected Loss"
+            : "Break Even",
+    },
   };
 }

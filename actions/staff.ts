@@ -1,14 +1,15 @@
 "use server";
 
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+import { parsePermissions } from "@/lib/permissions";
 
 export type StaffFormState = {
   errors?: {
@@ -32,15 +33,38 @@ const codeOverrides: Record<string, string> = {
   victoria: "VIC",
 };
 
-async function requireAdmin() {
+async function requireStaffManager() {
   const session = await auth();
 
-  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
+  if (
+    !session?.user?.id ||
+    !session.user.role ||
+    !hasPermission(
+      session.user.role,
+      session.user.permissions,
+      UserPermission.MANAGE_STAFF
+    )
+  ) {
     throw new Error("Unauthorized");
   }
 
   return {
     id: session.user.id,
+    role: session.user.role,
+    permissions: session.user.permissions ?? [],
+  };
+}
+
+async function requireAdmin() {
+  const session = await auth();
+
+  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  return {
+    id: session.user.id,
+    role: session.user.role,
   };
 }
 
@@ -119,7 +143,7 @@ export async function createStaff(
   _state: StaffFormState,
   formData: FormData
 ): Promise<StaffFormState> {
-  const user = await requireAdmin();
+  const user = await requireStaffManager();
 
   const fullName = cleanInput(formData.get("fullName"));
   const email = cleanInput(formData.get("email")).toLowerCase();
@@ -244,7 +268,7 @@ export async function createStaff(
 }
 
 export async function updateStaff(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireStaffManager();
 
   const id = cleanInput(formData.get("id"));
   const fullName = cleanInput(formData.get("fullName"));
@@ -258,29 +282,82 @@ export async function updateStaff(formData: FormData): Promise<void> {
     where: {
       id,
     },
-  });
-
-  const staff = await prisma.staff.update({
-    where: {
-      id,
-    },
-    data: {
-      fullName,
-      email,
-      code,
-      phone: phone || null,
-      active,
+    include: {
+      user: true,
     },
   });
 
-  await prisma.user.updateMany({
-    where: {
-      staffId: staff.id,
-    },
-    data: {
-      name: staff.fullName,
-      email: staff.email,
-    },
+  if (!existingStaff) {
+    redirect("/staff?error=staff-not-found");
+  }
+
+  const submittedExpectedSalary = Number(cleanInput(formData.get("expectedSalary")));
+  const expectedSalary = isAdminRole(user.role)
+    ? Number.isFinite(submittedExpectedSalary) && submittedExpectedSalary >= 0
+      ? submittedExpectedSalary
+      : existingStaff.expectedSalary
+    : existingStaff.expectedSalary;
+
+  const canGrantPrivileges = isSuperAdminRole(user.role);
+  const requestedPermissions = canGrantPrivileges
+    ? parsePermissions(formData.getAll("permissions"))
+    : existingStaff.user?.permissions ?? [];
+
+  const staff = await prisma.$transaction(async (tx) => {
+    const updatedStaff = await tx.staff.update({
+      where: {
+        id,
+      },
+      data: {
+        fullName,
+        email,
+        code,
+        phone: phone || null,
+        active,
+        expectedSalary,
+      },
+    });
+
+    if (existingStaff.user) {
+      await tx.user.update({
+        where: {
+          id: existingStaff.user.id,
+        },
+        data: {
+          name: updatedStaff.fullName,
+          email: updatedStaff.email,
+          ...(canGrantPrivileges
+            ? {
+                permissions: requestedPermissions,
+              }
+            : {}),
+        },
+      });
+
+      if (
+        canGrantPrivileges &&
+        JSON.stringify(existingStaff.user.permissions) !==
+          JSON.stringify(requestedPermissions)
+      ) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE_USER_PRIVILEGES",
+            entity: "User",
+            entityId: existingStaff.user.id,
+            oldValue: JSON.stringify({
+              permissions: existingStaff.user.permissions,
+            }),
+            newValue: JSON.stringify({
+              permissions: requestedPermissions,
+              staffId: updatedStaff.id,
+            }),
+          },
+        });
+      }
+    }
+
+    return updatedStaff;
   });
 
   await logStaffAudit({
@@ -296,7 +373,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
 }
 
 export async function deactivateStaff(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireStaffManager();
 
   const id = cleanInput(formData.get("id"));
   const existingStaff = await prisma.staff.findUnique({
@@ -329,12 +406,6 @@ export async function deleteStaff(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const id = cleanInput(formData.get("id"));
 
-  await verifyAdminDeleteConfirmation({
-    formData,
-    adminUserId: user.id,
-    redirectPath: "/staff",
-  });
-
   const staff = await prisma.staff.findUnique({
     where: {
       id,
@@ -352,6 +423,13 @@ export async function deleteStaff(formData: FormData): Promise<void> {
   if (!staff) {
     redirect("/staff?error=staff-not-found");
   }
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/staff",
+    requiresStrongConfirmation: staff._count.customers > 0,
+  });
 
   if (staff._count.customers > 0) {
     redirect("/staff?error=staff-has-history");

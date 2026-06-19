@@ -14,13 +14,15 @@ async function main() {
       email: "admin@glv.com",
     },
 
-    update: {},
+    update: {
+      role: UserRole.SUPER_ADMIN,
+    },
 
     create: {
       name: "Andy",
       email: "admin@glv.com",
       password: adminPassword,
-      role: UserRole.ADMIN,
+      role: UserRole.SUPER_ADMIN,
       mustChangePassword: false,
     },
   });

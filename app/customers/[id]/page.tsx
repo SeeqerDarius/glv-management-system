@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/roles";
 
 type CustomerProfilePageProps = {
   params: Promise<{
@@ -19,11 +20,12 @@ export default async function CustomerProfilePage({
   const { id } = await params;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_CUSTOMERS);
 
   const customer = await prisma.customer.findFirst({
     where: {
       id,
-      ...(isStaff && session.user.staffId
+      ...(isStaff && !canManageAll && session.user.staffId
         ? {
             staffId: session.user.staffId,
           }

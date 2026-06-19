@@ -1,16 +1,18 @@
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { AccountForm } from "@/components/account-form";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/roles";
 
 export default async function NewAccountPage() {
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
 
   const [customers, products] = await Promise.all([
     prisma.customer.findMany({
       where:
-        isStaff && session.user.staffId
+        isStaff && !canManageAll && session.user.staffId
           ? {
               staffId: session.user.staffId,
             }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { deleteAccount } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type AccountDetailsPageProps = {
   params: Promise<{
@@ -35,11 +35,12 @@ export default async function AccountDetailsPage({
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
 
   const account = await prisma.customerAccount.findFirst({
     where: {
       id,
-      ...(isStaff && session.user.staffId
+      ...(isStaff && !canManageAll && session.user.staffId
         ? {
             customer: {
               staffId: session.user.staffId,
@@ -97,6 +98,7 @@ export default async function AccountDetailsPage({
               action={deleteAccount}
               id={account.id}
               title={`Delete ${account.product.name} account?`}
+              hasLinkedHistory={account.payments.length > 0}
               description="This permanently deletes the account and every related payment record. This cannot be undone."
             >
               Delete

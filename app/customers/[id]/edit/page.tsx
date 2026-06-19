@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { updateCustomer } from "@/actions/customers";
+import { UserPermission } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type EditCustomerPageProps = {
   params: Promise<{
@@ -21,12 +23,13 @@ export default async function EditCustomerPage({
   const { error } = await searchParams;
   const session = await auth();
   const isAdmin = isAdminRole(session?.user?.role);
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_CUSTOMERS);
 
   const [customer, staff] = await Promise.all([
     prisma.customer.findFirst({
       where: {
         id,
-        ...(!isAdmin && session?.user?.staffId
+        ...(!canManageAll && session?.user?.staffId
           ? {
               staffId: session.user.staffId,
             }
@@ -131,10 +134,9 @@ export default async function EditCustomerPage({
               <span className="text-sm font-medium text-gray-700">
                 Admin Password
               </span>
-              <input
+              <PasswordInput
                 name="adminPassword"
-                type="password"
-                className="w-full rounded border p-3"
+                className="rounded border p-3"
                 autoComplete="current-password"
               />
               <span className="text-xs text-amber-900">

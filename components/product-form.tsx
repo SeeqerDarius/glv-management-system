@@ -2,9 +2,11 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
+import { GlvLoading } from "@/components/glv-loading";
 
 const categories = [
   "Refrigerators",
@@ -44,6 +46,14 @@ export function ProductForm({
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
+      {state.duplicateWarning ? <input type="hidden" name="confirmDuplicate" value="true" /> : null}
+
+      {state.duplicateWarning ? (
+        <div className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          <AlertTriangle className="mt-0.5 size-5 shrink-0" />
+          <div><p className="font-semibold">Possible duplicate found</p><p className="mt-1">{state.duplicateWarning}</p></div>
+        </div>
+      ) : null}
 
       {state.errors?.form ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -63,6 +73,16 @@ export function ProductForm({
       </label>
 
       <label className="block space-y-1">
+        <span className="text-sm font-medium text-gray-700">Description</span>
+        <textarea
+          name="description"
+          defaultValue={product?.description ?? ""}
+          className="min-h-24 w-full rounded border p-3"
+          placeholder="Product specification or procurement notes"
+        />
+      </label>
+
+      <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">Category</span>
         <select
           name="category"
@@ -79,6 +99,35 @@ export function ProductForm({
         </select>
         <FieldError message={state.errors?.category} />
       </label>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Transport Cost</span>
+          <input
+            name="transportCost"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={product?.transportCost ?? 0}
+            className="w-full rounded border p-3"
+            required
+          />
+          <FieldError message={state.errors?.transportCost} />
+        </label>
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Quantity On Sale</span>
+          <input
+            name="quantityOnSale"
+            type="number"
+            min="0"
+            step="1"
+            defaultValue={product?.quantityOnSale ?? 0}
+            className="w-full rounded border p-3"
+            required
+          />
+          <FieldError message={state.errors?.quantityOnSale} />
+        </label>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block space-y-1">
@@ -168,7 +217,7 @@ export function ProductForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? "Saving..." : submitLabel}
+          {pending ? <GlvLoading compact label="Saving" /> : state.duplicateWarning ? "Add Anyway" : submitLabel}
         </Button>
         <Button asChild type="button" variant="outline">
           <Link href="/products">Cancel</Link>

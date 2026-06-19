@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 
 type ConfirmDeleteFormProps = {
   action: (formData: FormData) => void | Promise<void>;
@@ -9,6 +10,7 @@ type ConfirmDeleteFormProps = {
   children: ReactNode;
   title: string;
   description?: string;
+  hasLinkedHistory?: boolean;
   requireAdminPassword?: boolean;
   buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   buttonSize?:
@@ -27,14 +29,20 @@ export function ConfirmDeleteForm({
   id,
   children,
   title,
-  description = "This action may remove important business records. Are you sure you want to continue?",
+  description,
+  hasLinkedHistory = true,
   requireAdminPassword = true,
   buttonVariant = "destructive",
   buttonSize = "sm",
 }: ConfirmDeleteFormProps) {
   const [open, setOpen] = useState(false);
   const [confirmationText, setConfirmationText] = useState("");
-  const canSubmit = confirmationText === "DELETE";
+  const canSubmit = !hasLinkedHistory || confirmationText === "DELETE";
+  const warning =
+    description ??
+    (hasLinkedHistory
+      ? "This action may remove linked business records and cannot be undone."
+      : "This record has no linked history. Are you sure you want to delete it?");
 
   return (
     <>
@@ -51,31 +59,36 @@ export function ConfirmDeleteForm({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-lg border bg-white p-5 shadow-xl">
             <h2 className="text-lg font-semibold text-gray-950">{title}</h2>
-            <p className="mt-2 text-sm text-red-700">{description}</p>
-            <p className="mt-3 text-sm text-gray-700">
-              Type <span className="font-semibold">DELETE</span> to continue.
-            </p>
+            <p className="mt-2 text-sm text-red-700">{warning}</p>
+            {hasLinkedHistory ? (
+              <p className="mt-3 text-sm text-gray-700">
+                Type <span className="font-semibold">DELETE</span> to continue.
+              </p>
+            ) : null}
 
             <form action={action} className="mt-4 space-y-4">
               <input type="hidden" name="id" value={id} />
-              <input
-                name="confirmationText"
-                value={confirmationText}
-                onChange={(event) => setConfirmationText(event.target.value)}
-                className="w-full rounded border p-3"
-                autoComplete="off"
-                placeholder="DELETE"
-              />
+              {hasLinkedHistory ? (
+                <input
+                  name="confirmationText"
+                  value={confirmationText}
+                  onChange={(event) => setConfirmationText(event.target.value)}
+                  className="w-full rounded border p-3"
+                  autoComplete="off"
+                  placeholder="DELETE"
+                />
+              ) : (
+                <input type="hidden" name="confirmationText" value="CONFIRM" />
+              )}
 
-              {requireAdminPassword ? (
+              {hasLinkedHistory && requireAdminPassword ? (
                 <label className="block space-y-1">
                   <span className="text-sm font-medium text-gray-700">
                     Admin password
                   </span>
-                  <input
+                  <PasswordInput
                     name="adminPassword"
-                    type="password"
-                    className="w-full rounded border p-3"
+                    className="rounded border p-3"
                     autoComplete="current-password"
                     required
                   />

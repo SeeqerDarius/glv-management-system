@@ -1,11 +1,11 @@
 "use server";
 
-import { AccountStatus, UserRole } from "@prisma/client";
+import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 export type AccountFormState = {
@@ -27,6 +27,7 @@ async function requireUser() {
   return {
     id: session.user.id,
     role: session.user.role,
+    permissions: session.user.permissions ?? [],
     staffId: session.user.staffId,
   };
 }
@@ -136,7 +137,7 @@ export async function createAccount(
       };
     }
 
-    if (user.role === UserRole.STAFF && customer.staffId !== user.staffId) {
+    if (user.role === UserRole.STAFF && customer.staffId !== user.staffId && !hasPermission(user.role, user.permissions, UserPermission.MANAGE_ACCOUNTS)) {
       return {
         errors: {
           customerId: "This customer is not assigned to your staff profile.",
@@ -209,12 +210,6 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const id = cleanInput(formData.get("id"));
 
-  await verifyAdminDeleteConfirmation({
-    formData,
-    adminUserId: user.id,
-    redirectPath: `/accounts/${id}`,
-  });
-
   const account = await prisma.customerAccount.findUnique({
     where: {
       id,
@@ -233,6 +228,13 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   if (!account) {
     redirect("/accounts?error=account-not-found");
   }
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: `/accounts/${id}`,
+    requiresStrongConfirmation: account.payments.length > 0,
+  });
 
   try {
     await prisma.$transaction(async (tx) => {

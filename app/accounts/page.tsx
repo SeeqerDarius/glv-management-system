@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { AccountStatus, Prisma, UserRole } from "@prisma/client";
+import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
+import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
+import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type AccountsPageProps = {
   searchParams: Promise<{
@@ -16,6 +19,7 @@ type AccountsPageProps = {
     page?: string;
     error?: string;
     deleted?: string;
+    delegated?: string;
   }>;
 };
 
@@ -39,6 +43,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const params = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const isAdmin = isAdminRole(session?.user?.role);
+  const canManageAll = hasPermission(
+    session?.user?.role,
+    session?.user?.permissions,
+    UserPermission.MANAGE_ACCOUNTS
+  );
   const query = params.q?.trim() ?? "";
   const selectedStatus = params.status || AccountStatus.ACTIVE;
   const selectedStaffId = params.staffId || "";
@@ -51,7 +61,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
   const filters: Prisma.CustomerAccountWhereInput[] = [];
 
-  if (isStaff && session.user.staffId) {
+  if (isStaff && !canManageAll && session.user.staffId) {
     filters.push({
       customer: {
         staffId: session.user.staffId,
@@ -155,7 +165,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       },
     }),
     prisma.customerAccount.count({ where }),
-    isStaff
+    !isAdmin
       ? Promise.resolve([])
       : prisma.staff.findMany({
           orderBy: {
@@ -245,10 +255,26 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </div>
       ) : null}
 
+      {params.delegated ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Reassigned the customer ownership for {params.delegated} selected account record(s).
+        </div>
+      ) : null}
+
+      {isAdmin ? (
+        <BulkReassignmentForm
+          action={bulkReassignCustomers}
+          staff={staff}
+          formId="bulk-account-reassignment"
+          returnTo="/accounts"
+        />
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
+              {isAdmin ? <th className="p-3 font-medium">Select</th> : null}
               <th className="p-3 font-medium">Customer</th>
               <th className="p-3 font-medium">Staff</th>
               <th className="p-3 font-medium">Product</th>
@@ -269,6 +295,18 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
               return (
                 <tr key={account.id} className="border-t">
+                  {isAdmin ? (
+                    <td className="p-3">
+                      <input
+                        form="bulk-account-reassignment"
+                        type="checkbox"
+                        name="customerIds"
+                        value={account.customer.id}
+                        className="size-4"
+                        aria-label={`Select ${account.customer.fullName} ${account.product.name}`}
+                      />
+                    </td>
+                  ) : null}
                   <td className="p-3">
                     <div className="font-medium text-gray-950">
                       {account.customer.fullName}

@@ -1,10 +1,11 @@
 "use server";
 
+import { UserPermission } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 
 export type ProductFormState = {
@@ -16,24 +17,50 @@ export type ProductFormState = {
     layawayPrice?: string;
     dailyAmount?: string;
     duration?: string;
+    transportCost?: string;
+    quantityOnSale?: string;
     form?: string;
   };
+  duplicateWarning?: string;
 };
 
 type ProductInput = {
   name: string;
   category: string;
+  description: string | null;
   costPrice: number;
   cashPrice: number;
   layawayPrice: number;
   dailyAmount: number;
   duration: number;
+  transportCost: number;
+  quantityOnSale: number;
 };
+
+async function requireProductManager() {
+  const session = await auth();
+
+  if (
+    !session?.user?.id ||
+    !session.user.role ||
+    !hasPermission(
+      session.user.role,
+      session.user.permissions,
+      UserPermission.MANAGE_PRODUCTS
+    )
+  ) {
+    throw new Error("Unauthorized");
+  }
+
+  return {
+    id: session.user.id,
+  };
+}
 
 async function requireAdmin() {
   const session = await auth();
 
-  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
+  if (!session?.user?.id || !isAdminRole(session.user.role)) {
     throw new Error("Unauthorized");
   }
 
@@ -57,11 +84,14 @@ function validateProduct(formData: FormData): {
 } {
   const name = cleanInput(formData.get("name"));
   const category = cleanInput(formData.get("category"));
+  const description = cleanInput(formData.get("description"));
   const costPrice = parseNumber(formData, "costPrice");
   const cashPrice = parseNumber(formData, "cashPrice");
   const layawayPrice = parseNumber(formData, "layawayPrice");
   const dailyAmount = parseNumber(formData, "dailyAmount");
   const duration = Number(cleanInput(formData.get("duration")));
+  const transportCost = parseNumber(formData, "transportCost");
+  const quantityOnSale = Number(cleanInput(formData.get("quantityOnSale")));
   const errors: ProductFormState["errors"] = {};
 
   if (!name) errors.name = "Product name is required.";
@@ -80,6 +110,12 @@ function validateProduct(formData: FormData): {
   }
   if (!Number.isInteger(duration) || duration <= 0) {
     errors.duration = "Duration must be a positive whole number.";
+  }
+  if (!Number.isFinite(transportCost) || transportCost < 0) {
+    errors.transportCost = "Transport cost cannot be negative.";
+  }
+  if (!Number.isInteger(quantityOnSale) || quantityOnSale < 0) {
+    errors.quantityOnSale = "Quantity must be a whole number of zero or more.";
   }
   if (
     Number.isFinite(costPrice) &&
@@ -104,11 +140,14 @@ function validateProduct(formData: FormData): {
     data: {
       name,
       category,
+      description: description || null,
       costPrice,
       cashPrice,
       layawayPrice,
       dailyAmount,
       duration,
+      transportCost,
+      quantityOnSale,
     },
   };
 }
@@ -131,6 +170,19 @@ async function findDuplicateName(name: string, currentProductId?: string) {
     select: {
       id: true,
     },
+  });
+}
+
+async function findSimilarProduct(name: string, category: string) {
+  const categoryProducts = await prisma.product.findMany({
+    where: { category: { equals: category, mode: "insensitive" } },
+    select: { name: true, category: true },
+  });
+  const normalizedName = name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  return categoryProducts.find((product) => {
+    const existing = product.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    return existing === normalizedName || existing.includes(normalizedName) || normalizedName.includes(existing);
   });
 }
 
@@ -163,20 +215,18 @@ export async function createProduct(
   _state: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const user = await requireAdmin();
+  const user = await requireProductManager();
   const validated = validateProduct(formData);
 
   if (validated.errors || !validated.data) {
     return { errors: validated.errors };
   }
 
-  const duplicate = await findDuplicateName(validated.data.name);
+  const duplicate = await findSimilarProduct(validated.data.name, validated.data.category);
 
-  if (duplicate) {
+  if (duplicate && formData.get("confirmDuplicate") !== "true") {
     return {
-      errors: {
-        name: "A product with this name already exists.",
-      },
+      duplicateWarning: `${duplicate.name} already exists in ${duplicate.category}. Do you still want to add this product?`,
     };
   }
 
@@ -202,7 +252,7 @@ export async function updateProduct(
   _state: ProductFormState,
   formData: FormData
 ): Promise<ProductFormState> {
-  const user = await requireAdmin();
+  const user = await requireProductManager();
   const id = cleanInput(formData.get("id"));
   const validated = validateProduct(formData);
 
@@ -260,13 +310,49 @@ export async function updateProduct(
     newValue: updatedProduct,
   });
 
+  await logProductAudit({
+    userId: user.id,
+    action: "UPDATE_PRODUCT_COSTING",
+    productId: updatedProduct.id,
+    oldValue: {
+      costPrice: existingProduct.costPrice,
+      transportCost: existingProduct.transportCost,
+      quantityOnSale: existingProduct.quantityOnSale,
+      description: existingProduct.description,
+    },
+    newValue: {
+      costPrice: updatedProduct.costPrice,
+      transportCost: updatedProduct.transportCost,
+      quantityOnSale: updatedProduct.quantityOnSale,
+      description: updatedProduct.description,
+    },
+  });
+
+  await logProductAudit({
+    userId: user.id,
+    action: "UPDATE_PRODUCT_PRICE",
+    productId: updatedProduct.id,
+    oldValue: {
+      cashPrice: existingProduct.cashPrice,
+      layawayPrice: existingProduct.layawayPrice,
+      dailyAmount: existingProduct.dailyAmount,
+      duration: existingProduct.duration,
+    },
+    newValue: {
+      cashPrice: updatedProduct.cashPrice,
+      layawayPrice: updatedProduct.layawayPrice,
+      dailyAmount: updatedProduct.dailyAmount,
+      duration: updatedProduct.duration,
+    },
+  });
+
   revalidatePath("/products");
   revalidatePath(`/products/${id}`);
   redirect(`/products/${id}`);
 }
 
 export async function deactivateProduct(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireProductManager();
   const id = cleanInput(formData.get("id"));
   const existingProduct = await prisma.product.findUnique({
     where: {
@@ -303,12 +389,6 @@ export async function deleteProduct(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const id = cleanInput(formData.get("id"));
 
-  await verifyAdminDeleteConfirmation({
-    formData,
-    adminUserId: user.id,
-    redirectPath: "/products",
-  });
-
   const product = await prisma.product.findUnique({
     where: {
       id,
@@ -329,6 +409,13 @@ export async function deleteProduct(formData: FormData): Promise<void> {
   if (!product) {
     redirect("/products?error=product-not-found");
   }
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/products",
+    requiresStrongConfirmation: product.accounts.length > 0,
+  });
 
   try {
     await prisma.$transaction(async (tx) => {

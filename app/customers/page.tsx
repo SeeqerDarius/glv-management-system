@@ -1,23 +1,31 @@
 import Link from "next/link";
-import { UserRole } from "@prisma/client";
-import { deleteCustomer } from "@/actions/customers";
+import { UserPermission, UserRole } from "@prisma/client";
+import { bulkReassignCustomers, deleteCustomer } from "@/actions/customers";
+import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type CustomersPageProps = {
   searchParams: Promise<Record<string, string | undefined>>;
 };
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-  const { error, deleted } = await searchParams;
+  const { error, deleted, delegated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const isAdmin = isAdminRole(session?.user?.role);
+  const canManageAll = hasPermission(
+    session?.user?.role,
+    session?.user?.permissions,
+    UserPermission.MANAGE_CUSTOMERS
+  );
 
-  const customers = await prisma.customer.findMany({
+  const [customers, staff] = await Promise.all([prisma.customer.findMany({
     where:
-      isStaff && session.user.staffId
+      isStaff && !canManageAll && session.user.staffId
         ? {
             staffId: session.user.staffId,
           }
@@ -34,7 +42,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         },
       },
     },
-  });
+  }), isAdmin ? prisma.staff.findMany({
+    where: { active: true },
+    orderBy: { fullName: "asc" },
+  }) : Promise.resolve([])]);
 
   return (
     <div className="space-y-6">
@@ -75,10 +86,26 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         </div>
       ) : null}
 
+      {delegated ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Reassigned {delegated} selected customer record(s).
+        </div>
+      ) : null}
+
+      {isAdmin ? (
+        <BulkReassignmentForm
+          action={bulkReassignCustomers}
+          staff={staff}
+          formId="bulk-customer-reassignment"
+          returnTo="/customers"
+        />
+      ) : null}
+
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
+              {isAdmin ? <th className="p-3 font-medium">Select</th> : null}
               <th className="p-3 font-medium">Customer ID</th>
               <th className="p-3 font-medium">Name</th>
               <th className="p-3 font-medium">Phone</th>
@@ -90,6 +117,18 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           <tbody>
             {customers.map((customer) => (
               <tr key={customer.id} className="border-t">
+                {isAdmin ? (
+                  <td className="p-3">
+                    <input
+                      form="bulk-customer-reassignment"
+                      type="checkbox"
+                      name="customerIds"
+                      value={customer.id}
+                      className="size-4"
+                      aria-label={`Select ${customer.fullName}`}
+                    />
+                  </td>
+                ) : null}
                 <td className="p-3 font-semibold text-gray-950">
                   {customer.customerId}
                 </td>
@@ -104,12 +143,13 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                     <Button asChild variant="outline" size="sm">
                       <Link href={`/customers/${customer.id}`}>View</Link>
                     </Button>
-                    {!isStaff ? (
+                    {isAdmin ? (
                       <ConfirmDeleteForm
                         action={deleteCustomer}
                         id={customer.id}
                         title={`Delete ${customer.fullName}?`}
                         description="This permanently deletes the customer, every related account, and all payment records. This cannot be undone."
+                        hasLinkedHistory={customer.accounts.length > 0}
                       >
                         Delete
                       </ConfirmDeleteForm>

@@ -14,6 +14,16 @@ enum UserRole {
   STAFF
 }
 
+enum UserPermission {
+  MANAGE_CUSTOMERS
+  MANAGE_ACCOUNTS
+  MANAGE_PAYMENTS
+  VIEW_REPORTS
+  MANAGE_PRODUCTS
+  MANAGE_STAFF
+  VIEW_AUDIT_LOGS
+}
+
 enum StaffApplicationStatus {
   PENDING
   APPROVED
@@ -36,6 +46,8 @@ model User {
 
   role UserRole
 
+  permissions UserPermission[] @default([])
+
   mustChangePassword Boolean @default(true)
 
   staffId String? @unique
@@ -57,9 +69,13 @@ model Staff {
 
   active Boolean @default(true)
 
+  expectedSalary Float @default(0)
+
   user User?
 
   customers Customer[]
+
+  salaryPayments StaffSalaryPayment[]
 
   createdAt DateTime @default(now())
 }
@@ -115,6 +131,8 @@ model Product {
 
   imageUrl String?
 
+  description String?
+
   costPrice Float
 
   cashPrice Float
@@ -123,11 +141,35 @@ model Product {
 
   dailyAmount Float
 
+  transportCost Float @default(0)
+
+  quantityOnSale Int @default(0)
+
   duration Int
 
   active Boolean @default(true)
 
   accounts CustomerAccount[]
+}
+
+model StaffSalaryPayment {
+  id String @id @default(cuid())
+
+  staffId String
+
+  staff Staff @relation(fields: [staffId], references: [id])
+
+  amount Float
+
+  paymentDate DateTime
+
+  notes String?
+
+  paidBy String
+
+  createdAt DateTime @default(now())
+
+  @@index([staffId, paymentDate])
 }
 
 model CustomerAccount {

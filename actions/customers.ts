@@ -1,13 +1,18 @@
 "use server";
 
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+
+export type CustomerFormState = {
+  errors?: { fullName?: string; phone?: string; form?: string };
+  duplicateWarning?: string;
+};
 
 async function requireUser() {
   const session = await auth();
@@ -19,6 +24,7 @@ async function requireUser() {
   return {
     id: session.user.id,
     role: session.user.role,
+    permissions: session.user.permissions ?? [],
     staffId: session.user.staffId,
   };
 }
@@ -107,16 +113,48 @@ export async function generateCustomerId(staffId: string) {
   return `${prefix}${String(maxNumber + 1).padStart(3, "0")}`;
 }
 
-export async function createCustomer(formData: FormData): Promise<void> {
+export async function createCustomer(
+  _state: CustomerFormState,
+  formData: FormData
+): Promise<CustomerFormState> {
   const user = await requireUser();
+  const fullName = cleanInput(formData.get("fullName"));
+  const phone = cleanInput(formData.get("phone"));
+
+  if (!fullName || !phone) {
+    return {
+      errors: {
+        fullName: fullName ? undefined : "Customer name is required.",
+        phone: phone ? undefined : "Phone number is required.",
+      },
+    };
+  }
+
+  const possibleDuplicate = await prisma.customer.findFirst({
+    where: {
+      OR: [
+        { phone },
+        { fullName: { equals: fullName, mode: "insensitive" } },
+        { fullName: { contains: fullName, mode: "insensitive" } },
+      ],
+    },
+    select: { fullName: true, customerId: true },
+  });
+
+  if (possibleDuplicate && formData.get("confirmDuplicate") !== "true") {
+    return {
+      duplicateWarning: `${possibleDuplicate.fullName} (${possibleDuplicate.customerId}) already exists. Do you still want to add this customer?`,
+    };
+  }
+
   const staffId = await resolveStaffId(formData, user.role, user.staffId);
   const customerId = await generateCustomerId(staffId);
 
   const customer = await prisma.customer.create({
     data: {
       customerId,
-      fullName: cleanInput(formData.get("fullName")),
-      phone: cleanInput(formData.get("phone")),
+      fullName,
+      phone,
       address: cleanInput(formData.get("address")) || null,
       nationalId: cleanInput(formData.get("nationalId")) || null,
       staffId,
@@ -137,23 +175,6 @@ export async function createCustomer(formData: FormData): Promise<void> {
 export async function updateCustomer(formData: FormData): Promise<void> {
   const user = await requireUser();
   const id = cleanInput(formData.get("id"));
-  const staffId = await resolveStaffId(formData, user.role, user.staffId);
-
-  if (user.role === UserRole.STAFF) {
-    const customer = await prisma.customer.findFirst({
-      where: {
-        id,
-        staffId,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!customer) {
-      throw new Error("Unauthorized");
-    }
-  }
 
   const existingCustomer = await prisma.customer.findUnique({
     where: {
@@ -164,6 +185,24 @@ export async function updateCustomer(formData: FormData): Promise<void> {
   if (!existingCustomer) {
     redirect("/customers?error=customer-not-found");
   }
+
+  const canManageAllCustomers = hasPermission(
+    user.role,
+    user.permissions,
+    UserPermission.MANAGE_CUSTOMERS
+  );
+
+  if (
+    user.role === UserRole.STAFF &&
+    existingCustomer.staffId !== user.staffId &&
+    !canManageAllCustomers
+  ) {
+    throw new Error("Unauthorized");
+  }
+
+  const staffId = isAdminRole(user.role)
+    ? await resolveStaffId(formData, user.role, user.staffId)
+    : existingCustomer.staffId;
 
   if (existingCustomer.staffId !== staffId) {
     if (!isAdminRole(user.role)) {
@@ -239,6 +278,91 @@ export async function updateCustomer(formData: FormData): Promise<void> {
   redirect(`/customers/${id}`);
 }
 
+export async function bulkReassignCustomers(formData: FormData): Promise<void> {
+  const user = await requireUser();
+
+  if (!isAdminRole(user.role)) {
+    throw new Error("Unauthorized");
+  }
+
+  const customerIds = Array.from(
+    new Set(formData.getAll("customerIds").map(cleanInput).filter(Boolean))
+  );
+  const newStaffId = cleanInput(formData.get("staffId"));
+  const returnTo = cleanInput(formData.get("returnTo")) || "/customers";
+
+  if (customerIds.length === 0) {
+    redirect(`${returnTo}?error=no-selection`);
+  }
+
+  const [newStaff, customers] = await Promise.all([
+    prisma.staff.findFirst({
+      where: {
+        id: newStaffId,
+        active: true,
+      },
+    }),
+    prisma.customer.findMany({
+      where: {
+        id: {
+          in: customerIds,
+        },
+      },
+      select: {
+        id: true,
+        customerId: true,
+        fullName: true,
+        staffId: true,
+      },
+    }),
+  ]);
+
+  if (!newStaff) {
+    redirect(`${returnTo}?error=invalid-staff`);
+  }
+
+  if (customers.length === 0) {
+    redirect(`${returnTo}?error=no-selection`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customer.updateMany({
+      where: {
+        id: {
+          in: customers.map((customer) => customer.id),
+        },
+      },
+      data: {
+        staffId: newStaff.id,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "BULK_REASSIGN_CUSTOMERS",
+        entity: "Customer",
+        entityId: `bulk:${customers.length}`,
+        oldValue: JSON.stringify(
+          customers.map((customer) => ({
+            customerId: customer.id,
+            oldStaffId: customer.staffId,
+          }))
+        ),
+        newValue: JSON.stringify({
+          customerIds: customers.map((customer) => customer.id),
+          newStaffId: newStaff.id,
+          adminUserId: user.id,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/customers");
+  revalidatePath("/accounts");
+  redirect(`${returnTo}?delegated=${customers.length}`);
+}
+
 export async function deleteCustomer(formData: FormData): Promise<void> {
   const user = await requireUser();
   const id = cleanInput(formData.get("id"));
@@ -246,12 +370,6 @@ export async function deleteCustomer(formData: FormData): Promise<void> {
   if (!isAdminRole(user.role)) {
     throw new Error("Unauthorized");
   }
-
-  await verifyAdminDeleteConfirmation({
-    formData,
-    adminUserId: user.id,
-    redirectPath: "/customers",
-  });
 
   const customer = await prisma.customer.findUnique({
     where: {
@@ -269,6 +387,13 @@ export async function deleteCustomer(formData: FormData): Promise<void> {
   if (!customer) {
     redirect("/customers?error=customer-not-found");
   }
+
+  await verifyAdminDeleteConfirmation({
+    formData,
+    adminUserId: user.id,
+    redirectPath: "/customers",
+    requiresStrongConfirmation: customer.accounts.length > 0,
+  });
 
   try {
     await prisma.$transaction(async (tx) => {

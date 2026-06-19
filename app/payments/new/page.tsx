@@ -1,11 +1,13 @@
-import { AccountStatus, UserRole } from "@prisma/client";
+import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
 import { PaymentForm } from "@/components/payment-form";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/roles";
 
 export default async function NewPaymentPage() {
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_PAYMENTS);
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
@@ -19,7 +21,7 @@ export default async function NewPaymentPage() {
           AccountStatus.SUSPENDED,
         ],
       },
-      ...(isStaff && session.user.staffId
+      ...(isStaff && !canManageAll && session.user.staffId
         ? {
             customer: {
               staffId: session.user.staffId,

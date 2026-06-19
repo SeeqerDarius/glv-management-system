@@ -158,6 +158,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       id={member.id}
                       title={`Delete ${member.fullName}?`}
                       buttonSize="icon-sm"
+                      hasLinkedHistory={member._count.customers > 0}
                     >
                       <Trash2Icon />
                       <span className="sr-only">Delete staff</span>

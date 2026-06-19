@@ -1,12 +1,12 @@
 "use server";
 
-import { AccountStatus, UserRole } from "@prisma/client";
+import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 export type PaymentFormState = {
   errors?: {
@@ -28,6 +28,7 @@ async function requireUser() {
   return {
     id: session.user.id,
     role: session.user.role,
+    permissions: session.user.permissions ?? [],
     staffId: session.user.staffId,
   };
 }
@@ -134,7 +135,7 @@ export async function recordPayment(
     };
   }
 
-  if (user.role === UserRole.STAFF && account.customer.staffId !== user.staffId) {
+  if (user.role === UserRole.STAFF && account.customer.staffId !== user.staffId && !hasPermission(user.role, user.permissions, UserPermission.MANAGE_PAYMENTS)) {
     return {
       errors: {
         accountId: "This account does not belong to one of your customers.",

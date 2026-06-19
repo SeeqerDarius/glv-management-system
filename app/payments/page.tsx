@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -25,10 +25,11 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
+  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_PAYMENTS);
 
   const payments = await prisma.payment.findMany({
     where:
-      isStaff && session.user.staffId
+      isStaff && !canManageAll && session.user.staffId
         ? {
             account: {
               customer: {

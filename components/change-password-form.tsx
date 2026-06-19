@@ -1,23 +1,40 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, type FormEvent } from "react";
 import {
   changePassword,
   type ChangePasswordState,
 } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 
 const initialState: ChangePasswordState = {};
 
 export function ChangePasswordForm() {
+  const [clientError, setClientError] = useState<string>();
   const [state, formAction, pending] = useActionState(
     changePassword,
     initialState
   );
 
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    const formData = new FormData(event.currentTarget);
+    const newPassword = String(formData.get("newPassword") ?? "");
+    const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+    if (newPassword !== confirmPassword) {
+      event.preventDefault();
+      setClientError("New password and confirmation must match.");
+      return;
+    }
+
+    setClientError(undefined);
+  }
+
   return (
     <form
       action={formAction}
+      onSubmit={handleSubmit}
       className="w-full max-w-md space-y-4 rounded-lg border bg-white p-6 shadow-sm"
     >
       <div>
@@ -27,9 +44,9 @@ export function ChangePasswordForm() {
         </p>
       </div>
 
-      {state.error ? (
+      {state.error || clientError ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state.error}
+          {clientError || state.error}
         </p>
       ) : null}
 
@@ -37,22 +54,32 @@ export function ChangePasswordForm() {
         <span className="text-sm font-medium text-gray-700">
           Current Password
         </span>
-        <input
+        <PasswordInput
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
-          className="w-full rounded border p-3"
+          className="rounded border p-3"
           required
         />
       </label>
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">New Password</span>
-        <input
+        <PasswordInput
           name="newPassword"
-          type="password"
           autoComplete="new-password"
-          className="w-full rounded border p-3"
+          className="rounded border p-3"
+          required
+        />
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-sm font-medium text-gray-700">
+          Confirm Password
+        </span>
+        <PasswordInput
+          name="confirmPassword"
+          autoComplete="new-password"
+          className="rounded border p-3"
           required
         />
       </label>

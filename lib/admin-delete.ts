@@ -10,12 +10,23 @@ export async function verifyAdminDeleteConfirmation({
   formData,
   adminUserId,
   redirectPath,
+  requiresStrongConfirmation = true,
 }: {
   formData: FormData;
   adminUserId: string;
   redirectPath: string;
+  requiresStrongConfirmation?: boolean;
 }) {
   const confirmationText = cleanInput(formData.get("confirmationText"));
+
+  if (!requiresStrongConfirmation) {
+    if (confirmationText !== "CONFIRM") {
+      redirect(`${redirectPath}?error=delete-confirmation-required`);
+    }
+
+    return;
+  }
+
   const adminPassword = cleanInput(formData.get("adminPassword"));
 
   if (confirmationText !== "DELETE") {

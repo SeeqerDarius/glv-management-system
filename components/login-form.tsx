@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { login, type LoginState } from "@/actions/auth";
+import { PasswordInput } from "@/components/password-input";
 
 const initialState: LoginState = {};
 
@@ -39,11 +40,10 @@ export function LoginForm() {
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">Password</span>
-        <input
+        <PasswordInput
           name="password"
-          type="password"
           autoComplete="current-password"
-          className="w-full border p-3 rounded"
+          className="rounded border p-3"
           required
         />
       </label>

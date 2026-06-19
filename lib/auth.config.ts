@@ -1,6 +1,11 @@
 import type { NextAuthConfig } from "next-auth";
 
-const adminOnlyRoutes = ["/staff", "/products", "/reports", "/audit-logs"];
+const privilegedRoutes = [
+  { route: "/staff", permission: "MANAGE_STAFF" },
+  { route: "/products", permission: "MANAGE_PRODUCTS" },
+  { route: "/reports", permission: "VIEW_REPORTS" },
+  { route: "/audit-logs", permission: "VIEW_AUDIT_LOGS" },
+] as const;
 const staffAllowedRoutes = [
   "/dashboard",
   "/accounts",
@@ -41,9 +46,17 @@ export const authConfig = {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
 
+      const permissions = Array.isArray(auth?.user?.permissions)
+        ? auth.user.permissions
+        : [];
+      const privilegedRoute = privilegedRoutes.find(({ route }) =>
+        pathname.startsWith(route)
+      );
+
       if (
         role === "STAFF" &&
-        adminOnlyRoutes.some((route) => pathname.startsWith(route))
+        privilegedRoute &&
+        !permissions.includes(privilegedRoute.permission)
       ) {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
@@ -58,7 +71,8 @@ export const authConfig = {
 
       if (
         role === "STAFF" &&
-        !staffAllowedRoutes.some((route) => pathname.startsWith(route))
+        !staffAllowedRoutes.some((route) => pathname.startsWith(route)) &&
+        !privilegedRoute
       ) {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
@@ -69,6 +83,7 @@ export const authConfig = {
       if (user) {
         token.id = user.id;
         token.role = user.role;
+        token.permissions = user.permissions ?? [];
         token.staffId = user.staffId;
         token.mustChangePassword = user.mustChangePassword;
       }
@@ -88,6 +103,10 @@ export const authConfig = {
         ) {
           session.user.role = token.role;
         }
+
+        session.user.permissions = Array.isArray(token.permissions)
+          ? token.permissions
+          : [];
 
         session.user.staffId =
           typeof token.staffId === "string" ? token.staffId : null;
