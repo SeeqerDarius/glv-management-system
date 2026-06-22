@@ -21,6 +21,7 @@ function money(value: number) {
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const { q, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
+
   const products = await prisma.product.findMany({
     where: query
       ? {
@@ -58,7 +59,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <div>
           <h1 className="text-3xl font-bold text-gray-950">Products</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Manage GLV assets, prices, and installment terms.
+            Manage GLV layaway assets, combos, daily amounts, and installment terms.
           </p>
         </div>
 
@@ -77,6 +78,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             className="w-full rounded border bg-white py-3 pl-9 pr-3"
           />
         </div>
+
         <Button type="submit" variant="outline">
           Search
         </Button>
@@ -106,75 +108,82 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border bg-white">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               <th className="p-3 font-medium">Name</th>
               <th className="p-3 font-medium">Category</th>
-              <th className="p-3 font-medium">Layaway</th>
+              <th className="p-3 font-medium">Cost</th>
               <th className="p-3 font-medium">Daily</th>
               <th className="p-3 font-medium">Duration</th>
-              <th className="p-3 font-medium">Quantity</th>
+              <th className="p-3 font-medium">Layaway Total</th>
+              <th className="p-3 font-medium">Account Quantity</th>
               <th className="p-3 font-medium">Expected Profit</th>
               <th className="p-3 font-medium">Status</th>
-              <th className="p-3 font-medium">Accounts</th>
               <th className="p-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
+
           <tbody>
-            {products.map((product) => (
-              <tr key={product.id} className="border-t">
-                <td className="p-3 font-semibold text-gray-950">
-                  {product.name}
-                </td>
-                <td className="p-3">{product.category}</td>
-                <td className="p-3">{money(product.layawayPrice)}</td>
-                <td className="p-3">{money(product.dailyAmount)}</td>
-                <td className="p-3">{product.duration} days</td>
-                <td className="p-3">{product.quantityOnSale}</td>
-                <td className="p-3">
-                  {money(
-                    (product.layawayPrice -
-                      product.costPrice -
-                      product.transportCost) * product.quantityOnSale
-                  )}
-                </td>
-                <td className="p-3">
-                  <Badge variant={product.active ? "default" : "secondary"}>
-                    {product.active ? "Active" : "Inactive"}
-                  </Badge>
-                </td>
-                <td className="p-3">{product._count.accounts}</td>
-                <td className="p-3">
-                  <div className="flex justify-end gap-2">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/products/${product.id}`}>View</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/products/${product.id}/edit`}>Edit</Link>
-                    </Button>
-                    {product.active ? (
-                      <form action={deactivateProduct}>
-                        <input type="hidden" name="id" value={product.id} />
-                        <Button type="submit" variant="destructive" size="sm">
-                          Deactivate
-                        </Button>
-                      </form>
-                    ) : null}
-                    <ConfirmDeleteForm
-                      action={deleteProduct}
-                      id={product.id}
-                      title={`Delete ${product.name}?`}
-                      hasLinkedHistory={product._count.accounts > 0}
-                      description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
-                    >
-                      Delete
-                    </ConfirmDeleteForm>
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {products.map((product) => {
+              const layawayProfit =
+                product.layawayPrice -
+                product.costPrice -
+                product.transportCost;
+
+              const expectedProfit = layawayProfit * product._count.accounts;
+
+              return (
+                <tr key={product.id} className="border-t">
+                  <td className="p-3 font-semibold text-gray-950">
+                    {product.name}
+                  </td>
+                  <td className="p-3">{product.category}</td>
+                  <td className="p-3">{money(product.costPrice)}</td>
+                  <td className="p-3">{money(product.dailyAmount)}</td>
+                  <td className="p-3">{product.duration} days</td>
+                  <td className="p-3">{money(product.layawayPrice)}</td>
+                  <td className="p-3">{product._count.accounts}</td>
+                  <td className="p-3">{money(expectedProfit)}</td>
+                  <td className="p-3">
+                    <Badge variant={product.active ? "default" : "secondary"}>
+                      {product.active ? "Active" : "Inactive"}
+                    </Badge>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-2">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/products/${product.id}`}>View</Link>
+                      </Button>
+
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/products/${product.id}/edit`}>Edit</Link>
+                      </Button>
+
+                      {product.active ? (
+                        <form action={deactivateProduct}>
+                          <input type="hidden" name="id" value={product.id} />
+                          <Button type="submit" variant="destructive" size="sm">
+                            Deactivate
+                          </Button>
+                        </form>
+                      ) : null}
+
+                      <ConfirmDeleteForm
+                        action={deleteProduct}
+                        id={product.id}
+                        title={`Delete ${product.name}?`}
+                        hasLinkedHistory={product._count.accounts > 0}
+                        description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
+                      >
+                        Delete
+                      </ConfirmDeleteForm>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 

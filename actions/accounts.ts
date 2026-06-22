@@ -64,32 +64,6 @@ function addDays(date: Date, days: number) {
   return result;
 }
 
-async function logAccountAudit({
-  userId,
-  accountId,
-  customerId,
-  productId,
-}: {
-  userId: string;
-  accountId: string;
-  customerId: string;
-  productId: string;
-}) {
-  await prisma.auditLog.create({
-    data: {
-      userId,
-      action: "CREATE_ACCOUNT",
-      entity: "CustomerAccount",
-      entityId: accountId,
-      newValue: JSON.stringify({
-        accountId,
-        customerId,
-        productId,
-      }),
-    },
-  });
-}
-
 export async function createAccount(
   _state: AccountFormState,
   formData: FormData
@@ -111,99 +85,123 @@ export async function createAccount(
     };
   }
 
-  try {
-    const [customer, product] = await Promise.all([
-      prisma.customer.findUnique({
-        where: {
-          id: customerId,
-        },
-        select: {
-          id: true,
-          staffId: true,
-        },
-      }),
-      prisma.product.findUnique({
-        where: {
-          id: productId,
-        },
-      }),
-    ]);
-
-    if (!customer) {
-      return {
-        errors: {
-          customerId: "Selected customer could not be found.",
-        },
-      };
-    }
-
-    if (user.role === UserRole.STAFF && customer.staffId !== user.staffId && !hasPermission(user.role, user.permissions, UserPermission.MANAGE_ACCOUNTS)) {
-      return {
-        errors: {
-          customerId: "This customer is not assigned to your staff profile.",
-        },
-      };
-    }
-
-    if (!product) {
-      return {
-        errors: {
-          productId: "Selected product could not be found.",
-        },
-      };
-    }
-
-    if (!product.active) {
-      return {
-        errors: {
-          productId: "Inactive products cannot be used for new accounts.",
-        },
-      };
-    }
-
-    if (!startDate) {
-      return {
-        errors: {
-          startDate: "Please choose a valid start date.",
-        },
-      };
-    }
-
-    const targetAmount = product.layawayPrice;
-    const dailyAmount = product.dailyAmount;
-    const expectedEndDate = addDays(startDate, product.duration);
-
-    const account = await prisma.customerAccount.create({
-      data: {
-        customerId: customer.id,
-        productId: product.id,
-        targetAmount,
-        dailyAmount,
-        startDate,
-        expectedEndDate,
-        totalPaid: 0,
-        balance: targetAmount,
-        status: AccountStatus.ACTIVE,
+  if (!startDate) {
+    return {
+      errors: {
+        startDate: "Please choose a valid start date.",
       },
-    });
+    };
+  }
 
-    await logAccountAudit({
-      userId: user.id,
-      accountId: account.id,
-      customerId: customer.id,
-      productId: product.id,
-    });
+  const [customer, product] = await Promise.all([
+    prisma.customer.findUnique({
+      where: {
+        id: customerId,
+      },
+      select: {
+        id: true,
+        staffId: true,
+      },
+    }),
+    prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    }),
+  ]);
 
-    revalidatePath("/accounts");
-    revalidatePath(`/customers/${customer.id}`);
-    redirect(`/accounts/${account.id}`);
-  } catch {
+  if (!customer) {
+    return {
+      errors: {
+        customerId: "Selected customer could not be found.",
+      },
+    };
+  }
+
+  if (
+    user.role === UserRole.STAFF &&
+    customer.staffId !== user.staffId &&
+    !hasPermission(
+      user.role,
+      user.permissions,
+      UserPermission.MANAGE_ACCOUNTS
+    )
+  ) {
+    return {
+      errors: {
+        customerId: "This customer is not assigned to your staff profile.",
+      },
+    };
+  }
+
+  if (!product) {
+    return {
+      errors: {
+        productId: "Selected product could not be found.",
+      },
+    };
+  }
+
+  if (!product.active) {
+    return {
+      errors: {
+        productId: "Inactive products cannot be used for new accounts.",
+      },
+    };
+  }
+
+  const targetAmount = product.layawayPrice;
+  const dailyAmount = product.dailyAmount;
+  const expectedEndDate = addDays(startDate, product.duration);
+  let accountId: string;
+
+  try {
+    accountId = await prisma.$transaction(async (tx) => {
+      const account = await tx.customerAccount.create({
+        data: {
+          customerId: customer.id,
+          productId: product.id,
+          targetAmount,
+          dailyAmount,
+          startDate,
+          expectedEndDate,
+          totalPaid: 0,
+          balance: targetAmount,
+          status: AccountStatus.ACTIVE,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CREATE_ACCOUNT",
+          entity: "CustomerAccount",
+          entityId: account.id,
+          newValue: JSON.stringify({
+            accountId: account.id,
+            customerId: customer.id,
+            productId: product.id,
+          }),
+        },
+      });
+
+      return account.id;
+    });
+  } catch (error) {
+    console.error("CREATE_ACCOUNT_ERROR", error);
     return {
       errors: {
         form: "Unable to create account. Please check the details and try again.",
       },
     };
   }
+
+  revalidatePath("/accounts");
+  revalidatePath("/customers");
+  revalidatePath(`/customers/${customer.id}`);
+  revalidatePath("/products");
+  revalidatePath(`/products/${productId}`);
+  redirect(`/accounts/${accountId}`);
 }
 
 export async function deleteAccount(formData: FormData): Promise<void> {

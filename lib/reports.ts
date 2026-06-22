@@ -143,7 +143,10 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         orderBy: { paymentDate: "desc" },
         include: { staff: true },
       }),
-      prisma.product.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
+      prisma.product.findMany({
+        orderBy: [{ category: "asc" }, { name: "asc" }],
+        include: { _count: { select: { accounts: true } } },
+      }),
       prisma.user.findMany({ select: { id: true, name: true } }),
     ]);
 
@@ -261,21 +264,17 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     end,
     rows: rows.map((row, index) => ({ ...row, rank: index + 1 })),
     products: products.map((product) => {
-      const retailProfit = product.cashPrice - product.costPrice;
       const layawayProfit =
         product.layawayPrice - product.costPrice - product.transportCost;
+      const accountCount = product._count.accounts;
       return {
         ...product,
-        retailProfit,
-        retailProfitPercentage:
-          product.costPrice > 0 ? (retailProfit / product.costPrice) * 100 : 0,
+        accountCount,
         layawayProfit,
         layawayProfitPercentage:
           product.costPrice > 0 ? (layawayProfit / product.costPrice) * 100 : 0,
-        expectedRetailRevenue: product.cashPrice * product.quantityOnSale,
-        expectedRetailProfit: retailProfit * product.quantityOnSale,
-        expectedLayawayRevenue: product.layawayPrice * product.quantityOnSale,
-        expectedLayawayProfit: layawayProfit * product.quantityOnSale,
+        expectedLayawayRevenue: product.layawayPrice * accountCount,
+        expectedLayawayProfit: layawayProfit * accountCount,
       };
     }),
     salaryPayments: salaryPayments.map((payment) => ({

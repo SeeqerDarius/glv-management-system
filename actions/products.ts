@@ -13,8 +13,6 @@ export type ProductFormState = {
     name?: string;
     category?: string;
     costPrice?: string;
-    cashPrice?: string;
-    layawayPrice?: string;
     dailyAmount?: string;
     duration?: string;
     transportCost?: string;
@@ -29,7 +27,6 @@ type ProductInput = {
   category: string;
   description: string | null;
   costPrice: number;
-  cashPrice: number;
   layawayPrice: number;
   dailyAmount: number;
   duration: number;
@@ -52,9 +49,7 @@ async function requireProductManager() {
     throw new Error("Unauthorized");
   }
 
-  return {
-    id: session.user.id,
-  };
+  return { id: session.user.id };
 }
 
 async function requireAdmin() {
@@ -64,9 +59,7 @@ async function requireAdmin() {
     throw new Error("Unauthorized");
   }
 
-  return {
-    id: session.user.id,
-  };
+  return { id: session.user.id };
 }
 
 function cleanInput(value: FormDataEntryValue | null) {
@@ -86,8 +79,6 @@ function validateProduct(formData: FormData): {
   const category = cleanInput(formData.get("category"));
   const description = cleanInput(formData.get("description"));
   const costPrice = parseNumber(formData, "costPrice");
-  const cashPrice = parseNumber(formData, "cashPrice");
-  const layawayPrice = parseNumber(formData, "layawayPrice");
   const dailyAmount = parseNumber(formData, "dailyAmount");
   const duration = Number(cleanInput(formData.get("duration")));
   const transportCost = parseNumber(formData, "transportCost");
@@ -96,40 +87,35 @@ function validateProduct(formData: FormData): {
 
   if (!name) errors.name = "Product name is required.";
   if (!category) errors.category = "Category is required.";
+
   if (!Number.isFinite(costPrice) || costPrice <= 0) {
     errors.costPrice = "Cost price must be greater than zero.";
   }
-  if (!Number.isFinite(cashPrice) || cashPrice <= 0) {
-    errors.cashPrice = "Cash price must be greater than zero.";
-  }
-  if (!Number.isFinite(layawayPrice) || layawayPrice <= 0) {
-    errors.layawayPrice = "Layaway price must be greater than zero.";
-  }
+
   if (!Number.isFinite(dailyAmount) || dailyAmount <= 0) {
     errors.dailyAmount = "Daily amount must be greater than zero.";
   }
+
   if (!Number.isInteger(duration) || duration <= 0) {
     errors.duration = "Duration must be a positive whole number.";
   }
+
   if (!Number.isFinite(transportCost) || transportCost < 0) {
     errors.transportCost = "Transport cost cannot be negative.";
   }
+
   if (!Number.isInteger(quantityOnSale) || quantityOnSale < 0) {
     errors.quantityOnSale = "Quantity must be a whole number of zero or more.";
   }
-  if (
-    Number.isFinite(costPrice) &&
-    Number.isFinite(cashPrice) &&
-    cashPrice < costPrice
-  ) {
-    errors.cashPrice = "Cash price cannot be lower than cost price.";
-  }
-  if (
-    Number.isFinite(costPrice) &&
-    Number.isFinite(layawayPrice) &&
-    layawayPrice < costPrice
-  ) {
-    errors.layawayPrice = "Layaway price cannot be lower than cost price.";
+
+  const layawayPrice =
+    Number.isFinite(dailyAmount) && Number.isInteger(duration)
+      ? dailyAmount * duration
+      : Number.NaN;
+
+  if (Number.isFinite(costPrice) && Number.isFinite(layawayPrice) && layawayPrice < costPrice) {
+    errors.dailyAmount =
+      "Daily amount × duration cannot be lower than cost price.";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -142,7 +128,6 @@ function validateProduct(formData: FormData): {
       category,
       description: description || null,
       costPrice,
-      cashPrice,
       layawayPrice,
       dailyAmount,
       duration,
@@ -175,14 +160,34 @@ async function findDuplicateName(name: string, currentProductId?: string) {
 
 async function findSimilarProduct(name: string, category: string) {
   const categoryProducts = await prisma.product.findMany({
-    where: { category: { equals: category, mode: "insensitive" } },
-    select: { name: true, category: true },
+    where: {
+      category: {
+        equals: category,
+        mode: "insensitive",
+      },
+    },
+    select: {
+      name: true,
+      category: true,
+    },
   });
-  const normalizedName = name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  const normalizedName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
   return categoryProducts.find((product) => {
-    const existing = product.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    return existing === normalizedName || existing.includes(normalizedName) || normalizedName.includes(existing);
+    const existing = product.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+    return (
+      existing === normalizedName ||
+      existing.includes(normalizedName) ||
+      normalizedName.includes(existing)
+    );
   });
 }
 
@@ -222,7 +227,10 @@ export async function createProduct(
     return { errors: validated.errors };
   }
 
-  const duplicate = await findSimilarProduct(validated.data.name, validated.data.category);
+  const duplicate = await findSimilarProduct(
+    validated.data.name,
+    validated.data.category
+  );
 
   if (duplicate && formData.get("confirmDuplicate") !== "true") {
     return {
@@ -279,9 +287,7 @@ export async function updateProduct(
   }
 
   const existingProduct = await prisma.product.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
   });
 
   if (!existingProduct) {
@@ -293,9 +299,7 @@ export async function updateProduct(
   }
 
   const updatedProduct = await prisma.product.update({
-    where: {
-      id,
-    },
+    where: { id },
     data: {
       ...validated.data,
       active: formData.get("active") === "on",
@@ -333,13 +337,11 @@ export async function updateProduct(
     action: "UPDATE_PRODUCT_PRICE",
     productId: updatedProduct.id,
     oldValue: {
-      cashPrice: existingProduct.cashPrice,
       layawayPrice: existingProduct.layawayPrice,
       dailyAmount: existingProduct.dailyAmount,
       duration: existingProduct.duration,
     },
     newValue: {
-      cashPrice: updatedProduct.cashPrice,
       layawayPrice: updatedProduct.layawayPrice,
       dailyAmount: updatedProduct.dailyAmount,
       duration: updatedProduct.duration,
@@ -354,10 +356,9 @@ export async function updateProduct(
 export async function deactivateProduct(formData: FormData): Promise<void> {
   const user = await requireProductManager();
   const id = cleanInput(formData.get("id"));
+
   const existingProduct = await prisma.product.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
   });
 
   if (!existingProduct) {
@@ -365,9 +366,7 @@ export async function deactivateProduct(formData: FormData): Promise<void> {
   }
 
   const updatedProduct = await prisma.product.update({
-    where: {
-      id,
-    },
+    where: { id },
     data: {
       active: false,
     },
@@ -390,9 +389,7 @@ export async function deleteProduct(formData: FormData): Promise<void> {
   const id = cleanInput(formData.get("id"));
 
   const product = await prisma.product.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
     include: {
       accounts: {
         include: {

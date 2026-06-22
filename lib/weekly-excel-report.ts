@@ -66,8 +66,8 @@ function initializeSheet(
   const subtitleCell = sheet.getCell(2, 1);
   subtitleCell.value = subtitle;
   subtitleCell.font = { name: "Aptos", size: 10, color: { argb: palette.muted } };
-  subtitleCell.alignment = { vertical: "middle" };
-  sheet.getRow(2).height = 24;
+  subtitleCell.alignment = { vertical: "middle", wrapText: true };
+  sheet.getRow(2).height = 30;
 
   const headerRow = sheet.getRow(4);
   headerRow.values = headers;
@@ -162,7 +162,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       },
     }),
     prisma.staffSalaryPayment.findMany(),
-    prisma.product.findMany({ orderBy: [{ category: "asc" }, { name: "asc" }] }),
+    prisma.product.findMany({
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      include: { _count: { select: { accounts: true } } },
+    }),
   ]);
 
   const userNames = new Map(
@@ -468,53 +471,47 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   initializeSheet(
     procurementSheet,
     "PROCUREMENT / PRODUCT PROFITABILITY",
-    `Product pricing and expected returns as of ${period}`,
+    `Layaway pricing and expected returns as of ${period}`,
     [
       "Category",
       "Description / Name",
       "Cost Price",
-      "Cash Price",
-      "Layaway Price",
-      "Daily Amount",
       "Transport Cost",
-      "Retail Profit",
-      "Retail Profit %",
+      "Daily Amount",
+      "Duration Days",
+      "Layaway Price",
+      "Account Count",
       "Layaway Profit",
       "Layaway Profit %",
-      "Quantity On Sale",
-      "Expected Retail Revenue",
       "Expected Layaway Revenue",
-      "Expected Total Profit",
+      "Expected Layaway Profit",
     ]
   );
   products.forEach((product) => {
-    const retailProfit = product.cashPrice - product.costPrice;
     const layawayProfit =
       product.layawayPrice - product.costPrice - product.transportCost;
+    const accountCount = product._count.accounts;
     procurementSheet.addRow([
       product.category,
       product.description || product.name,
       product.costPrice,
-      product.cashPrice,
-      product.layawayPrice,
-      product.dailyAmount,
       product.transportCost,
-      retailProfit,
-      product.costPrice > 0 ? retailProfit / product.costPrice : 0,
+      product.dailyAmount,
+      product.duration,
+      product.layawayPrice,
+      accountCount,
       layawayProfit,
       product.costPrice > 0 ? layawayProfit / product.costPrice : 0,
-      product.quantityOnSale,
-      product.cashPrice * product.quantityOnSale,
-      product.layawayPrice * product.quantityOnSale,
-      layawayProfit * product.quantityOnSale,
+      product.layawayPrice * accountCount,
+      layawayProfit * accountCount,
     ]);
   });
   finishSheet(
     procurementSheet,
-    [18, 30, 16, 16, 16, 16, 16, 16, 16, 17, 17, 17, 22, 24, 22],
+    [18, 30, 16, 16, 16, 15, 16, 15, 17, 17, 24, 23],
     {
-      currencyColumns: [3, 4, 5, 6, 7, 8, 10, 13, 14, 15],
-      percentageColumns: [9, 11],
+      currencyColumns: [3, 4, 5, 7, 9, 11, 12],
+      percentageColumns: [10],
     }
   );
 

@@ -11,10 +11,9 @@ type EditProductPageProps = {
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
   const { id } = await params;
+
   const product = await prisma.product.findUnique({
-    where: {
-      id,
-    },
+    where: { id },
   });
 
   if (!product) {
@@ -26,7 +25,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       <div>
         <h1 className="text-3xl font-bold text-gray-950">Edit Product</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Update prices, daily amount, duration, and active status.
+          Update cost price, daily amount, duration, category, combo details, and active status.
         </p>
       </div>
 

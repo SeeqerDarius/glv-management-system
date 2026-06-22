@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import type { Product } from "@prisma/client";
@@ -17,6 +17,7 @@ const categories = [
   "Rice Cookers",
   "Blenders",
   "Home Appliances",
+  "Combos",
 ];
 
 type ProductFormProps = {
@@ -42,6 +43,21 @@ export function ProductForm({
   submitLabel,
 }: ProductFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
+  const [dailyAmount, setDailyAmount] = useState(
+    product?.dailyAmount?.toString() ?? ""
+  );
+  const [duration, setDuration] = useState(
+    product?.duration?.toString() ?? "184"
+  );
+  const dailyAmountValue = Number(dailyAmount);
+  const durationValue = Number(duration);
+  const layawayPrice =
+    Number.isFinite(dailyAmountValue) &&
+    dailyAmountValue > 0 &&
+    Number.isInteger(durationValue) &&
+    durationValue > 0
+      ? dailyAmountValue * durationValue
+      : 0;
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -102,35 +118,6 @@ export function ProductForm({
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">Transport Cost</span>
-          <input
-            name="transportCost"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product?.transportCost ?? 0}
-            className="w-full rounded border p-3"
-            required
-          />
-          <FieldError message={state.errors?.transportCost} />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">Quantity On Sale</span>
-          <input
-            name="quantityOnSale"
-            type="number"
-            min="0"
-            step="1"
-            defaultValue={product?.quantityOnSale ?? 0}
-            className="w-full rounded border p-3"
-            required
-          />
-          <FieldError message={state.errors?.quantityOnSale} />
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-1">
           <span className="text-sm font-medium text-gray-700">Cost Price</span>
           <input
             name="costPrice"
@@ -145,33 +132,17 @@ export function ProductForm({
         </label>
 
         <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">Cash Price</span>
+          <span className="text-sm font-medium text-gray-700">Transport Cost</span>
           <input
-            name="cashPrice"
+            name="transportCost"
             type="number"
             min="0"
             step="0.01"
-            defaultValue={product?.cashPrice ?? ""}
+            defaultValue={product?.transportCost ?? 0}
             className="w-full rounded border p-3"
             required
           />
-          <FieldError message={state.errors?.cashPrice} />
-        </label>
-
-        <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">
-            Layaway Price
-          </span>
-          <input
-            name="layawayPrice"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product?.layawayPrice ?? ""}
-            className="w-full rounded border p-3"
-            required
-          />
-          <FieldError message={state.errors?.layawayPrice} />
+          <FieldError message={state.errors?.transportCost} />
         </label>
 
         <label className="block space-y-1">
@@ -183,27 +154,42 @@ export function ProductForm({
             type="number"
             min="0"
             step="0.01"
-            defaultValue={product?.dailyAmount ?? ""}
+            value={dailyAmount}
+            onChange={(event) => setDailyAmount(event.target.value)}
             className="w-full rounded border p-3"
             required
           />
           <FieldError message={state.errors?.dailyAmount} />
         </label>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Duration Days</span>
+          <input
+            name="duration"
+            type="number"
+            min="1"
+            step="1"
+            value={duration}
+            onChange={(event) => setDuration(event.target.value)}
+            className="w-full rounded border p-3"
+            required
+          />
+          <FieldError message={state.errors?.duration} />
+        </label>
       </div>
 
-      <label className="block space-y-1">
-        <span className="text-sm font-medium text-gray-700">Duration Days</span>
-        <input
-          name="duration"
-          type="number"
-          min="1"
-          step="1"
-          defaultValue={product?.duration ?? 184}
-          className="w-full rounded border p-3"
-          required
-        />
-        <FieldError message={state.errors?.duration} />
-      </label>
+      <div className="rounded-lg border border-lime-200 bg-lime-50 p-4">
+        <p className="text-xs font-medium uppercase text-lime-900">
+          Calculated Layaway Price
+        </p>
+        <p className="mt-1 text-xl font-semibold text-gray-950">
+          GHS {layawayPrice.toFixed(2)}
+        </p>
+        <p className="mt-1 text-sm text-gray-600">
+          Daily Amount x Duration Days. The final value is calculated on the
+          server.
+        </p>
+      </div>
 
       <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
         <input

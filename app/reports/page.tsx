@@ -106,8 +106,59 @@ export default async function ReportsPage({
       </section>
 
       <section className="space-y-3">
-        <div><h2 className="text-lg font-semibold text-gray-950">Product Profitability / Procurement</h2><p className="text-sm text-gray-600">Expected retail and layaway returns based on current quantity on sale.</p></div>
-        <div className="overflow-hidden rounded-lg border bg-white"><table className="w-full text-sm"><thead><tr><th className="p-3">Product</th><th className="p-3">Cost</th><th className="p-3">Transport</th><th className="p-3">Cash</th><th className="p-3">Layaway</th><th className="p-3">Quantity</th><th className="p-3">Retail Profit</th><th className="p-3">Layaway Profit</th><th className="p-3">Expected Revenue</th><th className="p-3">Expected Profit</th></tr></thead><tbody>{report.products.map((product) => <tr key={product.id} className="border-t"><td className="p-3"><p className="font-semibold">{product.name}</p><p className="text-xs text-gray-500">{product.category}</p></td><td className="p-3">{formatMoney(product.costPrice)}</td><td className="p-3">{formatMoney(product.transportCost)}</td><td className="p-3">{formatMoney(product.cashPrice)}</td><td className="p-3">{formatMoney(product.layawayPrice)}</td><td className="p-3">{product.quantityOnSale}</td><td className="p-3">{formatMoney(product.retailProfit)} ({product.retailProfitPercentage.toFixed(1)}%)</td><td className="p-3">{formatMoney(product.layawayProfit)} ({product.layawayProfitPercentage.toFixed(1)}%)</td><td className="p-3">{formatMoney(product.expectedLayawayRevenue)}</td><td className="p-3">{formatMoney(product.expectedLayawayProfit)}</td></tr>)}</tbody></table></div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-950">
+            Product Profitability / Procurement
+          </h2>
+          <p className="text-sm text-gray-600">
+            Layaway returns based on the number of customer accounts using each
+            product.
+          </p>
+        </div>
+        <div className="overflow-x-auto rounded-lg border bg-white">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead>
+              <tr>
+                <th className="p-3">Product</th>
+                <th className="p-3">Cost</th>
+                <th className="p-3">Transport</th>
+                <th className="p-3">Daily</th>
+                <th className="p-3">Duration</th>
+                <th className="p-3">Layaway</th>
+                <th className="p-3">Accounts</th>
+                <th className="p-3">Layaway Profit</th>
+                <th className="p-3">Expected Revenue</th>
+                <th className="p-3">Expected Profit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.products.map((product) => (
+                <tr key={product.id} className="border-t">
+                  <td className="p-3">
+                    <p className="font-semibold">{product.name}</p>
+                    <p className="text-xs text-gray-500">{product.category}</p>
+                  </td>
+                  <td className="p-3">{formatMoney(product.costPrice)}</td>
+                  <td className="p-3">{formatMoney(product.transportCost)}</td>
+                  <td className="p-3">{formatMoney(product.dailyAmount)}</td>
+                  <td className="p-3">{product.duration} days</td>
+                  <td className="p-3">{formatMoney(product.layawayPrice)}</td>
+                  <td className="p-3">{product.accountCount}</td>
+                  <td className="p-3">
+                    {formatMoney(product.layawayProfit)} (
+                    {product.layawayProfitPercentage.toFixed(1)}%)
+                  </td>
+                  <td className="p-3">
+                    {formatMoney(product.expectedLayawayRevenue)}
+                  </td>
+                  <td className="p-3">
+                    {formatMoney(product.expectedLayawayProfit)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
