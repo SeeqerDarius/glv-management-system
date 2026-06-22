@@ -1,18 +1,33 @@
-export function GlvLoading({ compact = false }: { compact?: boolean }) {
+type GlvLoadingProps = {
+  compact?: boolean;
+  label?: string;
+};
+
+export function GlvLoading({
+  compact = false,
+  label = "Loading…",
+}: GlvLoadingProps) {
   if (compact) {
     return (
       <div className="flex items-center gap-2 py-2">
-        <div className="glv-loading-ring" style={{ width: "1.25rem", height: "1.25rem", borderWidth: "2px" }} />
-        <span className="text-xs text-muted-foreground font-medium">Loading…</span>
+        <div
+          className="glv-loading-ring"
+          style={{
+            width: "1.25rem",
+            height: "1.25rem",
+            borderWidth: "2px",
+          }}
+        />
+        <span className="text-xs text-muted-foreground font-medium">
+          {label}
+        </span>
       </div>
     );
   }
 
   return (
     <div className="glv-loading-screen">
-      {/* Animated brand mark */}
       <div className="relative flex items-center justify-center">
-        {/* Outer ring */}
         <div
           className="absolute rounded-full"
           style={{
@@ -23,7 +38,7 @@ export function GlvLoading({ compact = false }: { compact?: boolean }) {
             animation: "glv-loading-spin 1.2s linear infinite",
           }}
         />
-        {/* Inner ring */}
+
         <div
           className="absolute rounded-full"
           style={{
@@ -34,7 +49,7 @@ export function GlvLoading({ compact = false }: { compact?: boolean }) {
             animation: "glv-loading-spin 0.8s linear infinite reverse",
           }}
         />
-        {/* Brand mark center */}
+
         <div
           className="glv-brand-mark relative z-10"
           style={{
@@ -47,13 +62,17 @@ export function GlvLoading({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
 
-      {/* Loading bar */}
-      <div className="glv-loading-line" style={{ width: "5rem", marginTop: "0.5rem" }}>
+      <div
+        className="glv-loading-line"
+        style={{
+          width: "5rem",
+          marginTop: "0.5rem",
+        }}
+      >
         <span />
       </div>
 
-      {/* Text */}
-      <p className="glv-loading-text">Loading…</p>
+      <p className="glv-loading-text">{label}</p>
     </div>
   );
 }
