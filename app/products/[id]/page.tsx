@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccountStatus } from "@prisma/client";
-import { deactivateProduct, deleteProduct } from "@/actions/products";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
+import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { prisma } from "@/lib/prisma";
 
@@ -67,183 +66,209 @@ export default async function ProductDetailsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Back Button */}
+      <Link
+        href="/products"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 transition hover:text-gray-900"
+      >
+        <ArrowLeft className="size-4" /> Back to Products
+      </Link>
+
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-gray-950">
-              {product.name}
-            </h1>
+          <h1 className="text-2xl font-semibold text-gray-950">
+            {product.name}
+          </h1>
 
-            <Badge variant={product.active ? "default" : "secondary"}>
-              {product.active ? "Active" : "Inactive"}
-            </Badge>
-          </div>
-
-          <p className="mt-1 text-sm text-gray-600">{product.category}</p>
+          <p className="mt-1 text-sm text-gray-500">{product.category}</p>
 
           {product.description ? (
-            <p className="mt-2 max-w-2xl text-sm text-gray-600">
+            <p className="mt-2 max-w-2xl text-sm text-gray-500">
               {product.description}
             </p>
           ) : null}
         </div>
 
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <Link href="/products">Back</Link>
-          </Button>
+        <div className="flex items-center gap-0.5">
+          {/* Edit */}
+          <Link
+            href={`/products/${product.id}/edit`}
+            aria-label={`Edit ${product.name}`}
+            title="Edit"
+            className="
+              group/edit flex size-8 items-center justify-center rounded-md
+              text-gray-400 transition-all duration-150
+              hover:bg-lime-50 hover:text-green-700
+            "
+          >
+            <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
+          </Link>
 
-          <Button asChild>
-            <Link href={`/products/${product.id}/edit`}>Edit</Link>
-          </Button>
-
-          {product.active ? (
-            <form action={deactivateProduct}>
-              <input type="hidden" name="id" value={product.id} />
-              <Button type="submit" variant="destructive">
-                Deactivate
-              </Button>
-            </form>
-          ) : null}
-
+          {/* Delete */}
           <ConfirmDeleteForm
             action={deleteProduct}
             id={product.id}
             title={`Delete ${product.name}?`}
             hasLinkedHistory={product._count.accounts > 0}
             description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
+            triggerClassName="
+              group/del flex size-8 items-center justify-center rounded-md
+              text-gray-400 transition-all duration-150
+              hover:bg-red-50 hover:text-red-600
+            "
           >
-            Delete
+            <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
           </ConfirmDeleteForm>
         </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Cost Price</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(product.costPrice)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Daily Amount</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(product.dailyAmount)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Duration</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {product.duration} days
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Layaway Price</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(product.layawayPrice)}
-          </p>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Transport Cost</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(product.transportCost)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Layaway Profit / Unit</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {money(layawayProfit)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-white p-5">
-          <p className="text-sm text-gray-500">Profit Percentage</p>
-          <p className="mt-2 text-xl font-semibold text-gray-950">
-            {layawayProfitPercentage.toFixed(1)}%
-          </p>
-        </div>
-      </section>
-
-      <section className="rounded-lg border bg-white p-5">
-        <h2 className="text-base font-semibold text-gray-950">
-          Layaway Profitability
+      {/* Product Details Stats */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-gray-950">
+          Product Details
         </h2>
-
-        <div className="mt-4 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <p className="text-gray-500">Expected Layaway Revenue</p>
-            <p className="mt-1 font-semibold">
-              {money(expectedLayawayRevenue)}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Cost Price
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+              {money(product.costPrice)}
             </p>
           </div>
-
-          <div>
-            <p className="text-gray-500">Expected Layaway Profit</p>
-            <p className="mt-1 font-semibold">
-              {money(expectedLayawayProfit)}
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Transport Cost
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+              {money(product.transportCost)}
             </p>
           </div>
-
-          <div>
-            <p className="text-gray-500">Formula</p>
-            <p className="mt-1 font-semibold">
-              Daily × Duration = Layaway Price
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Daily Amount
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+              {money(product.dailyAmount)}
             </p>
           </div>
-
-          <div>
-            <p className="text-gray-500">Calculated Layaway</p>
-            <p className="mt-1 font-semibold">
-              {money(product.dailyAmount)} × {product.duration} ={" "}
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Duration
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+              {product.duration} days
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Layaway Price
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
               {money(product.layawayPrice)}
             </p>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="space-y-4 rounded-lg border bg-white p-5">
-        <div>
-          <h2 className="text-base font-semibold text-gray-950">
-            Account Summary
-          </h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Quantity is derived from customer accounts using this product.
+      {/* Profitability Stats */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-gray-950">
+          Profitability
+        </h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Profit / Unit
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
+              {money(layawayProfit)}
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Profit Margin
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
+              {layawayProfitPercentage.toFixed(1)}%
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Exp. Revenue
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+              {money(expectedLayawayRevenue)}
+            </p>
+          </div>
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Exp. Profit
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
+              {money(expectedLayawayProfit)}
+            </p>
+          </div>
+        </div>
+        
+        {/* Formula Note */}
+        <div className="mt-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          <p>
+            <span className="font-medium text-gray-900">Formula:</span> Daily ×
+            Duration = Layaway Price
+          </p>
+          <p className="mt-1">
+            <span className="font-medium text-gray-900">Calculated:</span>{" "}
+            {money(product.dailyAmount)} × {product.duration} ={" "}
+            {money(product.layawayPrice)}
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <p className="text-sm text-gray-500">Total Accounts</p>
-            <p className="mt-1 text-xl font-semibold text-gray-950">
+      </div>
+
+      {/* Account Summary Stats */}
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-gray-950">
+          Account Summary
+        </h2>
+        <p className="-mt-1 mb-3 text-sm text-gray-500">
+          Quantity is derived from customer accounts using this product.
+        </p>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Total Accounts
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
               {product._count.accounts}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">Active Accounts</p>
-            <p className="mt-1 text-xl font-semibold text-gray-950">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Active
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-blue-700">
               {activeAccounts}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">Completed Accounts</p>
-            <p className="mt-1 text-xl font-semibold text-gray-950">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Completed
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
               {completedAccounts}
             </p>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">Cancelled Accounts</p>
-            <p className="mt-1 text-xl font-semibold text-gray-950">
+          <div className="rounded-lg bg-gray-50 px-4 py-3">
+            <p className="text-[11px] uppercase tracking-widest text-gray-400">
+              Cancelled
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-red-700">
               {cancelledAccounts}
             </p>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

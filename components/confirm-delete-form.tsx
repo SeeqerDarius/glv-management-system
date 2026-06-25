@@ -12,6 +12,7 @@ type ConfirmDeleteFormProps = {
   description?: string;
   hasLinkedHistory?: boolean;
   requireAdminPassword?: boolean;
+  triggerClassName?: string;
   buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   buttonSize?:
     | "default"
@@ -32,6 +33,7 @@ export function ConfirmDeleteForm({
   description,
   hasLinkedHistory = true,
   requireAdminPassword = true,
+  triggerClassName,
   buttonVariant = "destructive",
   buttonSize = "sm",
 }: ConfirmDeleteFormProps) {
@@ -50,6 +52,7 @@ export function ConfirmDeleteForm({
         type="button"
         variant={buttonVariant}
         size={buttonSize}
+        className={triggerClassName}
         onClick={() => setOpen(true)}
       >
         {children}

@@ -43,7 +43,7 @@ export default function Home() {
           style={{ width: "3.5rem", height: "3.5rem", fontSize: "1rem" }}
           aria-hidden
         >
-          GL
+          GLV
         </div>
 
         {/* Eyebrow */}
