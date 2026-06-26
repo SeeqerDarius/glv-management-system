@@ -18,8 +18,8 @@ export function DatabaseUnavailable({
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-amber-950">{title}</h2>
           <p className="mt-1 text-sm text-amber-900">
-            GLV could not connect to the database. No data was changed. Check the
-            Supabase project and try again.
+            GLV could not connect to the Neon PostgreSQL database. No data was
+            changed. Check the deployment database connection and try again.
           </p>
           <Button asChild variant="outline" className="mt-4 bg-white">
             <Link href={retryHref}>

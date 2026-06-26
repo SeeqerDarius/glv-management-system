@@ -56,9 +56,9 @@ export default async function DashboardPage() {
   if (isAdmin) {
     try {
       report = await getAdminReportSummary();
-    } catch {
+    } catch (error) {
       reportUnavailable = true;
-      console.warn("Dashboard data is temporarily unavailable.");
+      console.error("DASHBOARD_LOAD_ERROR", error);
     }
   }
 

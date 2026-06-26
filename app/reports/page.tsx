@@ -41,7 +41,8 @@ export default async function ReportsPage({
 
   try {
     report = await getWeeklyStaffPerformanceReport();
-  } catch {
+  } catch (error) {
+    console.error("REPORTS_LOAD_ERROR", error);
     return <DatabaseUnavailable retryHref="/reports" title="Reports are temporarily unavailable" />;
   }
 
