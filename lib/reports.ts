@@ -27,10 +27,11 @@ function accountCost(account: {
 }
 
 export async function getAdminReportSummary() {
+  const month = getCurrentMonthRange();
   const [totalCustomers, staff, accounts, paymentAggregate, salaryAggregate, recentPayments] =
     await prisma.$transaction([
       prisma.customer.count(),
-      prisma.staff.findMany({ select: { expectedSalary: true } }),
+      prisma.staff.findMany({ select: { monthlySalary: true, active: true } }),
       prisma.customerAccount.findMany({
         include: {
           customer: { include: { staff: true } },
@@ -39,7 +40,15 @@ export async function getAdminReportSummary() {
         orderBy: { createdAt: "desc" },
       }),
       prisma.payment.aggregate({ _sum: { amount: true } }),
-      prisma.staffSalaryPayment.aggregate({ _sum: { amount: true } }),
+      prisma.staffSalaryPayment.aggregate({
+        where: {
+          paymentDate: {
+            gte: month.start,
+            lte: month.end,
+          },
+        },
+        _sum: { amount: true },
+      }),
       prisma.payment.findMany({
         take: 8,
         orderBy: { paymentDate: "desc" },
@@ -79,12 +88,25 @@ export async function getAdminReportSummary() {
     0
   );
   const totalSalaryPaid = salaryAggregate._sum.amount ?? 0;
-  const totalExpectedSalary = staff.reduce(
-    (total, member) => total + member.expectedSalary,
+  const currentMonthPayroll = staff
+    .filter((member) => member.active)
+    .reduce(
+      (total, member) => total + member.monthlySalary,
+      0
+    );
+  const outstandingSalaries = Math.max(
+    currentMonthPayroll - totalSalaryPaid,
+    0
+  );
+  const payrollVsIncome = totalCollected - totalSalaryPaid;
+  const payrollPercentageOfRevenue =
+    totalCollected > 0 ? (totalSalaryPaid / totalCollected) * 100 : 0;
+  const totalMonthlySalary = staff.reduce(
+    (total, member) => total + member.monthlySalary,
     0
   );
   const netProfitSoFar = totalCollected - totalProductCost - totalSalaryPaid;
-  const projectedNetProfit = totalExpectedProfit - totalExpectedSalary;
+  const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
 
   return {
     totalCustomers,
@@ -104,7 +126,11 @@ export async function getAdminReportSummary() {
     totalProductCost,
     totalExpectedProfit,
     totalSalaryPaid,
-    totalExpectedSalary,
+    totalMonthlySalary,
+    currentMonthPayroll,
+    outstandingSalaries,
+    payrollVsIncome,
+    payrollPercentageOfRevenue,
     netProfitSoFar,
     projectedNetProfit,
     gainLossStatus:
@@ -158,7 +184,12 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       (payment) => payment.account.customer.staffId === member.id
     );
     const salaryPaid = salaryPayments
-      .filter((payment) => payment.staffId === member.id)
+      .filter(
+        (payment) =>
+          payment.staffId === member.id &&
+          payment.paymentDate >= month.start &&
+          payment.paymentDate <= month.end
+      )
       .reduce((total, payment) => total + payment.amount, 0);
     const expectedProfit = memberAccounts
       .filter((account) => account.status !== AccountStatus.CANCELLED)
@@ -218,11 +249,12 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         0
       ),
       salaryPaid,
-      expectedSalary: member.expectedSalary,
-      salaryBalance: Math.max(member.expectedSalary - salaryPaid, 0),
+      monthlySalary: member.monthlySalary,
+      salaryPaidThisMonth: salaryPaid,
+      salaryBalanceThisMonth: Math.max(member.monthlySalary - salaryPaid, 0),
       netPosition: totalCollected - salaryPaid,
       expectedProfit,
-      projectedProfitAfterSalary: expectedProfit - member.expectedSalary,
+      projectedProfitAfterSalary: expectedProfit - member.monthlySalary,
       overdueAccounts: memberAccounts.filter(
         (account) => getEffectiveAccountStatus(account) === AccountStatus.OVERDUE
       ).length,
@@ -238,11 +270,24 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 
   const totalCollected = payments.reduce((total, payment) => total + payment.amount, 0);
   const totalSalaryPaid = salaryPayments.reduce(
+    (total, payment) =>
+      payment.paymentDate >= month.start && payment.paymentDate <= month.end
+        ? total + payment.amount
+        : total,
+    0
+  );
+  const totalSalariesPaid = salaryPayments.reduce(
     (total, payment) => total + payment.amount,
     0
   );
-  const totalExpectedSalary = staff.reduce(
-    (total, member) => total + member.expectedSalary,
+  const currentMonthPayroll = staff
+    .filter((member) => member.active)
+    .reduce(
+      (total, member) => total + member.monthlySalary,
+      0
+    );
+  const totalMonthlySalary = staff.reduce(
+    (total, member) => total + member.monthlySalary,
     0
   );
   const includedAccounts = accounts.filter(
@@ -256,7 +301,17 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     (total, account) => total + account.targetAmount - accountCost(account),
     0
   );
-  const projectedNetProfit = totalExpectedProfit - totalExpectedSalary;
+  const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
+  const monthlyIncome = payments
+    .filter(
+      (payment) =>
+        payment.paymentDate >= month.start && payment.paymentDate <= month.end
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
+  const outstandingSalaries = Math.max(currentMonthPayroll - totalSalaryPaid, 0);
+  const payrollVsIncome = monthlyIncome - totalSalaryPaid;
+  const payrollPercentageOfRevenue =
+    monthlyIncome > 0 ? (totalSalaryPaid / monthlyIncome) * 100 : 0;
   const userNames = new Map(users.map((user) => [user.id, user.name]));
 
   return {
@@ -296,7 +351,13 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       totalProductCost,
       totalExpectedProfit,
       totalSalaryPaid,
-      totalExpectedSalary,
+      totalSalariesPaid,
+      totalMonthlySalary,
+      currentMonthPayroll,
+      outstandingSalaries,
+      payrollVsIncome,
+      payrollPercentageOfRevenue,
+      monthlyIncome,
       netProfitSoFar: totalCollected - totalProductCost - totalSalaryPaid,
       projectedNetProfit,
       gainLossStatus:

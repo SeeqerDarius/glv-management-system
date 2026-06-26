@@ -142,6 +142,8 @@ function finishSheet(
 
 export async function buildWeeklyReportWorkbook(now = new Date()) {
   const { start, end } = getCurrentWeekRange(now);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
   const [staff, customers, accounts, users, salaryPayments, products] =
     await prisma.$transaction([
     prisma.staff.findMany({ orderBy: { code: "asc" } }),
@@ -214,10 +216,22 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
       0
     );
-  const totalSalaryPaid = salaryPayments.reduce((sum, payment) => sum + payment.amount, 0);
-  const totalExpectedSalary = staff.reduce((sum, member) => sum + member.expectedSalary, 0);
-  const netProfitSoFar = totalCollected - totalProductCost - totalSalaryPaid;
-  const projectedNetProfit = totalExpectedProfit - totalExpectedSalary;
+  const salaryPaidThisMonth = salaryPayments
+    .filter((payment) => payment.paymentDate >= monthStart && payment.paymentDate <= monthEnd)
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const totalSalariesPaid = salaryPayments.reduce((sum, payment) => sum + payment.amount, 0);
+  const currentMonthPayroll = staff
+    .filter((member) => member.active)
+    .reduce((sum, member) => sum + member.monthlySalary, 0);
+  const outstandingSalaries = Math.max(currentMonthPayroll - salaryPaidThisMonth, 0);
+  const monthlyIncome = allPayments
+    .filter(({ payment }) => payment.paymentDate >= monthStart && payment.paymentDate <= monthEnd)
+    .reduce((sum, item) => sum + item.payment.amount, 0);
+  const payrollVsIncome = monthlyIncome - salaryPaidThisMonth;
+  const payrollPercentageOfRevenue =
+    monthlyIncome > 0 ? salaryPaidThisMonth / monthlyIncome : 0;
+  const netProfitSoFar = totalCollected - totalProductCost - salaryPaidThisMonth;
+  const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
   const period = formatPeriod(start, end);
 
   const workbook = new ExcelJS.Workbook();
@@ -250,8 +264,12 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Expected receivables", expectedReceivables],
     ["Outstanding balance", outstandingBalance],
     ["Product cost exposure", totalProductCost],
-    ["Salary paid", totalSalaryPaid],
-    ["Expected salary", totalExpectedSalary],
+    ["Current month payroll", currentMonthPayroll],
+    ["Salary paid this month", salaryPaidThisMonth],
+    ["Total salaries paid", totalSalariesPaid],
+    ["Outstanding salaries", outstandingSalaries],
+    ["Payroll vs income", payrollVsIncome],
+    ["Payroll percentage of revenue", payrollPercentageOfRevenue],
     ["Net profit so far", netProfitSoFar],
     ["Projected profit / loss", projectedNetProfit],
   ]);
@@ -265,9 +283,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   }
   summary.getCell("B5").numFmt = dateFormat;
   summary.getCell("B6").numFmt = dateFormat;
-  for (let row = 15; row <= 22; row += 1) {
+  for (let row = 15; row <= 26; row += 1) {
     summary.getCell(row, 2).numFmt = currencyFormat;
   }
+  summary.getCell("B24").numFmt = "0.0%";
   finishSheet(summary, [30, 23]);
 
   const staffRows = staff
@@ -303,7 +322,15 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         salaryPaid: salaryPayments
           .filter((payment) => payment.staffId === member.id)
           .reduce((sum, payment) => sum + payment.amount, 0),
-        expectedSalary: member.expectedSalary,
+        monthlySalary: member.monthlySalary,
+        salaryPaidThisMonth: salaryPayments
+          .filter(
+            (payment) =>
+              payment.staffId === member.id &&
+              payment.paymentDate >= monthStart &&
+              payment.paymentDate <= monthEnd
+          )
+          .reduce((sum, payment) => sum + payment.amount, 0),
         projectedProfitAfterSalary:
           memberAccounts
             .filter((account) => account.status !== AccountStatus.CANCELLED)
@@ -311,7 +338,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
               (sum, account) =>
                 sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
               0
-            ) - member.expectedSalary,
+            ) - member.monthlySalary,
       };
     })
     .sort(
@@ -334,8 +361,9 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       "Total Collected",
       "Weekly Collection",
       "Outstanding Balance",
-      "Salary Paid",
-      "Expected Salary",
+      "Salary Paid This Month",
+      "Monthly Salary",
+      "Salary Balance This Month",
       "Net After Salary",
       "Projected Profit After Salary",
       "Performance Ranking",
@@ -350,9 +378,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       row.totalCollected,
       row.weeklyCollection,
       row.outstanding,
-      row.salaryPaid,
-      row.expectedSalary,
-      row.totalCollected - row.salaryPaid,
+      row.salaryPaidThisMonth,
+      row.monthlySalary,
+      Math.max(row.monthlySalary - row.salaryPaidThisMonth, 0),
+      row.totalCollected - row.salaryPaidThisMonth,
       row.projectedProfitAfterSalary,
       index + 1,
     ]);

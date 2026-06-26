@@ -207,6 +207,14 @@ export async function createStaff(
 
   const temporaryPassword = generateTemporaryPassword();
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+  const settings = await prisma.setting.findFirst({
+    orderBy: {
+      createdAt: "asc",
+    },
+    select: {
+      defaultMonthlySalary: true,
+    },
+  });
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -216,6 +224,7 @@ export async function createStaff(
           email,
           code,
           phone: phone || null,
+          monthlySalary: settings?.defaultMonthlySalary ?? 0,
         },
       });
 
@@ -291,12 +300,12 @@ export async function updateStaff(formData: FormData): Promise<void> {
     redirect("/staff?error=staff-not-found");
   }
 
-  const submittedExpectedSalary = Number(cleanInput(formData.get("expectedSalary")));
-  const expectedSalary = isAdminRole(user.role)
-    ? Number.isFinite(submittedExpectedSalary) && submittedExpectedSalary >= 0
-      ? submittedExpectedSalary
-      : existingStaff.expectedSalary
-    : existingStaff.expectedSalary;
+  const submittedMonthlySalary = Number(cleanInput(formData.get("monthlySalary")));
+  const monthlySalary = isAdminRole(user.role)
+    ? Number.isFinite(submittedMonthlySalary) && submittedMonthlySalary >= 0
+      ? submittedMonthlySalary
+      : existingStaff.monthlySalary
+    : existingStaff.monthlySalary;
 
   const canGrantPrivileges = isSuperAdminRole(user.role);
   const requestedPermissions = canGrantPrivileges
@@ -314,7 +323,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
         code,
         phone: phone || null,
         active,
-        expectedSalary,
+        monthlySalary,
       },
     });
 

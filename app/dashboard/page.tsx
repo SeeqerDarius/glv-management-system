@@ -135,13 +135,15 @@ export default async function DashboardPage() {
           <section className="space-y-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-950">Gain / Loss Summary</h2>
-              <p className="text-sm text-gray-600">Current cash position and projected profitability after product costs and salaries.</p>
+              <p className="text-sm text-gray-600">Current cash position and projected profitability after product costs and monthly payroll.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard label="Product Cost Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
               <MetricCard label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent="#7ac943" />
-              <MetricCard label="Salary Paid" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
-              <MetricCard label="Expected Salary" value={formatMoney(report.totalExpectedSalary)} icon={UsersIcon} accent="#2f8fb5" />
+              <MetricCard label="Salary Paid This Month" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
+              <MetricCard label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent="#2f8fb5" />
+              <MetricCard label="Outstanding Salaries" value={formatMoney(report.outstandingSalaries)} icon={UsersIcon} accent="#d18b35" />
+              <MetricCard label="Payroll vs Income" value={formatMoney(report.payrollVsIncome)} icon={BadgeDollarSignIcon} accent={report.payrollVsIncome < 0 ? "#c93636" : "#3b8d62"} />
               <MetricCard label="Net Profit So Far" value={formatMoney(report.netProfitSoFar)} icon={BadgeDollarSignIcon} accent={report.netProfitSoFar < 0 ? "#c93636" : "#3b8d62"} />
               <MetricCard label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : "#7ac943"} />
               <MetricCard label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />

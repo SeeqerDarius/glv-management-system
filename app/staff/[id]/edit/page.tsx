@@ -98,16 +98,16 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
 
         {canManageSalary ? (
           <label className="block space-y-1 rounded-md border border-lime-200 bg-lime-50 p-4">
-            <span className="text-sm font-semibold text-gray-900">Expected Salary (184 days / 6 months)</span>
+            <span className="text-sm font-semibold text-gray-900">Monthly Salary</span>
             <input
-              name="expectedSalary"
+              name="monthlySalary"
               type="number"
               min="0"
               step="0.01"
-              defaultValue={staff.expectedSalary}
+              defaultValue={staff.monthlySalary}
               className="w-full rounded border p-3"
             />
-            <span className="block text-xs text-gray-600">Total salary budget assigned to this staff member for the full GLV account period.</span>
+            <span className="block text-xs text-gray-600">Editable monthly payroll amount for this staff member.</span>
           </label>
         ) : null}
 

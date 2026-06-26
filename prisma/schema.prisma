@@ -68,7 +68,7 @@ model Staff {
 
   active Boolean @default(true)
 
-  expectedSalary Float @default(0)
+  monthlySalary Float @default(0)
 
   user User?
 

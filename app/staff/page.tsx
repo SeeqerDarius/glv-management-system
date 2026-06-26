@@ -6,6 +6,10 @@ import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { prisma } from "@/lib/prisma";
 
+function money(value: number) {
+  return `GHS ${value.toFixed(2)}`;
+}
+
 type StaffPageProps = {
   searchParams: Promise<{
     q?: string;
@@ -132,7 +136,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table
-            className="w-full min-w-[820px] text-sm"
+            className="w-full min-w-[940px] text-sm"
             style={{ tableLayout: "fixed" }}
           >
             <colgroup>
@@ -141,8 +145,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               <col style={{ width: "19%" }} />
               <col style={{ width: "13%" }} />
               <col style={{ width: "10%" }} />
+              <col style={{ width: "12%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "11%" }} />
+              <col style={{ width: "9%" }} />
               <col style={{ width: "10%" }} />
             </colgroup>
             <thead>
@@ -161,6 +166,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 </th>
                 <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Customers
+                </th>
+                <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                  Monthly Salary
                 </th>
                 <th className="px-3 py-2.5 text-center text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Status
@@ -194,6 +202,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-gray-700">
                     {member._count.customers}
+                  </td>
+                  <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                    {money(member.monthlySalary)}
                   </td>
                   <td className="px-3 py-3 text-center">
                     <span
