@@ -93,22 +93,20 @@ export async function createAccount(
     };
   }
 
-  const [customer, product] = await Promise.all([
-    prisma.customer.findUnique({
-      where: {
-        id: customerId,
-      },
-      select: {
-        id: true,
-        staffId: true,
-      },
-    }),
-    prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-    }),
-  ]);
+  const customer = await prisma.customer.findUnique({
+    where: {
+      id: customerId,
+    },
+    select: {
+      id: true,
+      staffId: true,
+    },
+  });
+  const product = await prisma.product.findUnique({
+    where: {
+      id: productId,
+    },
+  });
 
   if (!customer) {
     return {

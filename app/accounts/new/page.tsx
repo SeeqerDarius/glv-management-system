@@ -9,43 +9,41 @@ export default async function NewAccountPage() {
   const isStaff = session?.user?.role === UserRole.STAFF;
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
 
-  const [customers, products] = await Promise.all([
-    prisma.customer.findMany({
-      where:
-        isStaff && !canManageAll && session.user.staffId
-          ? {
-              staffId: session.user.staffId,
-            }
-          : undefined,
-      orderBy: {
-        fullName: "asc",
-      },
-      include: {
-        staff: {
-          select: {
-            code: true,
-            fullName: true,
-          },
+  const customers = await prisma.customer.findMany({
+    where:
+      isStaff && !canManageAll && session.user.staffId
+        ? {
+            staffId: session.user.staffId,
+          }
+        : undefined,
+    orderBy: {
+      fullName: "asc",
+    },
+    include: {
+      staff: {
+        select: {
+          code: true,
+          fullName: true,
         },
       },
-    }),
-    prisma.product.findMany({
-      where: {
-        active: true,
-      },
-      orderBy: {
-        name: "asc",
-      },
-      select: {
-        id: true,
-        name: true,
-        category: true,
-        layawayPrice: true,
-        dailyAmount: true,
-        duration: true,
-      },
-    }),
-  ]);
+    },
+  });
+  const products = await prisma.product.findMany({
+    where: {
+      active: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      layawayPrice: true,
+      dailyAmount: true,
+      duration: true,
+    },
+  });
 
   return (
     <div className="max-w-3xl space-y-6">

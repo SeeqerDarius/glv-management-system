@@ -295,27 +295,25 @@ export async function bulkReassignCustomers(formData: FormData): Promise<void> {
     redirect(`${returnTo}?error=no-selection`);
   }
 
-  const [newStaff, customers] = await Promise.all([
-    prisma.staff.findFirst({
-      where: {
-        id: newStaffId,
-        active: true,
+  const newStaff = await prisma.staff.findFirst({
+    where: {
+      id: newStaffId,
+      active: true,
+    },
+  });
+  const customers = await prisma.customer.findMany({
+    where: {
+      id: {
+        in: customerIds,
       },
-    }),
-    prisma.customer.findMany({
-      where: {
-        id: {
-          in: customerIds,
-        },
-      },
-      select: {
-        id: true,
-        customerId: true,
-        fullName: true,
-        staffId: true,
-      },
-    }),
-  ]);
+    },
+    select: {
+      id: true,
+      customerId: true,
+      fullName: true,
+      staffId: true,
+    },
+  });
 
   if (!newStaff) {
     redirect(`${returnTo}?error=invalid-staff`);

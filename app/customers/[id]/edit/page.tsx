@@ -25,28 +25,26 @@ export default async function EditCustomerPage({
   const isAdmin = isAdminRole(session?.user?.role);
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_CUSTOMERS);
 
-  const [customer, staff] = await Promise.all([
-    prisma.customer.findFirst({
-      where: {
-        id,
-        ...(!canManageAll && session?.user?.staffId
-          ? {
-              staffId: session.user.staffId,
-            }
-          : {}),
-      },
-    }),
-    isAdmin
-      ? prisma.staff.findMany({
-          where: {
-            active: true,
-          },
-          orderBy: {
-            fullName: "asc",
-          },
-        })
-      : Promise.resolve([]),
-  ]);
+  const customer = await prisma.customer.findFirst({
+    where: {
+      id,
+      ...(!canManageAll && session?.user?.staffId
+        ? {
+            staffId: session.user.staffId,
+          }
+        : {}),
+    },
+  });
+  const staff = isAdmin
+    ? await prisma.staff.findMany({
+        where: {
+          active: true,
+        },
+        orderBy: {
+          fullName: "asc",
+        },
+      })
+    : [];
 
   if (!customer) {
     notFound();

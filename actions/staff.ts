@@ -162,32 +162,30 @@ export async function createStaff(
 
   const code = submittedCode || (await generateStaffCode(fullName));
 
-  const [staffWithEmail, userWithEmail, staffWithCode] = await Promise.all([
-    prisma.staff.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.user.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.staff.findUnique({
-      where: {
-        code,
-      },
-      select: {
-        id: true,
-      },
-    }),
-  ]);
+  const staffWithEmail = await prisma.staff.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const userWithEmail = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const staffWithCode = await prisma.staff.findUnique({
+    where: {
+      code,
+    },
+    select: {
+      id: true,
+    },
+  });
 
   if (staffWithEmail || userWithEmail) {
     return {

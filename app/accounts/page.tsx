@@ -147,37 +147,35 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         }
       : {};
 
-  const [accounts, totalAccounts, staff, products] = await Promise.all([
-    prisma.customerAccount.findMany({
-      where,
-      orderBy: {
-        createdAt: "desc",
-      },
-      skip: (currentPage - 1) * pageSize,
-      take: pageSize,
-      include: {
-        customer: {
-          include: {
-            staff: true,
-          },
+  const accounts = await prisma.customerAccount.findMany({
+    where,
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
+    include: {
+      customer: {
+        include: {
+          staff: true,
         },
-        product: true,
       },
-    }),
-    prisma.customerAccount.count({ where }),
-    !isAdmin
-      ? Promise.resolve([])
-      : prisma.staff.findMany({
-          orderBy: {
-            fullName: "asc",
-          },
-        }),
-    prisma.product.findMany({
-      orderBy: {
-        name: "asc",
-      },
-    }),
-  ]);
+      product: true,
+    },
+  });
+  const totalAccounts = await prisma.customerAccount.count({ where });
+  const staff = !isAdmin
+    ? []
+    : await prisma.staff.findMany({
+        orderBy: {
+          fullName: "asc",
+        },
+      });
+  const products = await prisma.product.findMany({
+    orderBy: {
+      name: "asc",
+    },
+  });
 
   const totalPages = Math.max(Math.ceil(totalAccounts / pageSize), 1);
   const urlParams = new URLSearchParams();

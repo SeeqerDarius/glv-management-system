@@ -20,7 +20,6 @@ function databaseUrlWithTimeouts() {
     const url = new URL(databaseUrl);
     url.searchParams.set("connect_timeout", url.searchParams.get("connect_timeout") ?? "30");
     url.searchParams.set("pool_timeout", url.searchParams.get("pool_timeout") ?? "30");
-    url.searchParams.set("connection_limit", url.searchParams.get("connection_limit") ?? "1");
     return url.toString();
   } catch {
     return databaseUrl;

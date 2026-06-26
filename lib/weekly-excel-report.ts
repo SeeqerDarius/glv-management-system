@@ -144,31 +144,30 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const { start, end } = getCurrentWeekRange(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  const [staff, customers, accounts, users, salaryPayments, products] =
-    await prisma.$transaction([
-    prisma.staff.findMany({ orderBy: { code: "asc" } }),
-    prisma.customer.findMany({ select: { id: true, staffId: true } }),
-    prisma.customerAccount.findMany({
-      orderBy: { createdAt: "asc" },
-      include: {
-        customer: { include: { staff: true } },
-        product: true,
-        payments: { orderBy: { paymentDate: "asc" } },
-      },
-    }),
-    prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        staff: { select: { code: true } },
-      },
-    }),
-    prisma.staffSalaryPayment.findMany(),
-    prisma.product.findMany({
-      orderBy: [{ category: "asc" }, { name: "asc" }],
-      include: { _count: { select: { accounts: true } } },
-    }),
-  ]);
+  const staff = await prisma.staff.findMany({ orderBy: { code: "asc" } });
+  const customers = await prisma.customer.findMany({
+    select: { id: true, staffId: true },
+  });
+  const accounts = await prisma.customerAccount.findMany({
+    orderBy: { createdAt: "asc" },
+    include: {
+      customer: { include: { staff: true } },
+      product: true,
+      payments: { orderBy: { paymentDate: "asc" } },
+    },
+  });
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      staff: { select: { code: true } },
+    },
+  });
+  const salaryPayments = await prisma.staffSalaryPayment.findMany();
+  const products = await prisma.product.findMany({
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+    include: { _count: { select: { accounts: true } } },
+  });
 
   const userNames = new Map(
     users.map((user) => [

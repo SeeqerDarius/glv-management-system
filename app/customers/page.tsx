@@ -23,7 +23,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     UserPermission.MANAGE_CUSTOMERS
   );
 
-  const [customers, staff] = await Promise.all([prisma.customer.findMany({
+  const customers = await prisma.customer.findMany({
     where:
       isStaff && !canManageAll && session.user.staffId
         ? {
@@ -42,10 +42,13 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         },
       },
     },
-  }), isAdmin ? prisma.staff.findMany({
-    where: { active: true },
-    orderBy: { fullName: "asc" },
-  }) : Promise.resolve([])]);
+  });
+  const staff = isAdmin
+    ? await prisma.staff.findMany({
+        where: { active: true },
+        orderBy: { fullName: "asc" },
+      })
+    : [];
 
   return (
     <div className="space-y-6">

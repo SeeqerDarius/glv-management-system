@@ -58,32 +58,30 @@ export async function submitStaffApplication(
     };
   }
 
-  const [existingApplication, existingStaff, existingUser] = await Promise.all([
-    prisma.staffApplication.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.staff.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    }),
-    prisma.user.findUnique({
-      where: {
-        email,
-      },
-      select: {
-        id: true,
-      },
-    }),
-  ]);
+  const existingApplication = await prisma.staffApplication.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const existingStaff = await prisma.staff.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
 
   if (existingApplication || existingStaff || existingUser) {
     return {

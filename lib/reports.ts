@@ -28,33 +28,34 @@ function accountCost(account: {
 
 export async function getAdminReportSummary() {
   const month = getCurrentMonthRange();
-  const [totalCustomers, staff, accounts, paymentAggregate, salaryAggregate, recentPayments] =
-    await prisma.$transaction([
-      prisma.customer.count(),
-      prisma.staff.findMany({ select: { monthlySalary: true, active: true } }),
-      prisma.customerAccount.findMany({
-        include: {
-          customer: { include: { staff: true } },
-          product: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      prisma.payment.aggregate({ _sum: { amount: true } }),
-      prisma.staffSalaryPayment.aggregate({
-        where: {
-          paymentDate: {
-            gte: month.start,
-            lte: month.end,
-          },
-        },
-        _sum: { amount: true },
-      }),
-      prisma.payment.findMany({
-        take: 8,
-        orderBy: { paymentDate: "desc" },
-        include: { account: { include: { customer: true, product: true } } },
-      }),
-    ]);
+  const totalCustomers = await prisma.customer.count();
+  const staff = await prisma.staff.findMany({
+    select: { monthlySalary: true, active: true },
+  });
+  const accounts = await prisma.customerAccount.findMany({
+    include: {
+      customer: { include: { staff: true } },
+      product: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  const paymentAggregate = await prisma.payment.aggregate({
+    _sum: { amount: true },
+  });
+  const salaryAggregate = await prisma.staffSalaryPayment.aggregate({
+    where: {
+      paymentDate: {
+        gte: month.start,
+        lte: month.end,
+      },
+    },
+    _sum: { amount: true },
+  });
+  const recentPayments = await prisma.payment.findMany({
+    take: 8,
+    orderBy: { paymentDate: "desc" },
+    include: { account: { include: { customer: true, product: true } } },
+  });
 
   const statusCounts = accounts.reduce(
     (totals, account) => {
@@ -150,31 +151,30 @@ export async function getAdminReportSummary() {
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
-  const [staff, customers, accounts, payments, salaryPayments, products, users] =
-    await prisma.$transaction([
-      prisma.staff.findMany({ orderBy: { code: "asc" } }),
-      prisma.customer.findMany({ select: { staffId: true, createdAt: true } }),
-      prisma.customerAccount.findMany({
-        include: {
-          customer: { select: { staffId: true } },
-          product: true,
-        },
-      }),
-      prisma.payment.findMany({
-        include: {
-          account: { include: { customer: { select: { staffId: true } } } },
-        },
-      }),
-      prisma.staffSalaryPayment.findMany({
-        orderBy: { paymentDate: "desc" },
-        include: { staff: true },
-      }),
-      prisma.product.findMany({
-        orderBy: [{ category: "asc" }, { name: "asc" }],
-        include: { _count: { select: { accounts: true } } },
-      }),
-      prisma.user.findMany({ select: { id: true, name: true } }),
-    ]);
+  const staff = await prisma.staff.findMany({ orderBy: { code: "asc" } });
+  const customers = await prisma.customer.findMany({
+    select: { staffId: true, createdAt: true },
+  });
+  const accounts = await prisma.customerAccount.findMany({
+    include: {
+      customer: { select: { staffId: true } },
+      product: true,
+    },
+  });
+  const payments = await prisma.payment.findMany({
+    include: {
+      account: { include: { customer: { select: { staffId: true } } } },
+    },
+  });
+  const salaryPayments = await prisma.staffSalaryPayment.findMany({
+    orderBy: { paymentDate: "desc" },
+    include: { staff: true },
+  });
+  const products = await prisma.product.findMany({
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+    include: { _count: { select: { accounts: true } } },
+  });
+  const users = await prisma.user.findMany({ select: { id: true, name: true } });
 
   const rows = staff.map((member) => {
     const memberAccounts = accounts.filter(
