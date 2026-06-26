@@ -23,7 +23,7 @@ type AccountsPageProps = {
   }>;
 };
 
-const pageSize = 20;
+const PAGE_SIZE = 20;
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -49,65 +49,34 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     session?.user?.permissions,
     UserPermission.MANAGE_ACCOUNTS
   );
+
   const query = params.q?.trim() ?? "";
   const selectedStatus = params.status || AccountStatus.ACTIVE;
   const selectedStaffId = params.staffId || "";
   const selectedProductId = params.productId || "";
-  const error = params.error || "";
-  const deleted = params.deleted || "";
   const currentPage = Math.max(Number(params.page || "1"), 1);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const filters: Prisma.CustomerAccountWhereInput[] = [];
 
   if (isStaff && !canManageAll && session.user.staffId) {
-    filters.push({
-      customer: {
-        staffId: session.user.staffId,
-      },
-    });
+    filters.push({ customer: { staffId: session.user.staffId } });
   } else if (selectedStaffId) {
-    filters.push({
-      customer: {
-        staffId: selectedStaffId,
-      },
-    });
+    filters.push({ customer: { staffId: selectedStaffId } });
   }
 
   if (selectedProductId) {
-    filters.push({
-      productId: selectedProductId,
-    });
+    filters.push({ productId: selectedProductId });
   }
 
   if (query) {
     filters.push({
       OR: [
-        {
-          customer: {
-            fullName: {
-              contains: query,
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          customer: {
-            customerId: {
-              contains: query,
-              mode: "insensitive",
-            },
-          },
-        },
-        {
-          product: {
-            name: {
-              contains: query,
-              mode: "insensitive",
-            },
-          },
-        },
+        { customer: { fullName: { contains: query, mode: "insensitive" } } },
+        { customer: { customerId: { contains: query, mode: "insensitive" } } },
+        { product: { name: { contains: query, mode: "insensitive" } } },
       ],
     });
   }
@@ -115,74 +84,125 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   if (selectedStatus === "OVERDUE") {
     filters.push({
       status: AccountStatus.ACTIVE,
-      balance: {
-        gt: 0,
-      },
-      expectedEndDate: {
-        lt: today,
-      },
+      balance: { gt: 0 },
+      expectedEndDate: { lt: today },
     });
   } else if (selectedStatus === "ALL") {
-    // No status filter.
+    // no filter
   } else if (selectedStatus === AccountStatus.ACTIVE) {
     filters.push({
       status: AccountStatus.ACTIVE,
-      balance: {
-        gt: 0,
-      },
-      expectedEndDate: {
-        gte: today,
-      },
+      balance: { gt: 0 },
+      expectedEndDate: { gte: today },
     });
   } else {
-    filters.push({
-      status: selectedStatus as AccountStatus,
-    });
+    filters.push({ status: selectedStatus as AccountStatus });
   }
 
   const where: Prisma.CustomerAccountWhereInput =
-    filters.length > 0
-      ? {
-          AND: filters,
-        }
-      : {};
+    filters.length > 0 ? { AND: filters } : {};
 
-  const accounts = await prisma.customerAccount.findMany({
-    where,
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip: (currentPage - 1) * pageSize,
-    take: pageSize,
-    include: {
-      customer: {
-        include: {
-          staff: true,
+  // Data containers
+  let accounts: Array<{
+    id: string;
+    startDate: Date;
+    expectedEndDate: Date;
+    targetAmount: number;
+    totalPaid: number;
+    balance: number;
+    dailyAmount: number;
+    status: AccountStatus;
+    customer: {
+      id: string;
+      fullName: string;
+      customerId: string;
+      staff: { code: string };
+    };
+    product: { name: string; duration: number };
+  }> = [];
+  let totalAccounts = 0;
+  let staff: Array<{ id: string; code: string; fullName: string }> = [];
+  let products: Array<{ id: string; name: string }> = [];
+  let loadError = false;
+
+  try {
+    // Fetch accounts first (most important), then supporting data sequentially
+    accounts = await prisma.customerAccount.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (currentPage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
+      select: {
+        id: true,
+        startDate: true,
+        expectedEndDate: true,
+        targetAmount: true,
+        totalPaid: true,
+        balance: true,
+        dailyAmount: true,
+        status: true,
+        customer: {
+          select: {
+            id: true,
+            fullName: true,
+            customerId: true,
+            staff: { select: { code: true } },
+          },
         },
+        product: { select: { name: true, duration: true } },
       },
-      product: true,
-    },
-  });
-  const totalAccounts = await prisma.customerAccount.count({ where });
-  const staff = !isAdmin
-    ? []
-    : await prisma.staff.findMany({
-        orderBy: {
-          fullName: "asc",
-        },
-      });
-  const products = await prisma.product.findMany({
-    orderBy: {
-      name: "asc",
-    },
-  });
+    });
 
-  const totalPages = Math.max(Math.ceil(totalAccounts / pageSize), 1);
+    totalAccounts = await prisma.customerAccount.count({ where });
+
+    if (isAdmin) {
+      staff = await prisma.staff.findMany({
+        orderBy: { fullName: "asc" },
+        select: { id: true, code: true, fullName: true },
+      });
+    }
+
+    products = await prisma.product.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    });
+  } catch (err) {
+    console.error("ACCOUNTS_LOAD_ERROR", err);
+    loadError = true;
+  }
+
+  const totalPages = Math.max(Math.ceil(totalAccounts / PAGE_SIZE), 1);
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
   if (selectedStatus) urlParams.set("status", selectedStatus);
   if (selectedProductId) urlParams.set("productId", selectedProductId);
+
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-950">Accounts</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            Track customer installment accounts separately from customer
+            profiles.
+          </p>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
+          <p className="font-medium text-amber-900">
+            Unable to load accounts right now.
+          </p>
+          <p className="mt-1 text-sm text-amber-700">
+            The database is temporarily unavailable. Please{" "}
+            <Link href="/accounts" className="underline">
+              try again
+            </Link>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -190,10 +210,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         <div>
           <h1 className="text-3xl font-bold text-gray-950">Accounts</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Track customer installment accounts separately from customer profiles.
+            Track customer installment accounts separately from customer
+            profiles.
           </p>
         </div>
-
         <Button asChild>
           <Link href="/accounts/new">Create Account</Link>
         </Button>
@@ -241,21 +261,20 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </Button>
       </form>
 
-      {error === "account-not-found" ? (
+      {params.error === "account-not-found" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Account could not be found.
         </div>
       ) : null}
-
-      {deleted === "account" ? (
+      {params.deleted === "account" ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
           Account and all related payments were permanently deleted.
         </div>
       ) : null}
-
       {params.delegated ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
-          Reassigned the customer ownership for {params.delegated} selected account record(s).
+          Reassigned the customer ownership for {params.delegated} selected
+          account record(s).
         </div>
       ) : null}
 
@@ -290,7 +309,6 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           <tbody>
             {accounts.map((account) => {
               const status = getEffectiveAccountStatus(account);
-
               return (
                 <tr key={account.id} className="border-t">
                   {isAdmin ? (
@@ -327,7 +345,9 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                     />
                   </td>
                   <td className="p-3">
-                    <Badge variant={status === "OVERDUE" ? "destructive" : "default"}>
+                    <Badge
+                      variant={status === "OVERDUE" ? "destructive" : "default"}
+                    >
                       {status}
                     </Badge>
                   </td>
@@ -357,17 +377,16 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </p>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <Link
-              href={buildPageHref(urlParams, Math.max(currentPage - 1, 1))}
-              aria-disabled={currentPage <= 1}
-            >
+            <Link href={buildPageHref(urlParams, Math.max(currentPage - 1, 1))}>
               Previous
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link
-              href={buildPageHref(urlParams, Math.min(currentPage + 1, totalPages))}
-              aria-disabled={currentPage >= totalPages}
+              href={buildPageHref(
+                urlParams,
+                Math.min(currentPage + 1, totalPages)
+              )}
             >
               Next
             </Link>

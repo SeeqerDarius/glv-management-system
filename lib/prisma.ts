@@ -9,7 +9,7 @@ const globalForPrisma = globalThis as unknown as {
 
 neonConfig.webSocketConstructor = ws;
 
-function databaseUrlWithTimeouts() {
+function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL;
 
   if (!databaseUrl) {
@@ -18,8 +18,13 @@ function databaseUrlWithTimeouts() {
 
   try {
     const url = new URL(databaseUrl);
-    url.searchParams.set("connect_timeout", url.searchParams.get("connect_timeout") ?? "30");
-    url.searchParams.set("pool_timeout", url.searchParams.get("pool_timeout") ?? "30");
+    // Only set connect_timeout — do NOT set pool_timeout on Neon serverless,
+    // it conflicts with the pooler and causes connection exhaustion errors.
+    if (!url.searchParams.has("connect_timeout")) {
+      url.searchParams.set("connect_timeout", "15");
+    }
+    // Remove pool_timeout if it was previously set
+    url.searchParams.delete("pool_timeout");
     return url.toString();
   } catch {
     return databaseUrl;
@@ -27,7 +32,7 @@ function databaseUrlWithTimeouts() {
 }
 
 const adapter = new PrismaNeon({
-  connectionString: databaseUrlWithTimeouts(),
+  connectionString: getDatabaseUrl(),
 });
 
 export const prisma =

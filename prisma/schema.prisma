@@ -3,14 +3,188 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  name               String
+  email              String           @unique
+  password           String
+  role               UserRole
+  mustChangePassword Boolean          @default(true)
+  staffId            String?          @unique
+  createdAt          DateTime         @default(now())
+  permissions        UserPermission[] @default([])
+  staff              Staff?           @relation(fields: [staffId], references: [id])
+}
+
+model Staff {
+  id             String               @id @default(cuid())
+  code           String               @unique
+  fullName       String
+  email          String               @unique
+  phone          String?
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  monthlySalary  Float                @default(0)
+  customers      Customer[]
+  salaryPayments StaffSalaryPayment[]
+  user           User?
+}
+
+model StaffApplication {
+  id         String                 @id @default(cuid())
+  fullName   String
+  email      String                 @unique
+  phone      String?
+  status     StaffApplicationStatus @default(PENDING)
+  reviewedBy String?
+  reviewedAt DateTime?
+  createdAt  DateTime               @default(now())
+}
+
+model Customer {
+  id         String            @id @default(cuid())
+  customerId String            @unique
+  fullName   String
+  phone      String
+  address    String?
+  nationalId String?
+  photoUrl   String?
+  staffId    String
+  createdAt  DateTime          @default(now())
+  staff      Staff             @relation(fields: [staffId], references: [id])
+  accounts   CustomerAccount[]
+}
+
+model Product {
+  id             String            @id @default(cuid())
+  name           String
+  category       String
+  imageUrl       String?
+  costPrice      Float
+  layawayPrice   Float
+  dailyAmount    Float
+  duration       Int
+  active         Boolean           @default(true)
+  description    String?
+  transportCost  Float             @default(0)
+  quantityOnSale Int               @default(0)
+  accounts       CustomerAccount[]
+}
+
+model StaffSalaryPayment {
+  id          String   @id @default(cuid())
+  staffId     String
+  amount      Float
+  paymentDate DateTime
+  notes       String?
+  paidBy      String
+  createdAt   DateTime @default(now())
+  staff       Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, paymentDate])
+}
+
+model CustomerAccount {
+  id              String        @id @default(cuid())
+  customerId      String
+  productId       String
+  startDate       DateTime
+  expectedEndDate DateTime
+  targetAmount    Float
+  dailyAmount     Float
+  totalPaid       Float         @default(0)
+  balance         Float
+  status          AccountStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  customer        Customer      @relation(fields: [customerId], references: [id])
+  product         Product       @relation(fields: [productId], references: [id])
+  payments        Payment[]
+}
+
+model Payment {
+  id          String          @id @default(cuid())
+  receiptNo   String          @unique
+  accountId   String
+  amount      Float
+  paymentDate DateTime
+  method      String
+  notes       String?
+  receivedBy  String
+  createdAt   DateTime        @default(now())
+  account     CustomerAccount @relation(fields: [accountId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id                              String    @id @default(cuid())
+  companyName                     String
+  phone                           String
+  address                         String?
+  createdAt                       DateTime  @default(now())
+  tradingName                     String?
+  logoUrl                         String?
+  tagline                         String    @default("Pay Small. Own Big.")
+  whatsapp                        String?
+  email                           String?
+  website                         String?
+  gpsAddress                      String?
+  businessRegistrationNumber      String?
+  taxIdentificationNumber         String?
+  installmentDurationDays         Int       @default(184)
+  defaultDailyCollection          Float     @default(0)
+  administrationFeePercent        Float     @default(0)
+  refundDeductionPercent          Float     @default(0)
+  deliveryTimeAfterCompletionDays Int       @default(0)
+  procurementThresholdPercent     Float     @default(50)
+  minimumDeposit                  Float     @default(0)
+  defaultCurrency                 String    @default("GHS")
+  defaultMonthlySalary            Float     @default(0)
+  commissionEnabled               Boolean   @default(false)
+  commissionPercentage            Float     @default(0)
+  payrollDay                      Int       @default(1)
+  receiptPrefix                   String    @default("GLV/RCPT")
+  customerIdPrefix                String    @default("GLV")
+  staffCodeLength                 Int       @default(3)
+  passwordLength                  Int       @default(8)
+  sessionTimeoutMinutes           Int       @default(60)
+  requirePasswordChange           Boolean   @default(true)
+  twoFactorEnabled                Boolean   @default(false)
+  backupDatabaseEnabled           Boolean   @default(false)
+  exportDatabaseEnabled           Boolean   @default(true)
+  emailNotificationsEnabled       Boolean   @default(false)
+  smsNotificationsEnabled         Boolean   @default(false)
+  whatsappRemindersEnabled        Boolean   @default(false)
+  theme                           String    @default("light")
+  primaryColor                    String    @default("#84cc16")
+  secondaryColor                  String    @default("#111827")
+  dashboardCards                  String    @default("standard")
+  loadingAnimation                String    @default("glv")
+  currentVersion                  String    @default("0.1.0")
+  databaseStatus                  String    @default("Configured")
+  neonStatus                      String    @default("Configured")
+  storageUsage                    String?
+  lastBackupAt                    DateTime?
+  restoreBackupStatus             String?
 }
 
 enum UserRole {
-  SUPER_ADMIN
   ADMIN
   STAFF
+  SUPER_ADMIN
 }
 
 enum UserPermission {
@@ -33,308 +207,6 @@ enum AccountStatus {
   ACTIVE
   COMPLETED
   OVERDUE
-  CANCELLED
   SUSPENDED
-}
-
-model User {
-  id       String @id @default(cuid())
-  name     String
-  email    String @unique
-  password String
-
-  role UserRole
-
-  permissions UserPermission[] @default([])
-
-  mustChangePassword Boolean @default(true)
-
-  staffId String? @unique
-  staff   Staff?  @relation(fields: [staffId], references: [id])
-
-  createdAt DateTime @default(now())
-}
-
-model Staff {
-  id String @id @default(cuid())
-
-  code String @unique
-
-  fullName String
-
-  email String @unique
-
-  phone String?
-
-  active Boolean @default(true)
-
-  monthlySalary Float @default(0)
-
-  user User?
-
-  customers Customer[]
-
-  salaryPayments StaffSalaryPayment[]
-
-  createdAt DateTime @default(now())
-}
-
-model StaffApplication {
-  id String @id @default(cuid())
-
-  fullName String
-
-  email String @unique
-
-  phone String?
-
-  status StaffApplicationStatus @default(PENDING)
-
-  reviewedBy String?
-
-  reviewedAt DateTime?
-
-  createdAt DateTime @default(now())
-}
-
-model Customer {
-  id String @id @default(cuid())
-
-  customerId String @unique
-
-  fullName String
-
-  phone String
-
-  address String?
-
-  nationalId String?
-
-  photoUrl String?
-
-  staffId String
-
-  staff Staff @relation(fields: [staffId], references: [id])
-
-  accounts CustomerAccount[]
-
-  createdAt DateTime @default(now())
-}
-
-model Product {
-  id String @id @default(cuid())
-
-  name String
-
-  category String
-
-  imageUrl String?
-
-  description String?
-
-  costPrice Float
-
-  layawayPrice Float
-
-  dailyAmount Float
-
-  transportCost Float @default(0)
-
-  quantityOnSale Int @default(0)
-
-  duration Int
-
-  active Boolean @default(true)
-
-  accounts CustomerAccount[]
-}
-
-model StaffSalaryPayment {
-  id String @id @default(cuid())
-
-  staffId String
-
-  staff Staff @relation(fields: [staffId], references: [id])
-
-  amount Float
-
-  paymentDate DateTime
-
-  notes String?
-
-  paidBy String
-
-  createdAt DateTime @default(now())
-
-  @@index([staffId, paymentDate])
-}
-
-model CustomerAccount {
-  id String @id @default(cuid())
-
-  customerId String
-
-  customer Customer @relation(fields: [customerId], references: [id])
-
-  productId String
-
-  product Product @relation(fields: [productId], references: [id])
-
-  startDate DateTime
-
-  expectedEndDate DateTime
-
-  targetAmount Float
-
-  dailyAmount Float
-
-  totalPaid Float @default(0)
-
-  balance Float
-
-  status AccountStatus @default(ACTIVE)
-
-  payments Payment[]
-
-  createdAt DateTime @default(now())
-}
-
-model Payment {
-  id String @id @default(cuid())
-
-  receiptNo String @unique
-
-  accountId String
-
-  account CustomerAccount @relation(fields: [accountId], references: [id])
-
-  amount Float
-
-  paymentDate DateTime
-
-  method String
-
-  notes String?
-
-  receivedBy String
-
-  createdAt DateTime @default(now())
-}
-
-model AuditLog {
-  id String @id @default(cuid())
-
-  userId String
-
-  action String
-
-  entity String
-
-  entityId String
-
-  oldValue String?
-
-  newValue String?
-
-  createdAt DateTime @default(now())
-}
-
-model Setting {
-  id String @id @default(cuid())
-
-  companyName String
-
-  tradingName String?
-
-  logoUrl String?
-
-  tagline String @default("Pay Small. Own Big.")
-
-  phone String
-
-  whatsapp String?
-
-  email String?
-
-  website String?
-
-  address String?
-
-  gpsAddress String?
-
-  businessRegistrationNumber String?
-
-  taxIdentificationNumber String?
-
-  installmentDurationDays Int @default(184)
-
-  defaultDailyCollection Float @default(0)
-
-  administrationFeePercent Float @default(0)
-
-  refundDeductionPercent Float @default(0)
-
-  deliveryTimeAfterCompletionDays Int @default(0)
-
-  procurementThresholdPercent Float @default(50)
-
-  minimumDeposit Float @default(0)
-
-  defaultCurrency String @default("GHS")
-
-  defaultMonthlySalary Float @default(0)
-
-  commissionEnabled Boolean @default(false)
-
-  commissionPercentage Float @default(0)
-
-  payrollDay Int @default(1)
-
-  receiptPrefix String @default("GLV/RCPT")
-
-  customerIdPrefix String @default("GLV")
-
-  staffCodeLength Int @default(3)
-
-  passwordLength Int @default(8)
-
-  sessionTimeoutMinutes Int @default(60)
-
-  requirePasswordChange Boolean @default(true)
-
-  twoFactorEnabled Boolean @default(false)
-
-  backupDatabaseEnabled Boolean @default(false)
-
-  exportDatabaseEnabled Boolean @default(true)
-
-  emailNotificationsEnabled Boolean @default(false)
-
-  smsNotificationsEnabled Boolean @default(false)
-
-  whatsappRemindersEnabled Boolean @default(false)
-
-  theme String @default("light")
-
-  primaryColor String @default("#84cc16")
-
-  secondaryColor String @default("#111827")
-
-  dashboardCards String @default("standard")
-
-  loadingAnimation String @default("glv")
-
-  currentVersion String @default("0.1.0")
-
-  databaseStatus String @default("Configured")
-
-  neonStatus String @default("Configured")
-
-  storageUsage String?
-
-  lastBackupAt DateTime?
-
-  restoreBackupStatus String?
-
-  createdAt DateTime @default(now())
+  CANCELLED
 }
