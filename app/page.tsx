@@ -8,10 +8,12 @@ export default function Home() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    const root = rootRef.current;
-    if (!canvas || !root) return;
+    const canvasEl = canvasRef.current;
+    const rootEl = rootRef.current;
+    if (!canvasEl || !rootEl) return;
 
+    const canvas = canvasEl;
+    const root = rootEl;
     const ctx = canvas.getContext("2d")!;
     let animId: number;
     const mouse = { x: -999, y: -999 };
@@ -76,9 +78,9 @@ export default function Home() {
     }
 
     function onMouseMove(e: MouseEvent) {
-      const r = canvas.getBoundingClientRect();
-      mouse.x = e.clientX - r.left;
-      mouse.y = e.clientY - r.top;
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = e.clientX - rect.left;
+      mouse.y = e.clientY - rect.top;
     }
     function onMouseLeave() { mouse.x = -999; mouse.y = -999; }
     function onResize() { resize(); initDots(); }
