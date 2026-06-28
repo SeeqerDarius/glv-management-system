@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   ChartNoAxesCombinedIcon,
+  ChartSplineIcon,
   HandCoinsIcon,
   HouseIcon,
   PackageIcon,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: HouseIcon },
+  { href: "/activity", label: "Activity", icon: ChartSplineIcon },
   { href: "/customers", label: "Customers", icon: UserRoundIcon },
   { href: "/accounts", label: "Accounts", icon: WalletCardsIcon },
   { href: "/payments", label: "Payments", icon: HandCoinsIcon },

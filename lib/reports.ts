@@ -369,3 +369,209 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     },
   };
 }
+
+export async function getStaffDashboardSummary(staffId: string, now = new Date()) {
+  const week = getCurrentWeekRange(now);
+  const month = getCurrentMonthRange(now);
+  const staff = await prisma.staff.findUnique({
+    where: {
+      id: staffId,
+    },
+  });
+
+  if (!staff) {
+    return null;
+  }
+
+  const customers = await prisma.customer.findMany({
+    where: {
+      staffId,
+    },
+    include: {
+      accounts: {
+        include: {
+          product: true,
+          payments: true,
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  const accounts = customers.flatMap((customer) => customer.accounts);
+  const payments = accounts.flatMap((account) => account.payments);
+  const weeklyCollection = payments
+    .filter(
+      (payment) => payment.paymentDate >= week.start && payment.paymentDate <= week.end
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
+  const monthlyCollection = payments
+    .filter(
+      (payment) =>
+        payment.paymentDate >= month.start && payment.paymentDate <= month.end
+    )
+    .reduce((total, payment) => total + payment.amount, 0);
+  const statusCounts = accounts.reduce(
+    (totals, account) => {
+      totals[getEffectiveAccountStatus(account)] += 1;
+      return totals;
+    },
+    {
+      [AccountStatus.ACTIVE]: 0,
+      [AccountStatus.COMPLETED]: 0,
+      [AccountStatus.OVERDUE]: 0,
+      [AccountStatus.CANCELLED]: 0,
+      [AccountStatus.SUSPENDED]: 0,
+    }
+  );
+
+  return {
+    staff,
+    totalCustomers: customers.length,
+    totalAccounts: accounts.length,
+    activeAccounts: statusCounts.ACTIVE,
+    completedAccounts: statusCounts.COMPLETED,
+    overdueAccounts: statusCounts.OVERDUE,
+    cancelledAccounts: statusCounts.CANCELLED,
+    suspendedAccounts: statusCounts.SUSPENDED,
+    weeklyCollection,
+    monthlyCollection,
+    totalCollected: payments.reduce((total, payment) => total + payment.amount, 0),
+    outstandingBalance: accounts.reduce((total, account) => total + account.balance, 0),
+    accountsOpenedThisWeek: accounts.filter(
+      (account) => account.createdAt >= week.start && account.createdAt <= week.end
+    ).length,
+    customersAddedThisWeek: customers.filter(
+      (customer) => customer.createdAt >= week.start && customer.createdAt <= week.end
+    ).length,
+    recentCustomers: customers.slice(0, 5),
+  };
+}
+
+export async function getActivityReport({
+  staffId,
+  now = new Date(),
+}: {
+  staffId?: string | null;
+  now?: Date;
+}) {
+  const week = getCurrentWeekRange(now);
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const scopedCustomerWhere = staffId ? { staffId } : {};
+  const scopedAccountWhere = staffId
+    ? {
+        customer: {
+          staffId,
+        },
+      }
+    : {};
+
+  const [customers, accounts, payments, staff] = await Promise.all([
+    prisma.customer.findMany({
+      where: scopedCustomerWhere,
+      select: {
+        id: true,
+        staffId: true,
+        createdAt: true,
+      },
+    }),
+    prisma.customerAccount.findMany({
+      where: scopedAccountWhere,
+      include: {
+        customer: {
+          include: {
+            staff: true,
+          },
+        },
+        product: true,
+      },
+    }),
+    prisma.payment.findMany({
+      where: staffId
+        ? {
+            account: {
+              customer: {
+                staffId,
+              },
+            },
+          }
+        : {},
+      include: {
+        account: {
+          include: {
+            customer: {
+              include: {
+                staff: true,
+              },
+            },
+            product: true,
+          },
+        },
+      },
+      orderBy: {
+        paymentDate: "desc",
+      },
+    }),
+    prisma.staff.findMany({
+      orderBy: {
+        code: "asc",
+      },
+    }),
+  ]);
+
+  const weeklyPayments = dayLabels.map((label, index) => {
+    const dayStart = new Date(week.start);
+    dayStart.setDate(week.start.getDate() + index);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setHours(23, 59, 59, 999);
+    const amount = payments
+      .filter(
+        (payment) =>
+          payment.paymentDate >= dayStart && payment.paymentDate <= dayEnd
+      )
+      .reduce((total, payment) => total + payment.amount, 0);
+
+    return {
+      label,
+      amount,
+    };
+  });
+
+  const accountStatus = Object.values(AccountStatus).map((status) => ({
+    status,
+    count: accounts.filter((account) => getEffectiveAccountStatus(account) === status)
+      .length,
+  }));
+
+  const staffPerformance = staff
+    .filter((member) => !staffId || member.id === staffId)
+    .map((member) => {
+      const memberPayments = payments.filter(
+        (payment) => payment.account.customer.staffId === member.id
+      );
+      const memberAccounts = accounts.filter(
+        (account) => account.customer.staffId === member.id
+      );
+      return {
+        staffId: member.id,
+        staffCode: member.code,
+        staffName: member.fullName,
+        customers: customers.filter((customer) => customer.staffId === member.id).length,
+        accounts: memberAccounts.length,
+        collected: memberPayments.reduce((total, payment) => total + payment.amount, 0),
+        outstanding: memberAccounts.reduce((total, account) => total + account.balance, 0),
+      };
+    })
+    .sort((a, b) => b.collected - a.collected);
+
+  return {
+    start: week.start,
+    end: week.end,
+    weeklyPayments,
+    accountStatus,
+    staffPerformance,
+    recentPayments: payments.slice(0, 8),
+  };
+}

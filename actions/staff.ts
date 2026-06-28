@@ -27,6 +27,15 @@ export type StaffFormState = {
   };
 };
 
+export type StaffPasswordResetState = {
+  error?: string;
+  credentials?: {
+    fullName: string;
+    email: string;
+    temporaryPassword: string;
+  };
+};
+
 const codeOverrides: Record<string, string> = {
   perpetual: "PEP",
   rebecca: "BEX",
@@ -263,8 +272,6 @@ export async function createStaff(
     };
   }
 
-  revalidatePath("/staff");
-
   return {
     credentials: {
       fullName,
@@ -408,6 +415,68 @@ export async function deactivateStaff(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/staff");
+}
+
+export async function resetStaffPassword(
+  _state: StaffPasswordResetState,
+  formData: FormData
+): Promise<StaffPasswordResetState> {
+  const user = await requireStaffManager();
+  const id = cleanInput(formData.get("id"));
+  const settings = await getSettings();
+  const temporaryPassword = generateTemporaryPassword(settings.passwordLength);
+  const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+
+  const staff = await prisma.staff.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      user: true,
+    },
+  });
+
+  if (!staff?.user) {
+    return {
+      error: "This staff member does not have a login account yet.",
+    };
+  }
+
+  const staffUser = staff.user;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: {
+        id: staffUser.id,
+      },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: true,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "RESET_STAFF_PASSWORD",
+        entity: "User",
+        entityId: staffUser.id,
+        newValue: JSON.stringify({
+          staffId: staff.id,
+          email: staff.email,
+          mustChangePassword: true,
+        }),
+      },
+    });
+  });
+
+  return {
+    credentials: {
+      fullName: staff.fullName,
+      email: staff.email,
+      temporaryPassword,
+    },
+  };
 }
 
 export async function deleteStaff(formData: FormData): Promise<void> {

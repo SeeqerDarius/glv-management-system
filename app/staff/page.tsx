@@ -4,6 +4,7 @@ import { SearchIcon, Pencil, Trash2, UserX } from "lucide-react";
 import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
+import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
 import { prisma } from "@/lib/prisma";
 
 function money(value: number) {
@@ -262,6 +263,12 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                           </button>
                         </form>
                       )}
+
+                      <StaffPasswordResetForm
+                        staffId={member.id}
+                        staffName={member.fullName}
+                        disabled={!member.user}
+                      />
 
                       {/* Delete */}
                       <ConfirmDeleteForm

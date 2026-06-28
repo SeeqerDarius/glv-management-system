@@ -7,6 +7,7 @@ import {
   CircleCheckBigIcon,
   ClockAlertIcon,
   HandCoinsIcon,
+  LineChartIcon,
   TrendingUpIcon,
   UserRoundIcon,
   UsersIcon,
@@ -15,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { formatMoney } from "@/lib/accounts";
-import { getAdminReportSummary } from "@/lib/reports";
+import { getAdminReportSummary, getStaffDashboardSummary } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 
 function MetricCard({
@@ -51,6 +52,7 @@ export default async function DashboardPage() {
   const session = await auth();
   const isAdmin = isAdminRole(session?.user?.role);
   let report: Awaited<ReturnType<typeof getAdminReportSummary>> | null = null;
+  let staffReport: Awaited<ReturnType<typeof getStaffDashboardSummary>> | null = null;
   let reportUnavailable = false;
 
   if (isAdmin) {
@@ -59,6 +61,13 @@ export default async function DashboardPage() {
     } catch (error) {
       reportUnavailable = true;
       console.error("DASHBOARD_LOAD_ERROR", error);
+    }
+  } else if (session?.user?.staffId) {
+    try {
+      staffReport = await getStaffDashboardSummary(session.user.staffId);
+    } catch (error) {
+      reportUnavailable = true;
+      console.error("STAFF_DASHBOARD_LOAD_ERROR", error);
     }
   }
 
@@ -77,7 +86,11 @@ export default async function DashboardPage() {
           <Button asChild variant="outline">
             <Link href="/reports">View Reports</Link>
           </Button>
-        ) : null}
+        ) : (
+          <Button asChild variant="outline">
+            <Link href="/activity">View Activity</Link>
+          </Button>
+        )}
       </div>
 
       {report ? (
@@ -153,6 +166,62 @@ export default async function DashboardPage() {
         </div>
       ) : reportUnavailable ? (
         <DatabaseUnavailable retryHref="/dashboard" />
+      ) : staffReport ? (
+        <div className="space-y-6">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent="#7ac943" />
+            <MetricCard label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent="#2f8fb5" />
+            <MetricCard label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
+            <MetricCard label="Overdue Accounts" value={staffReport.overdueAccounts} icon={ClockAlertIcon} accent="#d18b35" />
+            <MetricCard label="Weekly Collection" value={formatMoney(staffReport.weeklyCollection)} icon={HandCoinsIcon} accent="#846ab3" />
+            <MetricCard label="Monthly Collection" value={formatMoney(staffReport.monthlyCollection)} icon={TrendingUpIcon} accent="#7ac943" />
+            <MetricCard label="Outstanding Balance" value={formatMoney(staffReport.outstandingBalance)} icon={BadgeDollarSignIcon} accent="#317f9d" />
+            <MetricCard label="Opened This Week" value={staffReport.accountsOpenedThisWeek} icon={LineChartIcon} accent="#44a36f" />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-lg border bg-white p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-950">My Performance</h2>
+                  <p className="text-sm text-gray-600">Assigned customer activity and collection progress.</p>
+                </div>
+                <Button asChild variant="outline">
+                  <Link href="/payments/new">Record Payment</Link>
+                </Button>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-lg bg-lime-50 p-4">
+                  <p className="text-xs font-medium uppercase text-lime-900">Customers Added</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.customersAddedThisWeek}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 p-4">
+                  <p className="text-xs font-medium uppercase text-gray-500">Completed</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.completedAccounts}</p>
+                </div>
+                <div className="rounded-lg bg-amber-50 p-4">
+                  <p className="text-xs font-medium uppercase text-amber-800">Suspended/Cancelled</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.suspendedAccounts + staffReport.cancelledAccounts}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-white p-5">
+              <h2 className="text-lg font-semibold text-gray-950">Recent Customers</h2>
+              <div className="mt-4 space-y-3">
+                {staffReport.recentCustomers.map((customer) => (
+                  <Link key={customer.id} href={`/customers/${customer.id}`} className="block rounded-lg border border-gray-100 p-3 transition hover:border-lime-300 hover:bg-lime-50/40">
+                    <p className="font-semibold text-gray-950">{customer.fullName}</p>
+                    <p className="text-xs text-gray-500">{customer.customerId} • {customer.accounts.length} account(s)</p>
+                  </Link>
+                ))}
+                {staffReport.recentCustomers.length === 0 ? (
+                  <p className="text-sm text-gray-600">No assigned customers yet.</p>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        </div>
       ) : (
         <div className="glv-metric-card rounded-lg border bg-white p-5">
           <h2 className="text-base font-semibold text-gray-950">

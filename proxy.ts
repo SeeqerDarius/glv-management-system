@@ -12,6 +12,7 @@ export const config = {
     "/login",
     "/change-password",
     "/dashboard/:path*",
+    "/activity/:path*",
     "/accounts/:path*",
     "/staff/:path*",
     "/customers/:path*",

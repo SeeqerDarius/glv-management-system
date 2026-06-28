@@ -8,6 +8,7 @@ const privilegedRoutes = [
 ] as const;
 const staffAllowedRoutes = [
   "/dashboard",
+  "/activity",
   "/accounts",
   "/customers",
   "/payments",

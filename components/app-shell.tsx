@@ -8,7 +8,7 @@ import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
 
 const protectedPrefixes = [
-  "/dashboard", "/customers", "/accounts", "/payments", "/products",
+  "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
   "/staff", "/reports", "/audit-logs", "/settings",
 ];
 
@@ -17,6 +17,7 @@ const pageTitles: Array<[string, string]> = [
   ["/accounts/new", "Create Account"], ["/payments/new", "Record Payment"],
   ["/products/new", "Create Product"], ["/staff/new", "Add Staff"],
   ["/audit-logs", "Audit Logs"], ["/dashboard", "Dashboard"],
+  ["/activity", "Activity"],
   ["/customers", "Customers"], ["/accounts", "Accounts"],
   ["/payments", "Payments"], ["/products", "Products"],
   ["/staff", "Staff"], ["/reports", "Reports"], ["/settings", "Settings"],

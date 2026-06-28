@@ -192,7 +192,6 @@ export async function approveStaffApplication(
   }
 
   revalidatePath("/staff");
-  revalidatePath("/staff/applications");
 
   return {
     credentials: {

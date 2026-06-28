@@ -225,12 +225,21 @@ export default function LoginPage() {
 
             <div className="flex items-center justify-between gap-3 text-xs">
               <span className="text-white/35">Use your GLV staff or admin account.</span>
-              <Link
-                href="/signup"
-                className="shrink-0 text-lime-400/75 transition hover:text-lime-400 hover:underline"
-              >
-                Staff sign up
-              </Link>
+              <div className="flex shrink-0 items-center gap-2">
+                <Link
+                  href="/forgot-password"
+                  className="text-lime-400/75 transition hover:text-lime-400 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+                <span className="text-white/20">/</span>
+                <Link
+                  href="/signup"
+                  className="text-lime-400/75 transition hover:text-lime-400 hover:underline"
+                >
+                  Sign up
+                </Link>
+              </div>
             </div>
 
             <button
