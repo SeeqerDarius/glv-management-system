@@ -2,8 +2,11 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createProduct } from "@/actions/products";
 import { ProductForm } from "@/components/product-form";
+import { getSettings } from "@/lib/settings";
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  const settings = await getSettings();
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Back Button */}
@@ -22,7 +25,12 @@ export default function NewProductPage() {
         </p>
       </div>
 
-      <ProductForm action={createProduct} submitLabel="Create Product" />
+      <ProductForm
+        action={createProduct}
+        submitLabel="Create Product"
+        defaultDailyAmount={settings.defaultDailyCollection}
+        defaultDuration={settings.installmentDurationDays}
+      />
     </div>
   );
 }

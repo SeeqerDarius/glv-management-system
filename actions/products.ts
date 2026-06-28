@@ -241,6 +241,7 @@ export async function createProduct(
   const product = await prisma.product.create({
     data: {
       ...validated.data,
+      quantityOnSale: 0,
       active: formData.get("active") === "on",
     },
   });
@@ -302,6 +303,7 @@ export async function updateProduct(
     where: { id },
     data: {
       ...validated.data,
+      quantityOnSale: existingProduct.quantityOnSale,
       active: formData.get("active") === "on",
     },
   });

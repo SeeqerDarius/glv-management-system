@@ -7,6 +7,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
 
 export type PaymentFormState = {
   errors?: {
@@ -61,7 +62,9 @@ function parsePaymentDate(value: string) {
 
 async function generateReceiptNo() {
   const year = new Date().getFullYear().toString().slice(-2);
-  const prefix = `GLV/RCPT/${year}/`;
+  const settings = await getSettings();
+  const receiptPrefix = settings.receiptPrefix.replace(/\/+$/, "");
+  const prefix = `${receiptPrefix}/${year}/`;
   const payments = await prisma.payment.findMany({
     where: {
       receiptNo: {

@@ -6,7 +6,8 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isSuperAdminRole } from "@/lib/roles";
+import { isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
 import { generateStaffCode } from "@/actions/staff";
 
 export type SignupState = {
@@ -28,14 +29,17 @@ function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
-function generateTemporaryPassword() {
-  return `GLV-${randomBytes(6).toString("base64url")}9!`;
+function generateTemporaryPassword(minLength = 8) {
+  const password = `GLV-${randomBytes(6).toString("base64url")}9!`;
+  if (password.length >= minLength) return password;
+
+  return `${password}${randomBytes(Math.ceil((minLength - password.length) / 2)).toString("hex")}`;
 }
 
-async function requireSuperAdmin() {
+async function requireApplicationReviewer() {
   const session = await auth();
 
-  if (!isSuperAdminRole(session?.user?.role) || !session?.user?.id) {
+  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
     throw new Error("Unauthorized");
   }
 
@@ -106,7 +110,7 @@ export async function approveStaffApplication(
   _state: ApprovalState,
   formData: FormData
 ): Promise<ApprovalState> {
-  const reviewer = await requireSuperAdmin();
+  const reviewer = await requireApplicationReviewer();
   const id = cleanInput(formData.get("id"));
   const application = await prisma.staffApplication.findUnique({
     where: {
@@ -127,7 +131,8 @@ export async function approveStaffApplication(
   }
 
   const code = await generateStaffCode(application.fullName);
-  const temporaryPassword = generateTemporaryPassword();
+  const settings = await getSettings();
+  const temporaryPassword = generateTemporaryPassword(settings.passwordLength);
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
 
   try {
@@ -138,6 +143,7 @@ export async function approveStaffApplication(
           email: application.email,
           phone: application.phone,
           code,
+          monthlySalary: settings.defaultMonthlySalary,
         },
       });
 
@@ -199,7 +205,7 @@ export async function approveStaffApplication(
 }
 
 export async function rejectStaffApplication(formData: FormData): Promise<void> {
-  const reviewer = await requireSuperAdmin();
+  const reviewer = await requireApplicationReviewer();
   const id = cleanInput(formData.get("id"));
 
   const application = await prisma.staffApplication.update({

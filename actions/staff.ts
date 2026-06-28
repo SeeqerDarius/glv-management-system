@@ -10,6 +10,7 @@ import { randomBytes } from "crypto";
 import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { parsePermissions } from "@/lib/permissions";
+import { getSettings } from "@/lib/settings";
 
 export type StaffFormState = {
   errors?: {
@@ -72,17 +73,23 @@ function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
 }
 
-function baseStaffCode(fullName: string) {
+function baseStaffCode(fullName: string, codeLength = 3) {
   const firstName = fullName.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
   const override = codeOverrides[firstName];
 
   if (override) return override;
 
-  return firstName.replace(/[^a-z]/g, "").slice(0, 3).toUpperCase();
+  return firstName
+    .replace(/[^a-z]/g, "")
+    .slice(0, codeLength)
+    .toUpperCase();
 }
 
-function generateTemporaryPassword() {
-  return `GLV-${randomBytes(6).toString("base64url")}9!`;
+function generateTemporaryPassword(minLength = 8) {
+  const password = `GLV-${randomBytes(6).toString("base64url")}9!`;
+  if (password.length >= minLength) return password;
+
+  return `${password}${randomBytes(Math.ceil((minLength - password.length) / 2)).toString("hex")}`;
 }
 
 async function logStaffAudit({
@@ -111,7 +118,8 @@ async function logStaffAudit({
 }
 
 export async function generateStaffCode(fullName: string, currentStaffId?: string) {
-  const baseCode = baseStaffCode(fullName);
+  const settings = await getSettings();
+  const baseCode = baseStaffCode(fullName, settings.staffCodeLength);
 
   if (!baseCode) {
     throw new Error("Staff name must contain letters.");
@@ -203,16 +211,9 @@ export async function createStaff(
     };
   }
 
-  const temporaryPassword = generateTemporaryPassword();
+  const settings = await getSettings();
+  const temporaryPassword = generateTemporaryPassword(settings.passwordLength);
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-  const settings = await prisma.setting.findFirst({
-    orderBy: {
-      createdAt: "asc",
-    },
-    select: {
-      defaultMonthlySalary: true,
-    },
-  });
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -222,7 +223,7 @@ export async function createStaff(
           email,
           code,
           phone: phone || null,
-          monthlySalary: settings?.defaultMonthlySalary ?? 0,
+          monthlySalary: settings.defaultMonthlySalary,
         },
       });
 

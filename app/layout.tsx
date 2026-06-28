@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fallbackSettings, getSettings } from "@/lib/settings";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -29,6 +30,9 @@ export default async function RootLayout({
   const staff = session?.user?.staffId
     ? await prisma.staff.findUnique({ where: { id: session.user.staffId }, select: { code: true } })
     : null;
+  const settings = session?.user
+    ? await getSettings().catch(() => fallbackSettings)
+    : fallbackSettings;
   const shellUser = session?.user?.role
     ? { name: session.user.name, role: session.user.role, permissions: session.user.permissions ?? [], staffCode: staff?.code ?? null }
     : null;
@@ -38,7 +42,18 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full"><AppShell user={shellUser}>{children}</AppShell></body>
+      <body className="min-h-full">
+        <AppShell
+          user={shellUser}
+          brand={{
+            companyName: settings.companyName,
+            tradingName: settings.tradingName ?? "GLV",
+            tagline: settings.tagline,
+          }}
+        >
+          {children}
+        </AppShell>
+      </body>
     </html>
   );
 }

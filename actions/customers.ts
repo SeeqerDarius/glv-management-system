@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+import { getSettings } from "@/lib/settings";
 
 export type CustomerFormState = {
   errors?: { fullName?: string; phone?: string; form?: string };
@@ -91,7 +92,8 @@ export async function generateCustomerId(staffId: string) {
   }
 
   const year = new Date().getFullYear().toString().slice(-2);
-  const prefix = `GLV/${staff.code}/${year}/`;
+  const settings = await getSettings();
+  const prefix = `${settings.customerIdPrefix}/${staff.code}/${year}/`;
 
   const existingCustomers = await prisma.customer.findMany({
     where: {

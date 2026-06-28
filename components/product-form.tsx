@@ -27,6 +27,8 @@ type ProductFormProps = {
   ) => Promise<ProductFormState>;
   product?: Product;
   submitLabel: string;
+  defaultDailyAmount?: number;
+  defaultDuration?: number;
 };
 
 const initialState: ProductFormState = {};
@@ -41,13 +43,16 @@ export function ProductForm({
   action,
   product,
   submitLabel,
+  defaultDailyAmount = 0,
+  defaultDuration = 184,
 }: ProductFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dailyAmount, setDailyAmount] = useState(
-    product?.dailyAmount?.toString() ?? ""
+    product?.dailyAmount?.toString() ??
+      (defaultDailyAmount > 0 ? defaultDailyAmount.toString() : "")
   );
   const [duration, setDuration] = useState(
-    product?.duration?.toString() ?? "184"
+    product?.duration?.toString() ?? defaultDuration.toString()
   );
   const dailyAmountValue = Number(dailyAmount);
   const durationValue = Number(duration);
