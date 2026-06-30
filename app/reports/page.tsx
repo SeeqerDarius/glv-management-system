@@ -39,28 +39,28 @@ export default async function ReportsPage({
   const query = await searchParams;
   let report: Awaited<ReturnType<typeof getWeeklyStaffPerformanceReport>>;
 
+  if (!isAdmin) {
+    return (
+      <div className="rounded-lg border bg-white p-5">
+        <h1 className="text-xl font-semibold text-gray-950">
+          Reports are available to administrators.
+        </h1>
+        <p className="mt-2 text-sm text-gray-600">
+          Use the dashboard, customers, accounts, and payments pages for your
+          assigned operational work.
+        </p>
+        <Button asChild className="mt-4">
+          <Link href="/dashboard">Back to Dashboard</Link>
+        </Button>
+      </div>
+    );
+  }
+
   try {
     report = await getWeeklyStaffPerformanceReport();
   } catch (error) {
     console.error("REPORTS_LOAD_ERROR", error);
     return <DatabaseUnavailable retryHref="/reports" title="Reports are temporarily unavailable" />;
-  }
-
-  if (!isAdmin) {
-    const ownRow = report.rows.find((row) => row.staffId === session?.user?.staffId);
-    return (
-      <div className="space-y-6">
-        <div><h1 className="text-3xl font-bold text-gray-950">My Collection Performance</h1><p className="mt-1 text-sm text-gray-600">Your GLV collections for {formatDate(report.start)} - {formatDate(report.end)}.</p></div>
-        {ownRow ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryCard label="Weekly Collection" value={formatMoney(ownRow.weeklyCollection)} />
-            <SummaryCard label="Monthly Collection" value={formatMoney(ownRow.monthlyCollection)} />
-            <SummaryCard label="Total Collected" value={formatMoney(ownRow.totalCollected)} />
-            <SummaryCard label="Outstanding Balance" value={formatMoney(ownRow.outstandingBalance)} />
-          </div>
-        ) : <p className="rounded-lg border bg-white p-5 text-sm text-gray-600">No staff performance record is linked to this user.</p>}
-      </div>
-    );
   }
 
   const today = new Date().toISOString().slice(0, 10);

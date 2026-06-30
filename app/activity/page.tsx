@@ -49,6 +49,7 @@ export default async function ActivityPage() {
   try {
     report = await getActivityReport({
       staffId: isAdmin ? null : session?.user?.staffId,
+      includeFinancialValues: isAdmin,
     });
   } catch (error) {
     console.error("ACTIVITY_LOAD_ERROR", error);
@@ -61,7 +62,9 @@ export default async function ActivityPage() {
   }
 
   const maxDaily = Math.max(
-    ...report.weeklyPayments.map((payment) => payment.amount),
+    ...report.weeklyPayments.map((payment) =>
+      isAdmin ? payment.amount : payment.count
+    ),
     0
   );
   const maxStatus = Math.max(
@@ -69,7 +72,7 @@ export default async function ActivityPage() {
     0
   );
   const maxCollected = Math.max(
-    ...report.staffPerformance.map((row) => row.collected),
+    ...report.staffPerformance.map((row) => row.collected ?? 0),
     0
   );
 
@@ -92,19 +95,19 @@ export default async function ActivityPage() {
         <section className="grid gap-5 xl:grid-cols-2">
           <div className="rounded-lg border bg-white p-5">
             <h2 className="text-lg font-semibold text-gray-950">
-              Weekly Collections
+              {isAdmin ? "Weekly Collections" : "Payments This Week"}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Payment collection by day.
+              {isAdmin ? "Payment collection by day." : "Recorded payments by day."}
             </p>
             <div className="mt-5 space-y-4">
               {report.weeklyPayments.map((payment) => (
                 <BarRow
                   key={payment.label}
                   label={payment.label}
-                  value={payment.amount}
+                  value={isAdmin ? payment.amount : payment.count}
                   max={maxDaily}
-                  display={formatMoney(payment.amount)}
+                  display={isAdmin ? formatMoney(payment.amount) : `${payment.count}`}
                 />
               ))}
             </div>
@@ -136,7 +139,9 @@ export default async function ActivityPage() {
             {isAdmin ? "Staff Performance" : "My Performance"}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
-            Collection strength, assigned accounts, and outstanding balances.
+            {isAdmin
+              ? "Collection strength, assigned accounts, and outstanding balances."
+              : "Assigned customer and account workload."}
           </p>
           <div className="mt-5 space-y-4">
             {report.staffPerformance.map((row) => (
@@ -153,7 +158,7 @@ export default async function ActivityPage() {
                     <div
                       className="h-full rounded-full bg-lime-400"
                       style={{
-                        width: `${maxCollected > 0 ? Math.max(4, (row.collected / maxCollected) * 100) : 0}%`,
+                        width: `${maxCollected > 0 && row.collected !== null ? Math.max(4, (row.collected / maxCollected) * 100) : 0}%`,
                       }}
                     />
                   </div>
@@ -161,14 +166,25 @@ export default async function ActivityPage() {
                     {row.customers} customers • {row.accounts} accounts
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="font-semibold text-gray-950">
-                    {formatMoney(row.collected)}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Outstanding {formatMoney(row.outstanding)}
-                  </p>
-                </div>
+                {isAdmin ? (
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-950">
+                      {formatMoney(row.collected ?? 0)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Outstanding {formatMoney(row.outstanding ?? 0)}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-950">
+                      {row.accounts} accounts
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {row.customers} assigned customers
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>

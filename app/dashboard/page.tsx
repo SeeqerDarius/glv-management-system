@@ -7,7 +7,6 @@ import {
   CircleCheckBigIcon,
   ClockAlertIcon,
   HandCoinsIcon,
-  LineChartIcon,
   TrendingUpIcon,
   UserRoundIcon,
   UsersIcon,
@@ -18,6 +17,14 @@ import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { formatMoney } from "@/lib/accounts";
 import { getAdminReportSummary, getStaffDashboardSummary } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
+
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
 
 function MetricCard({
   label,
@@ -172,19 +179,15 @@ export default async function DashboardPage() {
             <MetricCard label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent="#7ac943" />
             <MetricCard label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent="#2f8fb5" />
             <MetricCard label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
-            <MetricCard label="Overdue Accounts" value={staffReport.overdueAccounts} icon={ClockAlertIcon} accent="#d18b35" />
-            <MetricCard label="Weekly Collection" value={formatMoney(staffReport.weeklyCollection)} icon={HandCoinsIcon} accent="#846ab3" />
-            <MetricCard label="Monthly Collection" value={formatMoney(staffReport.monthlyCollection)} icon={TrendingUpIcon} accent="#7ac943" />
-            <MetricCard label="Outstanding Balance" value={formatMoney(staffReport.outstandingBalance)} icon={BadgeDollarSignIcon} accent="#317f9d" />
-            <MetricCard label="Opened This Week" value={staffReport.accountsOpenedThisWeek} icon={LineChartIcon} accent="#44a36f" />
+            <MetricCard label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-lg border bg-white p-5">
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-950">My Performance</h2>
-                  <p className="text-sm text-gray-600">Assigned customer activity and collection progress.</p>
+                  <h2 className="text-lg font-semibold text-gray-950">Account Tasks</h2>
+                  <p className="text-sm text-gray-600">Assigned customer activity and account progress.</p>
                 </div>
                 <Button asChild variant="outline">
                   <Link href="/payments/new">Record Payment</Link>
@@ -200,8 +203,12 @@ export default async function DashboardPage() {
                   <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.completedAccounts}</p>
                 </div>
                 <div className="rounded-lg bg-amber-50 p-4">
-                  <p className="text-xs font-medium uppercase text-amber-800">Suspended/Cancelled</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.suspendedAccounts + staffReport.cancelledAccounts}</p>
+                  <p className="text-xs font-medium uppercase text-amber-800">Needs Attention</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.overdueAccounts + staffReport.suspendedAccounts}</p>
+                </div>
+                <div className="rounded-lg bg-sky-50 p-4">
+                  <p className="text-xs font-medium uppercase text-sky-800">Opened This Week</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.accountsOpenedThisWeek}</p>
                 </div>
               </div>
             </div>
@@ -219,6 +226,49 @@ export default async function DashboardPage() {
                   <p className="text-sm text-gray-600">No assigned customers yet.</p>
                 ) : null}
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-950">Recent Payments</h2>
+                <p className="text-sm text-gray-600">Payment records for assigned customers.</p>
+              </div>
+              <Button asChild variant="outline">
+                <Link href="/payments">View Payments</Link>
+              </Button>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <th className="p-3">Receipt</th>
+                    <th className="p-3">Date</th>
+                    <th className="p-3">Customer</th>
+                    <th className="p-3">Product</th>
+                    <th className="p-3">Method</th>
+                    <th className="p-3 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffReport.recentPayments.map((payment) => (
+                    <tr key={payment.id} className="border-b last:border-0">
+                      <td className="p-3 font-mono text-xs">{payment.receiptNo}</td>
+                      <td className="p-3">{formatDate(payment.paymentDate)}</td>
+                      <td className="p-3">{payment.account.customer.fullName}</td>
+                      <td className="p-3">{payment.account.product.name}</td>
+                      <td className="p-3">{payment.method}</td>
+                      <td className="p-3 text-right font-semibold">{formatMoney(payment.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {staffReport.recentPayments.length === 0 ? (
+                <p className="border-t py-8 text-center text-sm text-gray-600">
+                  No payment activity yet.
+                </p>
+              ) : null}
             </div>
           </section>
         </div>

@@ -372,7 +372,10 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 
 export async function getStaffDashboardSummary(staffId: string, now = new Date()) {
   const week = getCurrentWeekRange(now);
-  const month = getCurrentMonthRange(now);
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setHours(23, 59, 59, 999);
   const staff = await prisma.staff.findUnique({
     where: {
       id: staffId,
@@ -391,7 +394,6 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       accounts: {
         include: {
           product: true,
-          payments: true,
         },
       },
     },
@@ -401,18 +403,58 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
   });
 
   const accounts = customers.flatMap((customer) => customer.accounts);
-  const payments = accounts.flatMap((account) => account.payments);
-  const weeklyCollection = payments
-    .filter(
-      (payment) => payment.paymentDate >= week.start && payment.paymentDate <= week.end
-    )
-    .reduce((total, payment) => total + payment.amount, 0);
-  const monthlyCollection = payments
-    .filter(
-      (payment) =>
-        payment.paymentDate >= month.start && payment.paymentDate <= month.end
-    )
-    .reduce((total, payment) => total + payment.amount, 0);
+  const [paymentsRecordedToday, recentPayments] = await Promise.all([
+    prisma.payment.count({
+      where: {
+        paymentDate: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+        account: {
+          customer: {
+            staffId,
+          },
+        },
+      },
+    }),
+    prisma.payment.findMany({
+      take: 5,
+      where: {
+        account: {
+          customer: {
+            staffId,
+          },
+        },
+      },
+      orderBy: {
+        paymentDate: "desc",
+      },
+      select: {
+        id: true,
+        receiptNo: true,
+        amount: true,
+        paymentDate: true,
+        method: true,
+        account: {
+          select: {
+            id: true,
+            product: {
+              select: {
+                name: true,
+              },
+            },
+            customer: {
+              select: {
+                id: true,
+                fullName: true,
+                customerId: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+  ]);
   const statusCounts = accounts.reduce(
     (totals, account) => {
       totals[getEffectiveAccountStatus(account)] += 1;
@@ -436,10 +478,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     overdueAccounts: statusCounts.OVERDUE,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
-    weeklyCollection,
-    monthlyCollection,
-    totalCollected: payments.reduce((total, payment) => total + payment.amount, 0),
-    outstandingBalance: accounts.reduce((total, account) => total + account.balance, 0),
+    paymentsRecordedToday,
     accountsOpenedThisWeek: accounts.filter(
       (account) => account.createdAt >= week.start && account.createdAt <= week.end
     ).length,
@@ -447,14 +486,17 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       (customer) => customer.createdAt >= week.start && customer.createdAt <= week.end
     ).length,
     recentCustomers: customers.slice(0, 5),
+    recentPayments,
   };
 }
 
 export async function getActivityReport({
   staffId,
+  includeFinancialValues = true,
   now = new Date(),
 }: {
   staffId?: string | null;
+  includeFinancialValues?: boolean;
   now?: Date;
 }) {
   const week = getCurrentWeekRange(now);
@@ -526,16 +568,18 @@ export async function getActivityReport({
     dayStart.setDate(week.start.getDate() + index);
     const dayEnd = new Date(dayStart);
     dayEnd.setHours(23, 59, 59, 999);
-    const amount = payments
-      .filter(
-        (payment) =>
-          payment.paymentDate >= dayStart && payment.paymentDate <= dayEnd
-      )
-      .reduce((total, payment) => total + payment.amount, 0);
+    const dayPayments = payments.filter(
+      (payment) =>
+        payment.paymentDate >= dayStart && payment.paymentDate <= dayEnd
+    );
+    const amount = includeFinancialValues
+      ? dayPayments.reduce((total, payment) => total + payment.amount, 0)
+      : 0;
 
     return {
       label,
       amount,
+      count: dayPayments.length,
     };
   });
 
@@ -560,11 +604,15 @@ export async function getActivityReport({
         staffName: member.fullName,
         customers: customers.filter((customer) => customer.staffId === member.id).length,
         accounts: memberAccounts.length,
-        collected: memberPayments.reduce((total, payment) => total + payment.amount, 0),
-        outstanding: memberAccounts.reduce((total, account) => total + account.balance, 0),
+        collected: includeFinancialValues
+          ? memberPayments.reduce((total, payment) => total + payment.amount, 0)
+          : null,
+        outstanding: includeFinancialValues
+          ? memberAccounts.reduce((total, account) => total + account.balance, 0)
+          : null,
       };
     })
-    .sort((a, b) => b.collected - a.collected);
+    .sort((a, b) => (b.collected ?? 0) - (a.collected ?? 0));
 
   return {
     start: week.start,

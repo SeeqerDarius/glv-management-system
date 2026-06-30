@@ -10,6 +10,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 
+// ============================================================================
+// SECTION: Type Definitions
+// Defines the shape of search parameters this page accepts
+// ============================================================================
 type AccountsPageProps = {
   searchParams: Promise<{
     q?: string;
@@ -23,6 +27,10 @@ type AccountsPageProps = {
   }>;
 };
 
+// ============================================================================
+// SECTION: Constants & Helper Functions
+// Pagination size, date formatting, and URL builder for pagination links
+// ============================================================================
 const PAGE_SIZE = 20;
 
 function formatDate(date: Date) {
@@ -40,6 +48,10 @@ function buildPageHref(params: URLSearchParams, page: number) {
 }
 
 export default async function AccountsPage({ searchParams }: AccountsPageProps) {
+  // ==========================================================================
+  // SECTION: Authentication & Authorization Setup
+  // Determines user role, permissions, and access level
+  // ==========================================================================
   const params = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
@@ -50,12 +62,20 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     UserPermission.MANAGE_ACCOUNTS
   );
 
+  // ==========================================================================
+  // SECTION: Query Parameter Extraction
+  // Pulls filter values from the URL search params
+  // ==========================================================================
   const query = params.q?.trim() ?? "";
   const selectedStatus = params.status || AccountStatus.ACTIVE;
   const selectedStaffId = params.staffId || "";
   const selectedProductId = params.productId || "";
   const currentPage = Math.max(Number(params.page || "1"), 1);
 
+  // ==========================================================================
+  // SECTION: Date Setup & Filter Construction
+  // Builds the Prisma WHERE clause based on active filters and user permissions
+  // ==========================================================================
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -102,7 +122,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const where: Prisma.CustomerAccountWhereInput =
     filters.length > 0 ? { AND: filters } : {};
 
-  // Data containers
+  // ==========================================================================
+  // SECTION: Data Containers
+  // Declares typed variables to hold fetched data
+  // ==========================================================================
   let accounts: Array<{
     id: string;
     startDate: Date;
@@ -125,6 +148,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   let products: Array<{ id: string; name: string }> = [];
   let loadError = false;
 
+  // ==========================================================================
+  // SECTION: Database Queries
+  // Fetches accounts (paginated), total count, staff list (admin only), and products
+  // ==========================================================================
   try {
     // Fetch accounts first (most important), then supporting data sequentially
     accounts = await prisma.customerAccount.findMany({
@@ -171,6 +198,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     loadError = true;
   }
 
+  // ==========================================================================
+  // SECTION: Pagination Calculation & URL Param Preservation
+  // Computes total pages and preserves current filters across page navigation
+  // ==========================================================================
   const totalPages = Math.max(Math.ceil(totalAccounts / PAGE_SIZE), 1);
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
@@ -178,6 +209,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   if (selectedStatus) urlParams.set("status", selectedStatus);
   if (selectedProductId) urlParams.set("productId", selectedProductId);
 
+  // ==========================================================================
+  // SECTION: Error State (Database Unavailable)
+  // Returns early if the database query failed
+  // ==========================================================================
   if (loadError) {
     return (
       <div className="space-y-6">
@@ -204,6 +239,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     );
   }
 
+  // ==========================================================================
+  // SECTION: Main UI - Page Header
+  // Title, description, and "Create Account" button
+  // ==========================================================================
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -219,6 +258,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </Button>
       </div>
 
+      {/* ==================================================================== */}
+      {/* SECTION: Filter Form                                                   */}
+      {/* Search input, staff/status/product dropdowns, and filter button        */}
+      {/* ==================================================================== */}
       <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-5">
         <input
           name="q"
@@ -261,6 +304,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </Button>
       </form>
 
+      {/* ==================================================================== */}
+      {/* SECTION: Toast Notifications                                           */}
+      {/* Displays success/error messages based on URL params                    */}
+      {/* ==================================================================== */}
       {params.error === "account-not-found" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Account could not be found.
@@ -278,6 +325,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </div>
       ) : null}
 
+      {/* ==================================================================== */}
+      {/* SECTION: Bulk Reassignment Form (Admin Only)                           */}
+      {/* Allows admins to reassign multiple customers to a different staff      */}
+      {/* ==================================================================== */}
       {isAdmin ? (
         <BulkReassignmentForm
           action={bulkReassignCustomers}
@@ -287,8 +338,16 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         />
       ) : null}
 
+      {/* ==================================================================== */}
+      {/* SECTION: Accounts Table Container                                      */}
+      {/* The main data table showing all filtered accounts                      */}
+      {/* ==================================================================== */}
       <div className="overflow-hidden rounded-lg border bg-white">
         <table className="w-full text-sm">
+          {/* ================================================================== */}
+          {/* SECTION: Table Header                                                */}
+          {/* Column labels for the accounts table                                 */}
+          {/* ================================================================== */}
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               {isAdmin ? <th className="p-3 font-medium">Select</th> : null}
@@ -306,6 +365,11 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
               <th className="p-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
+
+          {/* ================================================================== */}
+          {/* SECTION: Table Body - Account Rows                                   */}
+          {/* Renders each account as a row with all relevant data                 */}
+          {/* ================================================================== */}
           <tbody>
             {accounts.map((account) => {
               const status = getEffectiveAccountStatus(account);
@@ -364,6 +428,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           </tbody>
         </table>
 
+        {/* ================================================================== */}
+        {/* SECTION: Empty State                                                 */}
+        {/* Shown when no accounts match the current filters                     */}
+        {/* ================================================================== */}
         {accounts.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">
             No customer accounts found.
@@ -371,6 +439,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         ) : null}
       </div>
 
+      {/* ==================================================================== */}
+      {/* SECTION: Pagination Controls                                           */}
+      {/* Shows current page info and Previous/Next navigation buttons           */}
+      {/* ==================================================================== */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
         <p>
           Showing page {currentPage} of {totalPages} ({totalAccounts} accounts)

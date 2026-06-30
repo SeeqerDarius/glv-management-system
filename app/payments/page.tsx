@@ -159,14 +159,14 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-950">Payments</h1>
           <p className="mt-1 text-sm text-gray-600">
             View recorded installment payments and receipts.
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href="/payments/new">Record Payment</Link>
         </Button>
       </div>
@@ -228,7 +228,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                 </p>
               </div>
 
-              <div className="space-y-4 p-4">
+              <div className="space-y-4 p-3 sm:p-4">
                 {Array.from(staffGroup.customers.values()).map(
                   (customerGroup) => (
                     <div
@@ -251,7 +251,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                               key={accountGroup.account.id}
                               className="rounded border"
                             >
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
+                              <div className="flex flex-col gap-3 border-b p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                                 <div>
                                   <div className="font-medium text-gray-950">
                                     {accountGroup.account.product.name}
@@ -261,7 +261,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                     {formatMoney(accountGroup.account.balance)}
                                   </div>
                                 </div>
-                                <Button asChild variant="outline" size="sm">
+                                <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
                                   <Link
                                     href={`/accounts/${accountGroup.account.id}`}
                                   >
@@ -270,49 +270,51 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                 </Button>
                               </div>
 
-                              <table className="w-full text-sm">
-                                <thead>
-                                  <tr className="bg-gray-100 text-left text-gray-700">
-                                    <th className="p-3 font-medium">Receipt</th>
-                                    <th className="p-3 font-medium">Date</th>
-                                    <th className="p-3 font-medium">Amount</th>
-                                    <th className="p-3 font-medium">Method</th>
-                                    {isAdmin ? (
-                                      <th className="p-3 text-right font-medium">
-                                        Actions
-                                      </th>
-                                    ) : null}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {accountGroup.payments.map((payment) => (
-                                    <tr key={payment.id} className="border-t">
-                                      <td className="p-3 font-semibold text-gray-950">
-                                        {payment.receiptNo}
-                                      </td>
-                                      <td className="p-3">
-                                        {formatDate(payment.paymentDate)}
-                                      </td>
-                                      <td className="p-3">
-                                        {formatMoney(payment.amount)}
-                                      </td>
-                                      <td className="p-3">{payment.method}</td>
+                              <div className="overflow-x-auto">
+                                <table className="w-full min-w-[620px] text-sm">
+                                  <thead>
+                                    <tr className="bg-gray-100 text-left text-gray-700">
+                                      <th className="p-3 font-medium">Receipt</th>
+                                      <th className="p-3 font-medium">Date</th>
+                                      <th className="p-3 font-medium">Amount</th>
+                                      <th className="p-3 font-medium">Method</th>
                                       {isAdmin ? (
-                                        <td className="p-3 text-right">
-                                          <ConfirmDeleteForm
-                                            action={deletePayment}
-                                            id={payment.id}
-                                            title={`Delete receipt ${payment.receiptNo}?`}
-                                            description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
-                                          >
-                                            Delete
-                                          </ConfirmDeleteForm>
-                                        </td>
+                                        <th className="p-3 text-right font-medium">
+                                          Actions
+                                        </th>
                                       ) : null}
                                     </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                                  </thead>
+                                  <tbody>
+                                    {accountGroup.payments.map((payment) => (
+                                      <tr key={payment.id} className="border-t">
+                                        <td className="p-3 font-semibold text-gray-950">
+                                          {payment.receiptNo}
+                                        </td>
+                                        <td className="p-3">
+                                          {formatDate(payment.paymentDate)}
+                                        </td>
+                                        <td className="p-3">
+                                          {formatMoney(payment.amount)}
+                                        </td>
+                                        <td className="p-3">{payment.method}</td>
+                                        {isAdmin ? (
+                                          <td className="p-3 text-right">
+                                            <ConfirmDeleteForm
+                                              action={deletePayment}
+                                              id={payment.id}
+                                              title={`Delete receipt ${payment.receiptNo}?`}
+                                              description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
+                                            >
+                                              Delete
+                                            </ConfirmDeleteForm>
+                                          </td>
+                                        ) : null}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
                             </div>
                           )
                         )}
@@ -334,20 +336,20 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
       {/* Pagination */}
       {!loadError && (
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
+        <div className="flex flex-col gap-3 text-sm text-gray-600 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <p>
             Showing page {currentPage} of {totalPages} ({totalPayments}{" "}
             payments)
           </p>
-          <div className="flex gap-2">
-            <Button asChild variant="outline" size="sm">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
               <Link
                 href={buildPageHref(urlParams, Math.max(currentPage - 1, 1))}
               >
                 Previous
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
               <Link
                 href={buildPageHref(
                   urlParams,
