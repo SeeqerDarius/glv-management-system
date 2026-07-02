@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { UserPermission, UserRole } from "@prisma/client";
+import { Eye, Trash2 } from "lucide-react";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
@@ -261,13 +262,14 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                     {formatMoney(accountGroup.account.balance)}
                                   </div>
                                 </div>
-                                <Button asChild variant="outline" size="sm" className="w-full sm:w-auto">
-                                  <Link
-                                    href={`/accounts/${accountGroup.account.id}`}
-                                  >
-                                    View Account
-                                  </Link>
-                                </Button>
+                                <Link
+                                  href={`/accounts/${accountGroup.account.id}`}
+                                  aria-label={`View ${accountGroup.account.product.name} account`}
+                                  title="View Account"
+                                  className="group/view flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
+                                >
+                                  <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                                </Link>
                               </div>
 
                               <div className="overflow-x-auto">
@@ -305,8 +307,9 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                               id={payment.id}
                                               title={`Delete receipt ${payment.receiptNo}?`}
                                               description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
+                                              triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
                                             >
-                                              Delete
+                                              <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
                                             </ConfirmDeleteForm>
                                           </td>
                                         ) : null}

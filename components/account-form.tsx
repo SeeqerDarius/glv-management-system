@@ -27,6 +27,7 @@ type ProductOption = {
 type AccountFormProps = {
   customers: CustomerOption[];
   products: ProductOption[];
+  selectedCustomerId?: string;
 };
 
 const initialState: AccountFormState = {};
@@ -37,7 +38,11 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-red-700">{message}</p>;
 }
 
-export function AccountForm({ customers, products }: AccountFormProps) {
+export function AccountForm({
+  customers,
+  products,
+  selectedCustomerId = "",
+}: AccountFormProps) {
   const [state, formAction, pending] = useActionState(
     createAccount,
     initialState
@@ -53,11 +58,16 @@ export function AccountForm({ customers, products }: AccountFormProps) {
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">Customer</span>
-        <select name="customerId" className="w-full rounded border p-3" required>
+        <select
+          name="customerId"
+          defaultValue={selectedCustomerId}
+          className="w-full rounded border p-3"
+          required
+        >
           <option value="">Select customer</option>
           {customers.map((customer) => (
             <option key={customer.id} value={customer.id}>
-              {customer.fullName} - {customer.customerId} ({customer.staff.code})
+              {customer.fullName}
             </option>
           ))}
         </select>

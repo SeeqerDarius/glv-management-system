@@ -11,6 +11,7 @@ type AccountOption = {
   balance: number;
   dailyAmount: number;
   customer: {
+    id: string;
     customerId: string;
     fullName: string;
   };
@@ -21,6 +22,8 @@ type AccountOption = {
 
 type PaymentFormProps = {
   accounts: AccountOption[];
+  selectedCustomerId?: string;
+  selectedAccountId?: string;
 };
 
 const initialState: PaymentFormState = {};
@@ -31,20 +34,48 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-red-700">{message}</p>;
 }
 
-export function PaymentForm({ accounts }: PaymentFormProps) {
+export function PaymentForm({
+  accounts,
+  selectedCustomerId = "",
+  selectedAccountId = "",
+}: PaymentFormProps) {
   const [state, formAction, pending] = useActionState(
     recordPayment,
     initialState
   );
   const formRef = useRef<HTMLFormElement>(null);
-  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const preselectedAccount = accounts.find(
+    (account) => account.id === selectedAccountId
+  );
+  const selectedCustomerExists = accounts.some(
+    (account) => account.customer.id === selectedCustomerId
+  );
+  const initialCustomerId =
+    preselectedAccount?.customer.id ||
+    (selectedCustomerExists ? selectedCustomerId : "");
+  const [customerId, setCustomerId] = useState(initialCustomerId);
+  const [accountId, setAccountId] = useState(
+    preselectedAccount ? selectedAccountId : ""
+  );
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
-  const selectedAccount = accounts.find(
-    (account) => account.id === selectedAccountId
-  );
+  const selectedAccount = accounts.find((account) => account.id === accountId);
+  const customers = Array.from(
+    new Map(
+      accounts.map((account) => [
+        account.customer.id,
+        {
+          id: account.customer.id,
+          fullName: account.customer.fullName,
+        },
+      ])
+    ).values()
+  ).sort((a, b) => a.fullName.localeCompare(b.fullName));
+  const customerAccounts = customerId
+    ? accounts.filter((account) => account.customer.id === customerId)
+    : [];
   const paymentAmount = Number(amount);
   const balanceAfter =
     selectedAccount && Number.isFinite(paymentAmount)
@@ -83,18 +114,40 @@ export function PaymentForm({ accounts }: PaymentFormProps) {
       ) : null}
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium text-gray-700">Account</span>
+        <span className="text-sm font-medium text-gray-700">Customer</span>
         <select
-          name="accountId"
-          value={selectedAccountId}
-          onChange={(event) => setSelectedAccountId(event.target.value)}
+          value={customerId}
+          onChange={(event) => {
+            setCustomerId(event.target.value);
+            setAccountId("");
+          }}
           className="w-full rounded border p-3"
           required
         >
-          <option value="">Select account</option>
-          {accounts.map((account) => (
+          <option value="">Select customer</option>
+          {customers.map((customer) => (
+            <option key={customer.id} value={customer.id}>
+              {customer.fullName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="block space-y-1">
+        <span className="text-sm font-medium text-gray-700">Account</span>
+        <select
+          name="accountId"
+          value={accountId}
+          onChange={(event) => setAccountId(event.target.value)}
+          className="w-full rounded border p-3"
+          disabled={!customerId}
+          required
+        >
+          <option value="">
+            {customerId ? "Select account" : "Select a customer first"}
+          </option>
+          {customerAccounts.map((account) => (
             <option key={account.id} value={account.id}>
-              {account.customer.fullName} - {account.customer.customerId} |{" "}
               {account.product.name} | Balance {formatMoney(account.balance)}
             </option>
           ))}

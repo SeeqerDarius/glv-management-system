@@ -1,21 +1,20 @@
 "use client";
 
-import { useActionState, useState, type FormEvent } from "react";
-import {
-  changePassword,
-  type ChangePasswordState,
-} from "@/actions/auth";
+import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { PasswordInput } from "@/components/password-input";
 
-const initialState: ChangePasswordState = {};
+const errorMessages: Record<string, string> = {
+  "missing-fields": "Current password and new password are required.",
+  "password-mismatch": "New password and confirmation must match.",
+  "password-too-short": "New password must be at least 8 characters.",
+  "password-unchanged": "New password must be different from the current password.",
+  "invalid-current-password": "Current password is incorrect.",
+};
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ error }: { error?: string }) {
   const [clientError, setClientError] = useState<string>();
-  const [state, formAction, pending] = useActionState(
-    changePassword,
-    initialState
-  );
+  const serverError = error ? errorMessages[error] : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     const formData = new FormData(event.currentTarget);
@@ -33,7 +32,8 @@ export function ChangePasswordForm() {
 
   return (
     <form
-      action={formAction}
+      action="/api/change-password"
+      method="post"
       onSubmit={handleSubmit}
       className="w-full max-w-md space-y-4 rounded-lg border bg-white p-6 shadow-sm"
     >
@@ -44,9 +44,9 @@ export function ChangePasswordForm() {
         </p>
       </div>
 
-      {state.error || clientError ? (
+      {serverError || clientError ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {clientError || state.error}
+          {clientError || serverError}
         </p>
       ) : null}
 
@@ -84,8 +84,8 @@ export function ChangePasswordForm() {
         />
       </label>
 
-      <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Updating..." : "Update Password"}
+      <Button type="submit" className="w-full">
+        Update Password
       </Button>
     </form>
   );

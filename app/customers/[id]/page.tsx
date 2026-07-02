@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserPermission, UserRole } from "@prisma/client";
+import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
+import { Eye, HandCoins } from "lucide-react";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
@@ -63,7 +64,9 @@ export default async function CustomerProfilePage({
             <Link href="/customers">Back</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/accounts/new">New Account</Link>
+            <Link href={`/accounts/new?customerId=${customer.id}`}>
+              New Account
+            </Link>
           </Button>
           <Button asChild>
             <Link href={`/customers/${customer.id}/edit`}>Edit</Link>
@@ -139,6 +142,11 @@ export default async function CustomerProfilePage({
           <tbody>
             {customer.accounts.map((account) => {
               const status = getEffectiveAccountStatus(account);
+              const canRecordPayment =
+                account.balance > 0 &&
+                status !== AccountStatus.COMPLETED &&
+                status !== AccountStatus.CANCELLED &&
+                status !== AccountStatus.SUSPENDED;
 
               return (
                 <tr key={account.id} className="border-t">
@@ -155,9 +163,26 @@ export default async function CustomerProfilePage({
                     />
                   </td>
                   <td className="p-3 text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/accounts/${account.id}`}>View</Link>
-                    </Button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Link
+                        href={`/accounts/${account.id}`}
+                        aria-label={`View ${account.product.name} account`}
+                        title="View"
+                        className="group/view flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                      </Link>
+                      {canRecordPayment ? (
+                        <Link
+                          href={`/payments/new?customerId=${customer.id}&accountId=${account.id}`}
+                          aria-label={`Record payment for ${account.product.name}`}
+                          title="Record Payment"
+                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                        >
+                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

@@ -30,10 +30,14 @@ type StaffListItem = Prisma.StaffGetPayload<{
   };
 }>;
 
+type StaffRow = StaffListItem & {
+  passwordResetRequestedAt: Date | null;
+};
+
 export default async function StaffPage({ searchParams }: StaffPageProps) {
   const { q, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
-  let staff: StaffListItem[];
+  let staff: StaffRow[];
 
   try {
     const allStaff = await prisma.staff.findMany({
@@ -50,15 +54,66 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       },
     });
 
+    const userIds = allStaff
+      .map((member) => member.user?.id)
+      .filter((id): id is string => Boolean(id));
+    const passwordAuditLogs = userIds.length
+      ? await prisma.auditLog.findMany({
+          where: {
+            entity: "User",
+            entityId: {
+              in: userIds,
+            },
+            action: {
+              in: ["PASSWORD_RESET_REQUEST", "RESET_STAFF_PASSWORD"],
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            action: true,
+            entityId: true,
+            createdAt: true,
+          },
+        })
+      : [];
+    const latestRequestByUserId = new Map<string, Date>();
+    const latestResetByUserId = new Map<string, Date>();
+
+    for (const log of passwordAuditLogs) {
+      const targetMap =
+        log.action === "PASSWORD_RESET_REQUEST"
+          ? latestRequestByUserId
+          : latestResetByUserId;
+
+      if (!targetMap.has(log.entityId)) {
+        targetMap.set(log.entityId, log.createdAt);
+      }
+    }
+
+    const staffWithResetRequests = allStaff.map((member) => {
+      const userId = member.user?.id;
+      const requestedAt = userId ? latestRequestByUserId.get(userId) : undefined;
+      const resetAt = userId ? latestResetByUserId.get(userId) : undefined;
+      const hasPendingRequest =
+        Boolean(requestedAt) && (!resetAt || requestedAt! > resetAt);
+
+      return {
+        ...member,
+        passwordResetRequestedAt: hasPendingRequest ? requestedAt! : null,
+      };
+    });
+
     staff = query
-      ? allStaff.filter(
+      ? staffWithResetRequests.filter(
           (s) =>
             s.fullName.toLowerCase().includes(query.toLowerCase()) ||
             s.email.toLowerCase().includes(query.toLowerCase()) ||
             s.code.toLowerCase().includes(query.toLowerCase()) ||
             (s.phone ?? "").toLowerCase().includes(query.toLowerCase()),
         )
-      : allStaff;
+      : staffWithResetRequests;
   } catch {
     return (
       <div className="space-y-6">
@@ -81,7 +136,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-950">
             Staff Management
@@ -92,7 +147,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         </div>
         <Link
           href="/staff/new"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-[#123824] px-4 py-2 text-sm font-medium text-lime-400 transition hover:bg-[#1a4f33]"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#123824] px-4 py-2 text-sm font-medium text-lime-400 transition hover:bg-[#1a4f33]"
         >
           <span className="text-lg leading-none">+</span> Add staff
         </Link>
@@ -123,7 +178,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       )}
 
       {/* Search */}
-      <form className="relative max-w-sm">
+      <form className="relative w-full max-w-sm">
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
         <input
           name="q"
@@ -134,7 +189,98 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       </form>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <div className="grid gap-3 md:hidden">
+        {staff.map((member) => (
+          <div
+            key={member.id}
+            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase text-gray-400">
+                  {member.code}
+                </p>
+                <h2 className="truncate text-base font-semibold text-gray-950">
+                  {member.fullName}
+                </h2>
+                <p className="truncate text-sm text-gray-600">{member.email}</p>
+              </div>
+              {member.passwordResetRequestedAt ? (
+                <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                  Reset requested
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-gray-400">Phone</p>
+                <p className="font-medium text-gray-800">{member.phone || "-"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Customers</p>
+                <p className="font-medium text-gray-800">
+                  {member._count.customers}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Salary</p>
+                <p className="font-medium text-gray-800">
+                  {money(member.monthlySalary)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Login</p>
+                <p className="font-medium text-gray-800">
+                  {member.user ? "Created" : "Missing"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link
+                href={`/staff/${member.id}/edit`}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Edit
+              </Link>
+
+              {member.active && (
+                <form action={deactivateStaff}>
+                  <input type="hidden" name="id" value={member.id} />
+                  <button
+                    type="submit"
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-amber-200 px-3 text-sm font-medium text-amber-700 hover:bg-amber-50"
+                  >
+                    Deactivate
+                  </button>
+                </form>
+              )}
+
+              {member.user && member.passwordResetRequestedAt ? (
+                <StaffPasswordResetForm
+                  staffId={member.id}
+                  staffName={member.fullName}
+                  showLabel
+                />
+              ) : null}
+
+              <ConfirmDeleteForm
+                action={deleteStaff}
+                id={member.id}
+                title={`Delete ${member.fullName}?`}
+                hasLinkedHistory={member._count.customers > 0}
+                description="This permanently deletes the staff record. This cannot be undone."
+                triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
+              >
+                Delete
+              </ConfirmDeleteForm>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white md:block">
         <div className="overflow-x-auto">
           <table
             className="w-full min-w-[940px] text-sm"
@@ -219,15 +365,22 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                     </span>
                   </td>
                   <td className="px-3 py-3 text-center">
-                    <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        member.user
-                          ? "bg-green-100 text-green-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {member.user ? "Created" : "Missing"}
-                    </span>
+                    <div className="flex flex-col items-center gap-1">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          member.user
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {member.user ? "Created" : "Missing"}
+                      </span>
+                      {member.passwordResetRequestedAt ? (
+                        <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
+                          Reset requested
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-0.5">
@@ -236,11 +389,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                         href={`/staff/${member.id}/edit`}
                         aria-label={`Edit ${member.fullName}`}
                         title="Edit"
-                        className="
-                          group/edit flex size-8 items-center justify-center rounded-md
-                          text-gray-400 transition-all duration-150
-                          hover:bg-lime-50 hover:text-green-700
-                        "
+                        className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
                       >
                         <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
                       </Link>
@@ -253,22 +402,20 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                             type="submit"
                             aria-label={`Deactivate ${member.fullName}`}
                             title="Deactivate"
-                            className="
-                              group/deact flex size-8 items-center justify-center rounded-md
-                              text-gray-400 transition-all duration-150
-                              hover:bg-amber-50 hover:text-amber-700
-                            "
+                            className="group/deact flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-amber-50 hover:text-amber-700"
                           >
                             <UserX className="size-4 transition-transform duration-200 group-hover/deact:scale-125 group-hover/deact:-translate-y-0.5" />
                           </button>
                         </form>
                       )}
 
-                      <StaffPasswordResetForm
-                        staffId={member.id}
-                        staffName={member.fullName}
-                        disabled={!member.user}
-                      />
+                      {/* Password Reset */}
+                      {member.user && member.passwordResetRequestedAt ? (
+                        <StaffPasswordResetForm
+                          staffId={member.id}
+                          staffName={member.fullName}
+                        />
+                      ) : null}
 
                       {/* Delete */}
                       <ConfirmDeleteForm
@@ -277,11 +424,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                         title={`Delete ${member.fullName}?`}
                         hasLinkedHistory={member._count.customers > 0}
                         description="This permanently deletes the staff record. This cannot be undone."
-                        triggerClassName="
-                          group/del flex size-8 items-center justify-center rounded-md
-                          text-gray-400 transition-all duration-150
-                          hover:bg-red-50 hover:text-red-600
-                        "
+                        triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
                       >
                         <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
                       </ConfirmDeleteForm>
@@ -292,20 +435,19 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             </tbody>
           </table>
 
-          {staff.length === 0 && (
-            <div className="flex flex-col items-center gap-1 py-14 text-center">
-              <p className="text-sm font-medium text-gray-700">
-                No staff found
-              </p>
-              <p className="text-xs text-gray-400">
-                {query
-                  ? `No results for "${query}". Try a different search.`
-                  : "Add your first staff member to get started."}
-              </p>
-            </div>
-          )}
         </div>
       </div>
+
+      {staff.length === 0 && (
+        <div className="flex flex-col items-center gap-1 rounded-lg border border-gray-200 bg-white py-14 text-center">
+          <p className="text-sm font-medium text-gray-700">No staff found</p>
+          <p className="text-xs text-gray-400">
+            {query
+              ? `No results for "${query}". Try a different search.`
+              : "Add your first staff member to get started."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

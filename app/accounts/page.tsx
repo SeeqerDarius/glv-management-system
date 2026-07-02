@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
+import { Eye, HandCoins } from "lucide-react";
 import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -32,14 +32,6 @@ type AccountsPageProps = {
 // Pagination size, date formatting, and URL builder for pagination links
 // ============================================================================
 const PAGE_SIZE = 20;
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
-}
 
 function buildPageHref(params: URLSearchParams, page: number) {
   const nextParams = new URLSearchParams(params);
@@ -354,14 +346,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
               <th className="p-3 font-medium">Customer</th>
               <th className="p-3 font-medium">Staff</th>
               <th className="p-3 font-medium">Product</th>
-              <th className="p-3 font-medium">Target</th>
               <th className="p-3 font-medium">Paid</th>
               <th className="p-3 font-medium">Balance</th>
               <th className="p-3 font-medium">Daily</th>
               <th className="p-3 font-medium">Paid Progress</th>
-              <th className="p-3 font-medium">Status</th>
-              <th className="p-3 font-medium">Start</th>
-              <th className="p-3 font-medium">Expected End</th>
               <th className="p-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -397,7 +385,6 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   </td>
                   <td className="p-3">{account.customer.staff.code}</td>
                   <td className="p-3">{account.product.name}</td>
-                  <td className="p-3">{formatMoney(account.targetAmount)}</td>
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">{formatMoney(account.dailyAmount)}</td>
@@ -408,19 +395,31 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                       duration={account.product.duration}
                     />
                   </td>
-                  <td className="p-3">
-                    <Badge
-                      variant={status === "OVERDUE" ? "destructive" : "default"}
-                    >
-                      {status}
-                    </Badge>
-                  </td>
-                  <td className="p-3">{formatDate(account.startDate)}</td>
-                  <td className="p-3">{formatDate(account.expectedEndDate)}</td>
                   <td className="p-3 text-right">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/accounts/${account.id}`}>View</Link>
-                    </Button>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Link
+                        href={`/accounts/${account.id}`}
+                        aria-label={`View ${account.customer.fullName} ${account.product.name} account`}
+                        title="View"
+                        className="group/view flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                      </Link>
+
+                      {account.balance > 0 &&
+                      status !== AccountStatus.COMPLETED &&
+                      status !== AccountStatus.CANCELLED &&
+                      status !== AccountStatus.SUSPENDED ? (
+                        <Link
+                          href={`/payments/new?customerId=${account.customer.id}&accountId=${account.id}`}
+                          aria-label={`Record payment for ${account.customer.fullName}`}
+                          title="Record Payment"
+                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                        >
+                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                        </Link>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

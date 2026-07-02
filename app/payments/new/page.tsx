@@ -4,7 +4,16 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/roles";
 
-export default async function NewPaymentPage() {
+export default async function NewPaymentPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    customerId?: string;
+    accountId?: string;
+  }>;
+}) {
+  const { customerId: selectedCustomerId, accountId: selectedAccountId } =
+    await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_PAYMENTS);
@@ -35,6 +44,7 @@ export default async function NewPaymentPage() {
     include: {
       customer: {
         select: {
+          id: true,
           customerId: true,
           fullName: true,
         },
@@ -56,7 +66,11 @@ export default async function NewPaymentPage() {
         </p>
       </div>
 
-      <PaymentForm accounts={accounts} />
+      <PaymentForm
+        accounts={accounts}
+        selectedCustomerId={selectedCustomerId}
+        selectedAccountId={selectedAccountId}
+      />
     </div>
   );
 }

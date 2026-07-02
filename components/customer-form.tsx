@@ -29,7 +29,7 @@ export function CustomerForm({ action, staff, canAssignStaff }: {
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Full Name</span><input name="fullName" className="w-full rounded border p-3" required />{state.errors?.fullName ? <p className="text-sm text-red-700">{state.errors.fullName}</p> : null}</label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Phone</span><input name="phone" className="w-full rounded border p-3" required />{state.errors?.phone ? <p className="text-sm text-red-700">{state.errors.phone}</p> : null}</label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Address</span><textarea name="address" className="min-h-24 w-full rounded border p-3" /></label>
-      <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">National ID</span><input name="nationalId" className="w-full rounded border p-3" /></label>
+      <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">National ID <span className="font-normal text-gray-400">(optional)</span></span><input name="nationalId" className="w-full rounded border p-3" /></label>
 
       {canAssignStaff ? (
         <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Assigned Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.fullName} ({member.code})</option>)}</select></label>

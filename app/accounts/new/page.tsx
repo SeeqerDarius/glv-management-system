@@ -4,7 +4,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/roles";
 
-export default async function NewAccountPage() {
+export default async function NewAccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    customerId?: string;
+  }>;
+}) {
+  const { customerId: selectedCustomerId } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
@@ -57,7 +64,11 @@ export default async function NewAccountPage() {
         </p>
       </div>
 
-      <AccountForm customers={customers} products={products} />
+      <AccountForm
+        customers={customers}
+        products={products}
+        selectedCustomerId={selectedCustomerId}
+      />
     </div>
   );
 }

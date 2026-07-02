@@ -102,7 +102,10 @@ export default async function EditCustomerPage({
         </label>
 
         <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">National ID</span>
+          <span className="text-sm font-medium text-gray-700">
+            National ID{" "}
+            <span className="font-normal text-gray-400">(optional)</span>
+          </span>
           <input
             name="nationalId"
             defaultValue={customer.nationalId ?? ""}

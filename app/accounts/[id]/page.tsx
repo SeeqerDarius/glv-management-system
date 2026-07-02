@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { UserPermission, UserRole } from "@prisma/client";
+import { ArrowLeft, HandCoins, Trash2 } from "lucide-react";
 import { deleteAccount } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -89,10 +89,15 @@ export default async function AccountDetailsPage({
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <Link href="/accounts">Back</Link>
-          </Button>
+        <div className="flex items-center gap-0.5">
+          <Link
+            href="/accounts"
+            aria-label="Back to accounts"
+            title="Back"
+            className="group/back flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
+          </Link>
           {isAdmin ? (
             <ConfirmDeleteForm
               action={deleteAccount}
@@ -100,14 +105,20 @@ export default async function AccountDetailsPage({
               title={`Delete ${account.product.name} account?`}
               hasLinkedHistory={account.payments.length > 0}
               description="This permanently deletes the account and every related payment record. This cannot be undone."
+              triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
             >
-              Delete
+              <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
             </ConfirmDeleteForm>
           ) : null}
           {canRecordPayment ? (
-            <Button asChild>
-              <Link href="/payments/new">Record Payment</Link>
-            </Button>
+            <Link
+              href={`/payments/new?customerId=${account.customer.id}&accountId=${account.id}`}
+              aria-label="Record payment"
+              title="Record Payment"
+              className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+            >
+              <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+            </Link>
           ) : null}
         </div>
       </div>

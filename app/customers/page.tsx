@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Prisma, UserPermission, UserRole } from "@prisma/client";
+import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
+import { Eye, HandCoins, Trash2 } from "lucide-react";
 import { bulkReassignCustomers, deleteCustomer } from "@/actions/customers";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
@@ -61,6 +62,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     fullName: string;
     phone: string;
     staff: { code: string };
+    accounts: Array<{ id: string }>;
     _count: { accounts: number };
   }> = [];
   let totalCustomers = 0;
@@ -80,6 +82,20 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         fullName: true,
         phone: true,
         staff: { select: { code: true } },
+        accounts: {
+          where: {
+            balance: { gt: 0 },
+            status: {
+              notIn: [
+                AccountStatus.COMPLETED,
+                AccountStatus.CANCELLED,
+                AccountStatus.SUSPENDED,
+              ],
+            },
+          },
+          select: { id: true },
+          take: 1,
+        },
         _count: { select: { accounts: true } },
       },
     });
@@ -206,47 +222,69 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
             </tr>
           </thead>
           <tbody>
-            {customers.map((customer) => (
-              <tr key={customer.id} className="border-t">
-                {isAdmin ? (
-                  <td className="p-3">
-                    <input
-                      form="bulk-customer-reassignment"
-                      type="checkbox"
-                      name="customerIds"
-                      value={customer.id}
-                      className="size-4"
-                      aria-label={`Select ${customer.fullName}`}
-                    />
+            {customers.map((customer) => {
+              const canRecordPayment = customer.accounts.length > 0;
+
+              return (
+                <tr key={customer.id} className="border-t">
+                  {isAdmin ? (
+                    <td className="p-3">
+                      <input
+                        form="bulk-customer-reassignment"
+                        type="checkbox"
+                        name="customerIds"
+                        value={customer.id}
+                        className="size-4"
+                        aria-label={`Select ${customer.fullName}`}
+                      />
+                    </td>
+                  ) : null}
+                  <td className="p-3 font-semibold text-gray-950">
+                    {customer.customerId}
                   </td>
-                ) : null}
-                <td className="p-3 font-semibold text-gray-950">
-                  {customer.customerId}
-                </td>
-                <td className="p-3">{customer.fullName}</td>
-                <td className="p-3">{customer.phone}</td>
-                <td className="p-3">{customer.staff.code}</td>
-                <td className="p-3">{customer._count.accounts}</td>
-                <td className="p-3 text-right">
-                  <div className="flex justify-end gap-2">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`/customers/${customer.id}`}>View</Link>
-                    </Button>
-                    {isAdmin ? (
-                      <ConfirmDeleteForm
-                        action={deleteCustomer}
-                        id={customer.id}
-                        title={`Delete ${customer.fullName}?`}
-                        description="This permanently deletes the customer, every related account, and all payment records. This cannot be undone."
-                        hasLinkedHistory={customer._count.accounts > 0}
+                  <td className="p-3">{customer.fullName}</td>
+                  <td className="p-3">{customer.phone}</td>
+                  <td className="p-3">{customer.staff.code}</td>
+                  <td className="p-3">{customer._count.accounts}</td>
+                  <td className="p-3 text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        aria-label={`View ${customer.fullName}`}
+                        title="View"
+                        className="group/view flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
                       >
-                        Delete
-                      </ConfirmDeleteForm>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                        <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                      </Link>
+
+                      {canRecordPayment ? (
+                        <Link
+                          href={`/payments/new?customerId=${customer.id}`}
+                          aria-label={`Record payment for ${customer.fullName}`}
+                          title="Record Payment"
+                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                        >
+                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                        </Link>
+                      ) : null}
+
+                      {isAdmin ? (
+                        <ConfirmDeleteForm
+                          action={deleteCustomer}
+                          id={customer.id}
+                          title={`Delete ${customer.fullName}?`}
+                          description="This permanently deletes the customer, every related account, and all payment records. This cannot be undone."
+                          hasLinkedHistory={customer._count.accounts > 0}
+                          triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                        </ConfirmDeleteForm>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
