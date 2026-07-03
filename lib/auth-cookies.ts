@@ -9,6 +9,14 @@ const authCookiePrefixes = [
   "__Host-next-auth.",
 ];
 
+function shouldUseSecureCookie(name: string) {
+  return (
+    process.env.NODE_ENV === "production" ||
+    name.startsWith("__Secure-") ||
+    name.startsWith("__Host-")
+  );
+}
+
 export async function clearAuthCookies() {
   const cookieStore = await cookies();
   const authCookies = cookieStore
@@ -20,6 +28,10 @@ export async function clearAuthCookies() {
   for (const cookie of authCookies) {
     cookieStore.set(cookie.name, "", {
       path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure: shouldUseSecureCookie(cookie.name),
+      expires: new Date(0),
       maxAge: 0,
     });
   }
