@@ -148,12 +148,27 @@ export function PaymentForm({
           </option>
           {customerAccounts.map((account) => (
             <option key={account.id} value={account.id}>
-              {account.product.name} | Balance {formatMoney(account.balance)}
+              {account.product.name}
             </option>
           ))}
         </select>
         <FieldError message={state.errors?.accountId} />
       </label>
+
+      <div className="space-y-1">
+        <span className="text-sm font-medium text-gray-700">
+          Account Balance
+        </span>
+        <div
+          aria-live="polite"
+          className="inline-flex min-h-11 w-full items-center justify-between rounded-md border border-lime-200 bg-lime-50 px-4 py-2 text-sm font-medium text-lime-950"
+        >
+          <span className="text-lime-800">Current balance</span>
+          <span className="font-semibold tabular-nums">
+            {selectedAccount ? formatMoney(selectedAccount.balance) : "-"}
+          </span>
+        </div>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <label className="block space-y-1">

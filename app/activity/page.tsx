@@ -15,26 +15,34 @@ function formatDate(value: Date) {
 function BarRow({
   label,
   value,
-  max,
+  target,
   display,
+  labelClassName = "",
 }: {
   label: string;
   value: number;
-  max: number;
+  target: number;
   display: string;
+  labelClassName?: string;
 }) {
-  const width = max > 0 ? Math.max(4, (value / max) * 100) : 0;
+  const comparisonTarget = target > 0 ? target : value > 0 ? value * 2 : 0;
+  const width =
+    comparisonTarget > 0 && value > 0
+      ? Math.min(100, Math.max(4, (value / comparisonTarget) * 100))
+      : 0;
 
   return (
-    <div className="grid grid-cols-[4rem_minmax(0,1fr)_7rem] items-center gap-3 text-sm">
-      <p className="font-medium text-gray-700">{label}</p>
+    <div className="grid gap-2 text-sm sm:grid-cols-[minmax(6rem,10rem)_minmax(0,1fr)_minmax(7rem,12rem)] sm:items-center sm:gap-3">
+      <p className={`min-w-0 break-words font-medium text-gray-700 ${labelClassName}`}>
+        {label}
+      </p>
       <div className="h-3 overflow-hidden rounded-full bg-gray-100">
         <div
           className="h-full rounded-full bg-lime-400"
           style={{ width: `${width}%` }}
         />
       </div>
-      <p className="text-right font-semibold tabular-nums text-gray-950">
+      <p className="text-left font-semibold tabular-nums text-gray-950 sm:text-right">
         {display}
       </p>
     </div>
@@ -61,21 +69,6 @@ export default async function ActivityPage() {
     );
   }
 
-  const maxDaily = Math.max(
-    ...report.weeklyPayments.map((payment) =>
-      isAdmin ? payment.amount : payment.count
-    ),
-    0
-  );
-  const maxStatus = Math.max(
-    ...report.accountStatus.map((status) => status.count),
-    0
-  );
-  const maxCollected = Math.max(
-    ...report.staffPerformance.map((row) => row.collected ?? 0),
-    0
-  );
-
   return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-end justify-between gap-4 border-b border-gray-200 pb-5">
@@ -98,7 +91,9 @@ export default async function ActivityPage() {
               {isAdmin ? "Weekly Collections" : "Payments This Week"}
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              {isAdmin ? "Payment collection by day." : "Recorded payments by day."}
+              {isAdmin
+                ? "Payment collection value by day."
+                : "Recorded payment counts by day."}
             </p>
             <div className="mt-5 space-y-4">
               {report.weeklyPayments.map((payment) => (
@@ -106,8 +101,12 @@ export default async function ActivityPage() {
                   key={payment.label}
                   label={payment.label}
                   value={isAdmin ? payment.amount : payment.count}
-                  max={maxDaily}
-                  display={isAdmin ? formatMoney(payment.amount) : `${payment.count}`}
+                  target={isAdmin ? payment.expectedAmount : Math.max(payment.count, 1)}
+                  display={
+                    isAdmin
+                      ? formatMoney(payment.amount)
+                      : `${payment.count}`
+                  }
                 />
               ))}
             </div>
@@ -126,8 +125,9 @@ export default async function ActivityPage() {
                   key={status.status}
                   label={status.status}
                   value={status.count}
-                  max={maxStatus}
-                  display={`${status.count}`}
+                  target={status.total}
+                  display={`${status.count} / ${status.total}`}
+                  labelClassName="text-xs sm:text-sm"
                 />
               ))}
             </div>
@@ -158,7 +158,22 @@ export default async function ActivityPage() {
                     <div
                       className="h-full rounded-full bg-lime-400"
                       style={{
-                        width: `${maxCollected > 0 && row.collected !== null ? Math.max(4, (row.collected / maxCollected) * 100) : 0}%`,
+                        width: `${
+                          isAdmin && row.collected !== null
+                            ? row.expectedWeeklyCollection > 0 && row.collected > 0
+                              ? Math.min(
+                                  100,
+                                  Math.max(
+                                    4,
+                                    (row.collected / row.expectedWeeklyCollection) *
+                                      100
+                                  )
+                                )
+                              : 0
+                            : row.accounts > 0
+                              ? 100
+                              : 0
+                        }%`,
                       }}
                     />
                   </div>
@@ -172,7 +187,7 @@ export default async function ActivityPage() {
                       {formatMoney(row.collected ?? 0)}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Outstanding {formatMoney(row.outstanding ?? 0)}
+                      Target {formatMoney(row.expectedWeeklyCollection)}
                     </p>
                   </div>
                 ) : (

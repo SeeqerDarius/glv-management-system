@@ -180,6 +180,8 @@ export default async function DashboardPage() {
             <MetricCard label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent="#2f8fb5" />
             <MetricCard label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
             <MetricCard label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
+            <MetricCard label="Collected Today" value={formatMoney(staffReport.totalCollectedToday)} icon={BadgeDollarSignIcon} accent="#317f9d" />
+            <MetricCard label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent="#7ac943" />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
