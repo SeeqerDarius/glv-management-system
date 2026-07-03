@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
+import {
+  AccountStatus,
+  DeliveryStatus,
+  Prisma,
+  UserPermission,
+  UserRole,
+} from "@prisma/client";
 import { Eye, HandCoins } from "lucide-react";
 import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
@@ -127,6 +133,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     balance: number;
     dailyAmount: number;
     status: AccountStatus;
+    deliveryStatus: DeliveryStatus;
+    deliveredAt: Date | null;
     customer: {
       id: string;
       fullName: string;
@@ -160,6 +168,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         balance: true,
         dailyAmount: true,
         status: true,
+        deliveryStatus: true,
+        deliveredAt: true,
         customer: {
           select: {
             id: true,
@@ -348,6 +358,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
               <th className="p-3 font-medium">Product</th>
               <th className="p-3 font-medium">Paid</th>
               <th className="p-3 font-medium">Balance</th>
+              <th className="p-3 font-medium">Delivery</th>
               <th className="p-3 font-medium">Daily</th>
               <th className="p-3 font-medium">Paid Progress</th>
               <th className="p-3 text-right font-medium">Actions</th>
@@ -387,6 +398,23 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">{account.product.name}</td>
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
+                  <td className="p-3">
+                    {status === AccountStatus.COMPLETED ? (
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          account.deliveryStatus === DeliveryStatus.DELIVERED
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
+                        }`}
+                      >
+                        {account.deliveryStatus === DeliveryStatus.DELIVERED
+                          ? "Delivered"
+                          : "Pending"}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
                   <td className="p-3">{formatMoney(account.dailyAmount)}</td>
                   <td className="p-3">
                     <AccountDaysProgress

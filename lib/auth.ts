@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/lib/auth.config";
+import { touchUserPresence } from "@/lib/presence";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -46,15 +47,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!validPassword) return null;
 
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            permissions: user.permissions,
-            staffId: user.staffId,
-            mustChangePassword: user.mustChangePassword,
-            };
+        await touchUserPresence(user.id);
+
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          permissions: user.permissions,
+          staffId: user.staffId,
+          mustChangePassword: user.mustChangePassword,
+        };
       },
     }),
   ],

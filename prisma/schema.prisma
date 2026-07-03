@@ -16,6 +16,8 @@ model User {
   mustChangePassword Boolean          @default(true)
   staffId            String?          @unique
   createdAt          DateTime         @default(now())
+  lastSeenAt         DateTime?
+  online             Boolean          @default(false)
   permissions        UserPermission[] @default([])
   staff              Staff?           @relation(fields: [staffId], references: [id])
 }
@@ -99,6 +101,9 @@ model CustomerAccount {
   totalPaid       Float         @default(0)
   balance         Float
   status          AccountStatus @default(ACTIVE)
+  deliveryStatus  DeliveryStatus @default(PENDING)
+  deliveredAt     DateTime?
+  deliveredBy     String?
   createdAt       DateTime      @default(now())
   customer        Customer      @relation(fields: [customerId], references: [id])
   product         Product       @relation(fields: [productId], references: [id])
@@ -209,4 +214,9 @@ enum AccountStatus {
   OVERDUE
   SUSPENDED
   CANCELLED
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
 }

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { touchUserPresence } from "@/lib/presence";
 import { fallbackSettings, getSettings } from "@/lib/settings";
 import "./globals.css";
 
@@ -28,8 +29,24 @@ export default async function RootLayout({
 }>) {
   const session = await auth();
   const staff = session?.user?.staffId
-    ? await prisma.staff.findUnique({ where: { id: session.user.staffId }, select: { code: true } })
+    ? await prisma.staff.findUnique({
+        where: { id: session.user.staffId },
+        select: {
+          code: true,
+          user: {
+            select: {
+              id: true,
+              lastSeenAt: true,
+            },
+          },
+        },
+      })
     : null;
+
+  if (staff?.user) {
+    await touchUserPresence(staff.user.id, staff.user.lastSeenAt);
+  }
+
   const settings = session?.user
     ? await getSettings().catch(() => fallbackSettings)
     : fallbackSettings;

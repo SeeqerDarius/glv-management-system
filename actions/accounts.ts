@@ -1,6 +1,11 @@
 "use server";
 
-import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
+import {
+  AccountStatus,
+  DeliveryStatus,
+  UserPermission,
+  UserRole,
+} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -263,4 +268,97 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   revalidatePath("/accounts");
   revalidatePath(`/customers/${account.customerId}`);
   redirect("/accounts?deleted=account");
+}
+
+export async function updateAccountDeliveryStatus(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = cleanInput(formData.get("id"));
+  const nextStatusValue = cleanInput(formData.get("deliveryStatus"));
+  const nextStatus =
+    nextStatusValue === DeliveryStatus.DELIVERED
+      ? DeliveryStatus.DELIVERED
+      : DeliveryStatus.PENDING;
+
+  const account = await prisma.customerAccount.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      customerId: true,
+      status: true,
+      balance: true,
+      deliveryStatus: true,
+      deliveredAt: true,
+      deliveredBy: true,
+      customer: {
+        select: {
+          staffId: true,
+        },
+      },
+    },
+  });
+
+  if (!account) {
+    redirect("/accounts?error=account-not-found");
+  }
+
+  const canManageAccount =
+    isAdminRole(user.role) ||
+    hasPermission(user.role, user.permissions, UserPermission.MANAGE_ACCOUNTS) ||
+    (user.role === UserRole.STAFF && account.customer.staffId === user.staffId);
+
+  if (!canManageAccount) {
+    throw new Error("Unauthorized");
+  }
+
+  if (account.status !== AccountStatus.COMPLETED || account.balance > 0) {
+    redirect(`/accounts/${account.id}?error=delivery-not-completed`);
+  }
+
+  const deliveredAt =
+    nextStatus === DeliveryStatus.DELIVERED ? new Date() : null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customerAccount.update({
+      where: {
+        id: account.id,
+      },
+      data:
+        nextStatus === DeliveryStatus.DELIVERED
+          ? {
+              deliveryStatus: DeliveryStatus.DELIVERED,
+              deliveredAt,
+              deliveredBy: user.id,
+            }
+          : {
+              deliveryStatus: DeliveryStatus.PENDING,
+              deliveredAt: null,
+              deliveredBy: null,
+            },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE_ACCOUNT_DELIVERY_STATUS",
+        entity: "CustomerAccount",
+        entityId: account.id,
+        oldValue: JSON.stringify({
+          deliveryStatus: account.deliveryStatus,
+          deliveredAt: account.deliveredAt,
+          deliveredBy: account.deliveredBy,
+        }),
+        newValue: JSON.stringify({
+          deliveryStatus: nextStatus,
+          deliveredAt: deliveredAt?.toISOString() ?? null,
+          deliveredBy: nextStatus === DeliveryStatus.DELIVERED ? user.id : null,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${account.id}`);
+  revalidatePath(`/customers/${account.customerId}`);
 }

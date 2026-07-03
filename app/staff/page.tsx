@@ -11,6 +11,60 @@ function money(value: number) {
   return `GHS ${value.toFixed(2)}`;
 }
 
+const onlineWindowMs = 5 * 60 * 1000;
+
+function formatMinutesAgo(date: Date, now: Date) {
+  const minutes = Math.max(
+    0,
+    Math.floor((now.getTime() - date.getTime()) / 60000),
+  );
+
+  if (minutes < 1) {
+    return "just now";
+  }
+
+  if (minutes < 60) {
+    return `${minutes} min${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    return `${hours} hr${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function getLoginPresence(user: StaffRow["user"], now: Date) {
+  if (!user) {
+    return {
+      label: "Missing",
+      detail: "No login",
+      className: "bg-amber-100 text-amber-700",
+    };
+  }
+
+  if (!user.lastSeenAt) {
+    return {
+      label: "Offline",
+      detail: "No activity yet",
+      className: "bg-gray-100 text-gray-600",
+    };
+  }
+
+  const isOnline =
+    user.online && now.getTime() - user.lastSeenAt.getTime() <= onlineWindowMs;
+
+  return {
+    label: isOnline ? "Online" : "Offline",
+    detail: isOnline ? "Active now" : formatMinutesAgo(user.lastSeenAt, now),
+    className: isOnline
+      ? "bg-green-100 text-green-700"
+      : "bg-gray-100 text-gray-600",
+  };
+}
+
 type StaffPageProps = {
   searchParams: Promise<{
     q?: string;
@@ -37,6 +91,7 @@ type StaffRow = StaffListItem & {
 export default async function StaffPage({ searchParams }: StaffPageProps) {
   const { q, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
+  const now = new Date();
   let staff: StaffRow[];
 
   try {
@@ -190,11 +245,14 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
 
       {/* Table */}
       <div className="grid gap-3 md:hidden">
-        {staff.map((member) => (
-          <div
-            key={member.id}
-            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-          >
+        {staff.map((member) => {
+          const loginPresence = getLoginPresence(member.user, now);
+
+          return (
+            <div
+              key={member.id}
+              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase text-gray-400">
@@ -231,9 +289,8 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               </div>
               <div>
                 <p className="text-xs text-gray-400">Login</p>
-                <p className="font-medium text-gray-800">
-                  {member.user ? "Created" : "Missing"}
-                </p>
+                <p className="font-medium text-gray-800">{loginPresence.label}</p>
+                <p className="text-xs text-gray-500">{loginPresence.detail}</p>
               </div>
             </div>
 
@@ -277,25 +334,23 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               </ConfirmDeleteForm>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white md:block">
         <div className="overflow-x-auto">
-          <table
-            className="w-full min-w-[940px] text-sm"
-            style={{ tableLayout: "fixed" }}
-          >
+          <table className="w-full table-fixed text-sm">
             <colgroup>
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "18%" }} />
-              <col style={{ width: "19%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "10%" }} />
+              <col style={{ width: "80px" }} />
+              <col style={{ width: "160px" }} />
+              <col style={{ width: "200px" }} />
+              <col style={{ width: "120px" }} />
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "110px" }} />
+              <col style={{ width: "100px" }} />
+              <col style={{ width: "140px" }} />
+              <col style={{ width: "120px" }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -330,21 +385,24 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             </thead>
 
             <tbody className="divide-y divide-gray-100">
-              {staff.map((member) => (
-                <tr
-                  key={member.id}
-                  className="group transition-colors hover:bg-gray-50/70"
-                >
+              {staff.map((member) => {
+                const loginPresence = getLoginPresence(member.user, now);
+
+                return (
+                  <tr
+                    key={member.id}
+                    className="group transition-colors hover:bg-gray-50/70"
+                  >
                   <td className="px-3 py-3 font-semibold text-gray-900 tabular-nums">
                     {member.code}
                   </td>
-                  <td className="px-3 py-3 text-gray-900 truncate">
+                  <td className="truncate px-3 py-3 text-gray-900">
                     {member.fullName}
                   </td>
-                  <td className="px-3 py-3 text-gray-700 truncate">
+                  <td className="truncate px-3 py-3 text-gray-700">
                     {member.email}
                   </td>
-                  <td className="px-3 py-3 text-gray-700 tabular-nums">
+                  <td className="truncate px-3 py-3 text-gray-700 tabular-nums">
                     {member.phone || "-"}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-gray-700">
@@ -367,13 +425,12 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   <td className="px-3 py-3 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <span
-                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          member.user
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${loginPresence.className}`}
                       >
-                        {member.user ? "Created" : "Missing"}
+                        {loginPresence.label}
+                      </span>
+                      <span className="text-[11px] leading-none text-gray-500">
+                        {loginPresence.detail}
                       </span>
                       {member.passwordResetRequestedAt ? (
                         <span className="inline-block rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
@@ -430,8 +487,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       </ConfirmDeleteForm>
                     </div>
                   </td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

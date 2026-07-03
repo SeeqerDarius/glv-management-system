@@ -1,10 +1,17 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { UserPermission, UserRole } from "@prisma/client";
-import { ArrowLeft, HandCoins, Trash2 } from "lucide-react";
-import { deleteAccount } from "@/actions/accounts";
+import { DeliveryStatus, UserPermission, UserRole } from "@prisma/client";
+import {
+  ArrowLeft,
+  HandCoins,
+  PackageCheck,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
+import { deleteAccount, updateAccountDeliveryStatus } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -35,7 +42,11 @@ export default async function AccountDetailsPage({
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
-  const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
+  const canManageAll = hasPermission(
+    session?.user?.role,
+    session?.user?.permissions,
+    UserPermission.MANAGE_ACCOUNTS,
+  );
 
   const account = await prisma.customerAccount.findFirst({
     where: {
@@ -71,6 +82,8 @@ export default async function AccountDetailsPage({
   const canRecordPayment =
     account.balance > 0 &&
     !["COMPLETED", "CANCELLED", "SUSPENDED"].includes(account.status);
+  const isCompleted = status === "COMPLETED" && account.balance <= 0;
+  const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
 
   return (
     <div className="space-y-6">
@@ -124,8 +137,54 @@ export default async function AccountDetailsPage({
       </div>
 
       {status === "COMPLETED" ? (
-        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
-          This account is completed. The product is ready for release/collection.
+        <div className="flex flex-col gap-3 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">
+              {isDelivered
+                ? "This product has been delivered."
+                : "This account is completed. Delivery is pending."}
+            </p>
+            <p className="mt-1 text-lime-800">
+              Mark the product as delivered after the customer receives it.
+            </p>
+          </div>
+          {isCompleted ? (
+            <form action={updateAccountDeliveryStatus}>
+              <input type="hidden" name="id" value={account.id} />
+              <input
+                type="hidden"
+                name="deliveryStatus"
+                value={
+                  isDelivered
+                    ? DeliveryStatus.PENDING
+                    : DeliveryStatus.DELIVERED
+                }
+              />
+              <Button
+                type="submit"
+                variant={isDelivered ? "outline" : "default"}
+                className="w-full gap-2 sm:w-auto"
+              >
+                {isDelivered ? (
+                  <>
+                    <RotateCcw className="size-4" />
+                    Mark pending
+                  </>
+                ) : (
+                  <>
+                    <PackageCheck className="size-4" />
+                    Mark delivered
+                  </>
+                )}
+              </Button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
+      {error === "delivery-not-completed" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Product delivery can only be changed after the account is fully paid.
         </div>
       ) : null}
 
@@ -261,6 +320,23 @@ export default async function AccountDetailsPage({
           <p className="mt-2 text-xl font-semibold text-gray-950">
             {formatDate(account.expectedEndDate)}
           </p>
+        </div>
+        <div className="rounded-lg border bg-white p-5">
+          <p className="text-sm text-gray-500">Delivery</p>
+          <p
+            className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              isDelivered
+                ? "bg-green-100 text-green-700"
+                : "bg-amber-100 text-amber-700"
+            }`}
+          >
+            {isDelivered ? "Delivered" : "Pending"}
+          </p>
+          {account.deliveredAt ? (
+            <p className="mt-2 text-xs text-gray-500">
+              Delivered {formatDate(account.deliveredAt)}
+            </p>
+          ) : null}
         </div>
       </section>
 
