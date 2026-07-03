@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
-import { SearchIcon, Pencil, Trash2, UserX } from "lucide-react";
+import { SearchIcon, Eye, Pencil, Trash2, UserX } from "lucide-react";
 import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
@@ -296,6 +296,13 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <Link
+                href={`/staff/${member.id}`}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                View
+              </Link>
+
+              <Link
                 href={`/staff/${member.id}/edit`}
                 className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
@@ -441,6 +448,16 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex items-center justify-end gap-0.5">
+                      {/* View */}
+                      <Link
+                        href={`/staff/${member.id}`}
+                        aria-label={`View ${member.fullName}`}
+                        title="View"
+                        className="group/view flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                      </Link>
+
                       {/* Edit */}
                       <Link
                         href={`/staff/${member.id}/edit`}

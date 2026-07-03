@@ -17,6 +17,22 @@ export default async function NewCustomerPage() {
         },
       })
     : [];
+  const products = await prisma.product.findMany({
+    where: {
+      active: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      layawayPrice: true,
+      dailyAmount: true,
+      duration: true,
+    },
+  });
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -27,7 +43,12 @@ export default async function NewCustomerPage() {
         </p>
       </div>
 
-      <CustomerForm action={createCustomer} staff={staff} canAssignStaff={canAssignStaff} />
+      <CustomerForm
+        action={createCustomer}
+        staff={staff}
+        products={products}
+        canAssignStaff={canAssignStaff}
+      />
     </div>
   );
 }

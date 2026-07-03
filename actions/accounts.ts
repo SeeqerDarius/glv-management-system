@@ -10,6 +10,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
+import {
+  createCustomerAccountForProduct,
+  parseAccountStartDate,
+} from "@/lib/customer-account-creation";
+import {
+  parsePaymentDate,
+  recordPaymentForAccount,
+} from "@/lib/payment-recording";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
@@ -19,6 +27,9 @@ export type AccountFormState = {
     customerId?: string;
     productId?: string;
     startDate?: string;
+    amount?: string;
+    paymentDate?: string;
+    method?: string;
     form?: string;
   };
 };
@@ -80,24 +91,6 @@ async function verifyAdminPassword(adminUserId: string, password: string) {
     : Promise.resolve(false);
 }
 
-function parseStartDate(value: string) {
-  if (!value) return null;
-
-  const parsedDate = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return parsedDate;
-}
-
-function addDays(date: Date, days: number) {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
 export async function createAccount(
   _state: AccountFormState,
   formData: FormData
@@ -106,12 +99,30 @@ export async function createAccount(
   const customerId = cleanInput(formData.get("customerId"));
   const productId = cleanInput(formData.get("productId"));
   const startDateValue = cleanInput(formData.get("startDate"));
-  const startDate = parseStartDate(startDateValue);
+  const startDate = parseAccountStartDate(startDateValue);
+  const firstPaymentAmountValue = cleanInput(formData.get("amount"));
+  const firstPaymentAmount = Number(firstPaymentAmountValue);
+  const firstPaymentDateValue = cleanInput(formData.get("paymentDate"));
+  const firstPaymentDate = parsePaymentDate(firstPaymentDateValue);
+  const firstPaymentMethod = cleanInput(formData.get("method"));
+  const firstPaymentNotes = cleanInput(formData.get("notes"));
+  const wantsFirstPayment = Boolean(
+    firstPaymentAmountValue || firstPaymentDateValue || firstPaymentMethod
+  );
   const errors: AccountFormState["errors"] = {};
 
   if (!customerId) errors.customerId = "Please select a customer.";
   if (!productId) errors.productId = "Please select a product.";
   if (!startDate) errors.startDate = "Please choose a valid start date.";
+  if (wantsFirstPayment && (!Number.isFinite(firstPaymentAmount) || firstPaymentAmount <= 0)) {
+    errors.amount = "Payment amount must be greater than zero.";
+  }
+  if (wantsFirstPayment && !firstPaymentDate) {
+    errors.paymentDate = "Please choose a valid payment date.";
+  }
+  if (wantsFirstPayment && !firstPaymentMethod) {
+    errors.method = "Please select a payment method.";
+  }
 
   if (Object.keys(errors).length > 0) {
     return {
@@ -182,40 +193,37 @@ export async function createAccount(
     };
   }
 
-  const targetAmount = product.layawayPrice;
-  const dailyAmount = product.dailyAmount;
-  const expectedEndDate = addDays(startDate, product.duration);
   let accountId: string;
 
   try {
     accountId = await prisma.$transaction(async (tx) => {
-      const account = await tx.customerAccount.create({
-        data: {
-          customerId: customer.id,
-          productId: product.id,
-          targetAmount,
-          dailyAmount,
-          startDate,
-          expectedEndDate,
-          totalPaid: 0,
-          balance: targetAmount,
-          status: AccountStatus.ACTIVE,
-        },
+      const account = await createCustomerAccountForProduct({
+        tx,
+        userId: user.id,
+        customerId: customer.id,
+        product,
+        startDate,
       });
 
-      await tx.auditLog.create({
-        data: {
+      if (wantsFirstPayment && firstPaymentDate) {
+        await recordPaymentForAccount({
+          tx,
           userId: user.id,
-          action: "CREATE_ACCOUNT",
-          entity: "CustomerAccount",
-          entityId: account.id,
-          newValue: JSON.stringify({
-            accountId: account.id,
-            customerId: customer.id,
-            productId: product.id,
-          }),
-        },
-      });
+          account: {
+            ...account,
+            customer: {
+              id: customer.id,
+            },
+            product: {
+              id: product.id,
+            },
+          },
+          amount: firstPaymentAmount,
+          paymentDate: firstPaymentDate,
+          method: firstPaymentMethod,
+          notes: firstPaymentNotes,
+        });
+      }
 
       return account.id;
     });

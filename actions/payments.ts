@@ -4,10 +4,13 @@ import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import {
+  parsePaymentDate,
+  recordPaymentForAccount,
+} from "@/lib/payment-recording";
 import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
-import { getSettings } from "@/lib/settings";
 
 export type PaymentFormState = {
   errors?: {
@@ -46,42 +49,6 @@ async function requireAdmin() {
 
 function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
-}
-
-function parsePaymentDate(value: string) {
-  if (!value) return null;
-
-  const parsedDate = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return null;
-  }
-
-  return parsedDate;
-}
-
-async function generateReceiptNo() {
-  const year = new Date().getFullYear().toString().slice(-2);
-  const settings = await getSettings();
-  const receiptPrefix = settings.receiptPrefix.replace(/\/+$/, "");
-  const prefix = `${receiptPrefix}/${year}/`;
-  const payments = await prisma.payment.findMany({
-    where: {
-      receiptNo: {
-        startsWith: prefix,
-      },
-    },
-    select: {
-      receiptNo: true,
-    },
-  });
-
-  const maxNumber = payments.reduce((max, payment) => {
-    const value = Number(payment.receiptNo.replace(prefix, ""));
-    return Number.isFinite(value) && value > max ? value : max;
-  }, 0);
-
-  return `${prefix}${String(maxNumber + 1).padStart(6, "0")}`;
 }
 
 export async function recordPayment(
@@ -180,53 +147,14 @@ export async function recordPayment(
 
   try {
     createdPayment = await prisma.$transaction(async (tx) => {
-      const receiptNo = await generateReceiptNo();
-      const nextTotalPaid = account.totalPaid + amount;
-      const rawBalance = account.balance - amount;
-      const nextBalance = rawBalance <= 0 ? 0 : rawBalance;
-      const nextStatus =
-        rawBalance <= 0 ? AccountStatus.COMPLETED : account.status;
-
-      const createdPayment = await tx.payment.create({
-        data: {
-          receiptNo,
-          accountId: account.id,
-          amount,
-          paymentDate,
-          method,
-          notes: notes || null,
-          receivedBy: user.id,
-        },
-      });
-
-      const updatedAccount = await tx.customerAccount.update({
-        where: {
-          id: account.id,
-        },
-        data: {
-          totalPaid: nextTotalPaid,
-          balance: nextBalance,
-          status: nextStatus,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          action: "RECORD_PAYMENT",
-          entity: "Payment",
-          entityId: createdPayment.id,
-          newValue: JSON.stringify({
-            paymentId: createdPayment.id,
-            receiptNo: createdPayment.receiptNo,
-            accountId: account.id,
-            customerId: account.customer.id,
-            productId: account.product.id,
-            amount,
-            previousBalance: account.balance,
-            newBalance: updatedAccount.balance,
-          }),
-        },
+      const createdPayment = await recordPaymentForAccount({
+        tx,
+        userId: user.id,
+        account,
+        amount,
+        paymentDate,
+        method,
+        notes,
       });
 
       return createdPayment;

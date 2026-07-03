@@ -1,14 +1,15 @@
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { clearAuthCookies } from "@/lib/auth-cookies";
+import { clearAuthCookiesOnResponse } from "@/lib/auth-cookies";
 import { prisma } from "@/lib/prisma";
 
 function changePasswordRedirect(error: string) {
   redirect(`/change-password?error=${error}`);
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.id || !session.user.email) {
@@ -64,6 +65,8 @@ export async function POST(request: Request) {
     },
   });
 
-  await clearAuthCookies();
-  redirect("/login?passwordChanged=1");
+  return clearAuthCookiesOnResponse(
+    request,
+    NextResponse.redirect(new URL("/login?passwordChanged=1", request.url))
+  );
 }

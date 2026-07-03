@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { UserPermission, UserRole } from "@prisma/client";
-import { Eye, Trash2 } from "lucide-react";
+import { UserPermission, UserRole, type Prisma } from "@prisma/client";
+import { Eye, SearchIcon, Trash2 } from "lucide-react";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
@@ -29,8 +29,15 @@ function buildPageHref(params: URLSearchParams, page: number) {
   return `/payments?${next.toString()}`;
 }
 
+function parseDateFilter(value?: string) {
+  if (!value) return null;
+
+  const date = new Date(`${value}T00:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
-  const { error, deleted, page } = await searchParams;
+  const { error, deleted, from, method, page, q, to } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -41,11 +48,91 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   );
 
   const currentPage = Math.max(Number(page || "1"), 1);
+  const query = q?.trim() ?? "";
+  const selectedMethod = method?.trim() ?? "";
+  const fromDate = parseDateFilter(from);
+  const toDate = parseDateFilter(to);
+  if (toDate) {
+    toDate.setHours(23, 59, 59, 999);
+  }
 
-  const staffFilter =
-    isStaff && !canManageAll && session.user.staffId
-      ? { account: { customer: { staffId: session.user.staffId } } }
-      : undefined;
+  const filters: Prisma.PaymentWhereInput[] = [];
+
+  if (isStaff && !canManageAll && session.user.staffId) {
+    filters.push({
+      account: {
+        customer: {
+          staffId: session.user.staffId,
+        },
+      },
+    });
+  }
+
+  if (query) {
+    filters.push({
+      OR: [
+        { receiptNo: { contains: query, mode: "insensitive" } },
+        { method: { contains: query, mode: "insensitive" } },
+        {
+          account: {
+            product: {
+              name: { contains: query, mode: "insensitive" },
+            },
+          },
+        },
+        {
+          account: {
+            customer: {
+              fullName: { contains: query, mode: "insensitive" },
+            },
+          },
+        },
+        {
+          account: {
+            customer: {
+              customerId: { contains: query, mode: "insensitive" },
+            },
+          },
+        },
+        {
+          account: {
+            customer: {
+              staff: {
+                code: { contains: query, mode: "insensitive" },
+              },
+            },
+          },
+        },
+        {
+          account: {
+            customer: {
+              staff: {
+                fullName: { contains: query, mode: "insensitive" },
+              },
+            },
+          },
+        },
+      ],
+    });
+  }
+
+  if (selectedMethod) {
+    filters.push({
+      method: selectedMethod,
+    });
+  }
+
+  if (fromDate || toDate) {
+    filters.push({
+      paymentDate: {
+        ...(fromDate ? { gte: fromDate } : {}),
+        ...(toDate ? { lte: toDate } : {}),
+      },
+    });
+  }
+
+  const paymentFilter: Prisma.PaymentWhereInput =
+    filters.length > 0 ? { AND: filters } : {};
 
   let payments: Array<{
     id: string;
@@ -70,7 +157,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
   try {
     payments = await prisma.payment.findMany({
-      where: staffFilter,
+      where: paymentFilter,
       orderBy: { paymentDate: "desc" },
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
@@ -98,7 +185,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       },
     });
 
-    totalPayments = await prisma.payment.count({ where: staffFilter });
+    totalPayments = await prisma.payment.count({ where: paymentFilter });
   } catch (err) {
     console.error("PAYMENTS_LOAD_ERROR", err);
     loadError = true;
@@ -106,6 +193,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
   const totalPages = Math.max(Math.ceil(totalPayments / PAGE_SIZE), 1);
   const urlParams = new URLSearchParams();
+  if (query) urlParams.set("q", query);
+  if (selectedMethod) urlParams.set("method", selectedMethod);
+  if (from) urlParams.set("from", from);
+  if (to) urlParams.set("to", to);
 
   // Group payments: staff → customer → account
   const groupedPayments = payments.reduce(
@@ -199,6 +290,65 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           Payment record deleted and account balance recalculated.
         </div>
       ) : null}
+
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto] md:items-end">
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Search</span>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Receipt, customer, staff code, product"
+              className="w-full rounded border p-3 pl-9 text-sm"
+            />
+          </div>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Method</span>
+          <select
+            name="method"
+            defaultValue={selectedMethod}
+            className="w-full rounded border p-3 text-sm"
+          >
+            <option value="">All methods</option>
+            <option value="Cash">Cash</option>
+            <option value="Mobile Money">Mobile Money</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">From</span>
+          <input
+            name="from"
+            type="date"
+            defaultValue={from ?? ""}
+            className="w-full rounded border p-3 text-sm"
+          />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">To</span>
+          <input
+            name="to"
+            type="date"
+            defaultValue={to ?? ""}
+            className="w-full rounded border p-3 text-sm"
+          />
+        </label>
+
+        <div className="flex gap-2">
+          <Button type="submit" className="flex-1 md:flex-none">
+            Filter
+          </Button>
+          <Button asChild type="button" variant="outline">
+            <Link href="/payments">Clear</Link>
+          </Button>
+        </div>
+      </form>
 
       {loadError ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">

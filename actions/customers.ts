@@ -5,13 +5,30 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
+import {
+  createCustomerAccountForProduct,
+  parseAccountStartDate,
+} from "@/lib/customer-account-creation";
+import {
+  parsePaymentDate,
+  recordPaymentForAccount,
+} from "@/lib/payment-recording";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { getSettings } from "@/lib/settings";
 
 export type CustomerFormState = {
-  errors?: { fullName?: string; phone?: string; form?: string };
+  errors?: {
+    fullName?: string;
+    phone?: string;
+    productId?: string;
+    startDate?: string;
+    amount?: string;
+    paymentDate?: string;
+    method?: string;
+    form?: string;
+  };
   duplicateWarning?: string;
 };
 
@@ -122,12 +139,50 @@ export async function createCustomer(
   const user = await requireUser();
   const fullName = cleanInput(formData.get("fullName"));
   const phone = cleanInput(formData.get("phone"));
+  const productId = cleanInput(formData.get("productId"));
+  const startDateValue = cleanInput(formData.get("startDate"));
+  const firstPaymentAmountValue = cleanInput(formData.get("amount"));
+  const firstPaymentAmount = Number(firstPaymentAmountValue);
+  const firstPaymentDateValue = cleanInput(formData.get("paymentDate"));
+  const firstPaymentDate = parsePaymentDate(firstPaymentDateValue);
+  const firstPaymentMethod = cleanInput(formData.get("method"));
+  const firstPaymentNotes = cleanInput(formData.get("notes"));
+  const wantsFirstPayment = Boolean(
+    firstPaymentAmountValue || firstPaymentDateValue || firstPaymentMethod
+  );
+  const wantsInitialAccount = Boolean(
+    productId || startDateValue || wantsFirstPayment
+  );
+  const startDate = parseAccountStartDate(startDateValue);
+  const errors: CustomerFormState["errors"] = {};
 
   if (!fullName) {
+    errors.fullName = "Customer name is required.";
+  }
+
+  if (wantsInitialAccount && !productId) {
+    errors.productId = "Please select a product.";
+  }
+
+  if (wantsInitialAccount && !startDate) {
+    errors.startDate = "Please choose a valid start date.";
+  }
+
+  if (wantsFirstPayment && (!Number.isFinite(firstPaymentAmount) || firstPaymentAmount <= 0)) {
+    errors.amount = "Payment amount must be greater than zero.";
+  }
+
+  if (wantsFirstPayment && !firstPaymentDate) {
+    errors.paymentDate = "Please choose a valid payment date.";
+  }
+
+  if (wantsFirstPayment && !firstPaymentMethod) {
+    errors.method = "Please select a payment method.";
+  }
+
+  if (Object.keys(errors).length > 0) {
     return {
-      errors: {
-        fullName: "Customer name is required.",
-      },
+      errors,
     };
   }
 
@@ -160,26 +215,112 @@ export async function createCustomer(
 
   const staffId = await resolveStaffId(formData, user.role, user.staffId);
   const customerId = await generateCustomerId(staffId);
+  const product = productId
+    ? await prisma.product.findUnique({
+        where: {
+          id: productId,
+        },
+      })
+    : null;
 
-  const customer = await prisma.customer.create({
-    data: {
-      customerId,
-      fullName,
-      phone: phone || null,
-      address: cleanInput(formData.get("address")) || null,
-      nationalId: cleanInput(formData.get("nationalId")) || null,
-      staffId,
-    },
-  });
+  if (productId && !product) {
+    return {
+      errors: {
+        productId: "Selected product could not be found.",
+      },
+    };
+  }
 
-  await logCustomerAudit({
-    userId: user.id,
-    action: "CREATE_CUSTOMER",
-    customerId: customer.id,
-    newValue: customer,
-  });
+  if (product && !product.active) {
+    return {
+      errors: {
+        productId: "Inactive products cannot be used for new accounts.",
+      },
+    };
+  }
+
+  let customer: Awaited<ReturnType<typeof prisma.customer.create>>;
+  let accountId: string | null = null;
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const createdCustomer = await tx.customer.create({
+        data: {
+          customerId,
+          fullName,
+          phone: phone || null,
+          address: cleanInput(formData.get("address")) || null,
+          nationalId: cleanInput(formData.get("nationalId")) || null,
+          staffId,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CREATE_CUSTOMER",
+          entity: "Customer",
+          entityId: createdCustomer.id,
+          newValue: JSON.stringify(createdCustomer),
+        },
+      });
+
+      const account =
+        product && startDate
+          ? await createCustomerAccountForProduct({
+              tx,
+              userId: user.id,
+              customerId: createdCustomer.id,
+              product,
+              startDate,
+            })
+          : null;
+
+      if (account && wantsFirstPayment && firstPaymentDate) {
+        await recordPaymentForAccount({
+          tx,
+          userId: user.id,
+          account: {
+            ...account,
+            customer: {
+              id: createdCustomer.id,
+            },
+            product: {
+              id: product!.id,
+            },
+          },
+          amount: firstPaymentAmount,
+          paymentDate: firstPaymentDate,
+          method: firstPaymentMethod,
+          notes: firstPaymentNotes,
+        });
+      }
+
+      return {
+        customer: createdCustomer,
+        accountId: account?.id ?? null,
+      };
+    });
+
+    customer = result.customer;
+    accountId = result.accountId;
+  } catch (error) {
+    console.error("CREATE_CUSTOMER_ERROR", error);
+    return {
+      errors: {
+        form: "Unable to create customer. Please check the details and try again.",
+      },
+    };
+  }
 
   revalidatePath("/customers");
+  if (accountId) {
+    revalidatePath("/accounts");
+    revalidatePath("/products");
+    revalidatePath(`/products/${productId}`);
+    redirect(`/accounts/${accountId}`);
+  }
+
   redirect(`/customers/${customer.id}`);
 }
 

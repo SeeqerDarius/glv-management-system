@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createAccount, type AccountFormState } from "@/actions/accounts";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ export function AccountForm({
     createAccount,
     initialState
   );
+  const [firstPaymentAmount, setFirstPaymentAmount] = useState("");
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -99,6 +100,71 @@ export function AccountForm({
         />
         <FieldError message={state.errors?.startDate} />
       </label>
+
+      <div className="space-y-4 rounded-lg border border-lime-200 bg-lime-50 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-950">
+            First Payment
+          </h2>
+          <p className="mt-1 text-xs text-gray-600">
+            Record the first payment while opening this account, or leave it
+            blank to start with no payment.
+          </p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="text-sm font-medium text-gray-700">Amount</span>
+            <input
+              name="amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={firstPaymentAmount}
+              onChange={(event) => setFirstPaymentAmount(event.target.value)}
+              className="w-full rounded border bg-white p-3"
+            />
+            <FieldError message={state.errors?.amount} />
+          </label>
+
+          <label className="block space-y-1">
+            <span className="text-sm font-medium text-gray-700">
+              Payment Date
+            </span>
+            <input
+              name="paymentDate"
+              type="date"
+              className="w-full rounded border bg-white p-3"
+              required={Boolean(firstPaymentAmount)}
+            />
+            <FieldError message={state.errors?.paymentDate} />
+          </label>
+        </div>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Method</span>
+          <select
+            name="method"
+            className="w-full rounded border bg-white p-3"
+            required={Boolean(firstPaymentAmount)}
+          >
+            <option value="">Select method</option>
+            <option value="Cash">Cash</option>
+            <option value="Mobile Money">Mobile Money</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Cheque">Cheque</option>
+          </select>
+          <FieldError message={state.errors?.method} />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Notes</span>
+          <textarea
+            name="notes"
+            className="min-h-20 w-full rounded border bg-white p-3"
+          />
+        </label>
+      </div>
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>

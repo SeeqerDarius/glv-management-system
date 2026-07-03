@@ -23,17 +23,22 @@ export const authConfig = {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
       const isLoggedIn = Boolean(auth?.user);
+      const mustChangePassword = auth?.user?.mustChangePassword === true;
+
+      if (pathname === "/login" && isLoggedIn) {
+        if (mustChangePassword) {
+          return true;
+        }
+
+        return Response.redirect(new URL("/dashboard", request.nextUrl));
+      }
 
       if (
         isLoggedIn &&
-        auth?.user?.mustChangePassword === true &&
+        mustChangePassword &&
         pathname !== "/change-password"
       ) {
         return Response.redirect(new URL("/change-password", request.nextUrl));
-      }
-
-      if (pathname === "/login" && isLoggedIn) {
-        return Response.redirect(new URL("/dashboard", request.nextUrl));
       }
 
       if (!isLoggedIn) {
@@ -41,7 +46,6 @@ export const authConfig = {
       }
 
       const role = auth?.user?.role;
-      const mustChangePassword = auth?.user?.mustChangePassword === true;
 
       if (!mustChangePassword && pathname === "/change-password") {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
