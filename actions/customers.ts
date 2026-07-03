@@ -123,22 +123,31 @@ export async function createCustomer(
   const fullName = cleanInput(formData.get("fullName"));
   const phone = cleanInput(formData.get("phone"));
 
-  if (!fullName || !phone) {
+  if (!fullName) {
     return {
       errors: {
-        fullName: fullName ? undefined : "Customer name is required.",
-        phone: phone ? undefined : "Phone number is required.",
+        fullName: "Customer name is required.",
       },
     };
   }
 
+  const duplicateConditions = [
+    phone ? { phone } : null,
+    { fullName: { equals: fullName, mode: "insensitive" as const } },
+    { fullName: { contains: fullName, mode: "insensitive" as const } },
+  ].filter(
+    (
+      condition
+    ): condition is
+      | { phone: string }
+      | { fullName: { equals: string; mode: "insensitive" } }
+      | { fullName: { contains: string; mode: "insensitive" } } =>
+      condition !== null
+  );
+
   const possibleDuplicate = await prisma.customer.findFirst({
     where: {
-      OR: [
-        { phone },
-        { fullName: { equals: fullName, mode: "insensitive" } },
-        { fullName: { contains: fullName, mode: "insensitive" } },
-      ],
+      OR: duplicateConditions,
     },
     select: { fullName: true, customerId: true },
   });
@@ -156,7 +165,7 @@ export async function createCustomer(
     data: {
       customerId,
       fullName,
-      phone,
+      phone: phone || null,
       address: cleanInput(formData.get("address")) || null,
       nationalId: cleanInput(formData.get("nationalId")) || null,
       staffId,
@@ -241,7 +250,7 @@ export async function updateCustomer(formData: FormData): Promise<void> {
     },
     data: {
       fullName: cleanInput(formData.get("fullName")),
-      phone: cleanInput(formData.get("phone")),
+      phone: cleanInput(formData.get("phone")) || null,
       address: cleanInput(formData.get("address")) || null,
       nationalId: cleanInput(formData.get("nationalId")) || null,
       staffId,

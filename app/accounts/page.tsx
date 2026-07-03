@@ -10,6 +10,7 @@ import { Eye, HandCoins } from "lucide-react";
 import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
+import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -400,17 +401,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">
                     {status === AccountStatus.COMPLETED ? (
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          account.deliveryStatus === DeliveryStatus.DELIVERED
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {account.deliveryStatus === DeliveryStatus.DELIVERED
-                          ? "Delivered"
-                          : "Pending"}
-                      </span>
+                      <DeliveryStatusIcon status={account.deliveryStatus} />
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

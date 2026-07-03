@@ -6,27 +6,34 @@ import {
   UserPermission,
   UserRole,
 } from "@prisma/client";
-import { Eye, HandCoins, PackageCheck } from "lucide-react";
-import { updateAccountDeliveryStatus } from "@/actions/accounts";
+import { Eye, HandCoins, PackageCheck, Trash2 } from "lucide-react";
+import { deleteAccount, updateAccountDeliveryStatus } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
+import { AccountPriceOverrideForm } from "@/components/account-price-override-form";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type CustomerProfilePageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 };
 
 export default async function CustomerProfilePage({
   params,
+  searchParams,
 }: CustomerProfilePageProps) {
   const { id } = await params;
+  const { deleted, error, updated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
+  const isAdmin = isAdminRole(session?.user?.role);
   const canManageAll = hasPermission(
     session?.user?.role,
     session?.user?.permissions,
@@ -50,6 +57,11 @@ export default async function CustomerProfilePage({
         },
         include: {
           product: true,
+          payments: {
+            select: {
+              id: true,
+            },
+          },
         },
       },
     },
@@ -90,7 +102,9 @@ export default async function CustomerProfilePage({
           <dl className="mt-4 grid gap-3 text-sm">
             <div>
               <dt className="text-gray-500">Phone</dt>
-              <dd className="font-medium text-gray-950">{customer.phone}</dd>
+              <dd className="font-medium text-gray-950">
+                {customer.phone || "-"}
+              </dd>
             </div>
             <div>
               <dt className="text-gray-500">Address</dt>
@@ -129,6 +143,43 @@ export default async function CustomerProfilePage({
           </dl>
         </div>
       </section>
+
+      {deleted === "account" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account and related payments were deleted.
+        </div>
+      ) : null}
+
+      {updated === "account-price" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account price updated for this customer only.
+        </div>
+      ) : null}
+
+      {error === "account-delete-blocked" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This account could not be deleted. Review its related records and try
+          again.
+        </div>
+      ) : null}
+
+      {error === "invalid-account-price" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter a valid account price greater than zero.
+        </div>
+      ) : null}
+
+      {error === "delete-confirmation-required" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Type DELETE in the confirmation box before deleting account records.
+        </div>
+      ) : null}
+
+      {error === "admin-password-required" || error === "invalid-admin-password" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Enter a valid admin password before changing account records.
+        </div>
+      ) : null}
 
       <section className="rounded-lg border bg-white">
         <div className="border-b p-5">
@@ -172,17 +223,7 @@ export default async function CustomerProfilePage({
                   <td className="p-3">{status}</td>
                   <td className="p-3">
                     {status === AccountStatus.COMPLETED ? (
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          account.deliveryStatus === DeliveryStatus.DELIVERED
-                            ? "bg-green-100 text-green-700"
-                            : "bg-amber-100 text-amber-700"
-                        }`}
-                      >
-                        {account.deliveryStatus === DeliveryStatus.DELIVERED
-                          ? "Delivered"
-                          : "Pending"}
-                      </span>
+                      <DeliveryStatusIcon status={account.deliveryStatus} />
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}
@@ -231,6 +272,27 @@ export default async function CustomerProfilePage({
                             <PackageCheck className="size-4 transition-transform duration-200 group-hover/delivered:scale-125 group-hover/delivered:-translate-y-0.5" />
                           </button>
                         </form>
+                      ) : null}
+                      {isAdmin ? (
+                        <AccountPriceOverrideForm
+                          accountId={account.id}
+                          productName={account.product.name}
+                          currentPrice={account.targetAmount}
+                          returnTo={`/customers/${customer.id}`}
+                        />
+                      ) : null}
+                      {isAdmin ? (
+                        <ConfirmDeleteForm
+                          action={deleteAccount}
+                          id={account.id}
+                          title={`Delete ${account.product.name} account?`}
+                          description="This permanently deletes the account and every related payment record. This cannot be undone."
+                          hasLinkedHistory={account.payments.length > 0}
+                          hiddenFields={{ returnTo: `/customers/${customer.id}` }}
+                          triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                        </ConfirmDeleteForm>
                       ) : null}
                     </div>
                   </td>

@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -49,6 +50,34 @@ async function requireAdmin() {
 
 function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+function safeReturnTo(value: string, fallback: string) {
+  return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
+function parseMoney(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function verifyAdminPassword(adminUserId: string, password: string) {
+  if (!password) {
+    return false;
+  }
+
+  const adminUser = await prisma.user.findUnique({
+    where: {
+      id: adminUserId,
+    },
+    select: {
+      password: true,
+    },
+  });
+
+  return adminUser
+    ? bcrypt.compare(password, adminUser.password)
+    : Promise.resolve(false);
 }
 
 function parseStartDate(value: string) {
@@ -210,6 +239,9 @@ export async function createAccount(
 export async function deleteAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const id = cleanInput(formData.get("id"));
+  const requestedReturnTo = cleanInput(formData.get("returnTo"));
+  const returnTo = safeReturnTo(requestedReturnTo, `/accounts/${id}`);
+  const successRedirect = requestedReturnTo ? returnTo : "/accounts";
 
   const account = await prisma.customerAccount.findUnique({
     where: {
@@ -233,7 +265,7 @@ export async function deleteAccount(formData: FormData): Promise<void> {
   await verifyAdminDeleteConfirmation({
     formData,
     adminUserId: user.id,
-    redirectPath: `/accounts/${id}`,
+    redirectPath: returnTo,
     requiresStrongConfirmation: account.payments.length > 0,
   });
 
@@ -262,12 +294,107 @@ export async function deleteAccount(formData: FormData): Promise<void> {
       });
     });
   } catch {
-    redirect(`/accounts/${id}?error=account-delete-blocked`);
+    redirect(`${returnTo}?error=account-delete-blocked`);
   }
 
   revalidatePath("/accounts");
   revalidatePath(`/customers/${account.customerId}`);
-  redirect("/accounts?deleted=account");
+  redirect(`${successRedirect}?deleted=account`);
+}
+
+export async function updateAccountPrice(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+  const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
+  const nextTargetAmount = parseMoney(cleanInput(formData.get("targetAmount")));
+  const adminPassword = cleanInput(formData.get("adminPassword"));
+
+  if (!nextTargetAmount || nextTargetAmount <= 0) {
+    redirect(`${returnTo}?error=invalid-account-price`);
+  }
+
+  const passwordValid = await verifyAdminPassword(user.id, adminPassword);
+
+  if (!adminPassword) {
+    redirect(`${returnTo}?error=admin-password-required`);
+  }
+
+  if (!passwordValid) {
+    redirect(`${returnTo}?error=invalid-admin-password`);
+  }
+
+  const account = await prisma.customerAccount.findUnique({
+    where: {
+      id,
+    },
+    select: {
+      id: true,
+      customerId: true,
+      targetAmount: true,
+      totalPaid: true,
+      balance: true,
+      status: true,
+      product: {
+        select: {
+          id: true,
+          layawayPrice: true,
+        },
+      },
+    },
+  });
+
+  if (!account) {
+    redirect("/accounts?error=account-not-found");
+  }
+
+  const nextBalance = Math.max(nextTargetAmount - account.totalPaid, 0);
+  const nextStatus =
+    nextBalance <= 0
+      ? AccountStatus.COMPLETED
+      : account.status === AccountStatus.COMPLETED
+        ? AccountStatus.ACTIVE
+        : account.status;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customerAccount.update({
+      where: {
+        id: account.id,
+      },
+      data: {
+        targetAmount: nextTargetAmount,
+        balance: nextBalance,
+        status: nextStatus,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE_ACCOUNT_PRICE",
+        entity: "CustomerAccount",
+        entityId: account.id,
+        oldValue: JSON.stringify({
+          targetAmount: account.targetAmount,
+          balance: account.balance,
+          status: account.status,
+          productId: account.product.id,
+          productLayawayPrice: account.product.layawayPrice,
+        }),
+        newValue: JSON.stringify({
+          targetAmount: nextTargetAmount,
+          balance: nextBalance,
+          status: nextStatus,
+          productId: account.product.id,
+          productLayawayPrice: account.product.layawayPrice,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${account.id}`);
+  revalidatePath(`/customers/${account.customerId}`);
+  redirect(`${returnTo}?updated=account-price`);
 }
 
 export async function updateAccountDeliveryStatus(formData: FormData): Promise<void> {

@@ -12,6 +12,7 @@ type ConfirmDeleteFormProps = {
   description?: string;
   hasLinkedHistory?: boolean;
   requireAdminPassword?: boolean;
+  hiddenFields?: Record<string, string>;
   triggerClassName?: string;
   buttonVariant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
   buttonSize?:
@@ -33,6 +34,7 @@ export function ConfirmDeleteForm({
   description,
   hasLinkedHistory = true,
   requireAdminPassword = true,
+  hiddenFields,
   triggerClassName,
   buttonVariant = "destructive",
   buttonSize = "sm",
@@ -71,6 +73,11 @@ export function ConfirmDeleteForm({
 
             <form action={action} className="mt-4 space-y-4">
               <input type="hidden" name="id" value={id} />
+              {hiddenFields
+                ? Object.entries(hiddenFields).map(([name, value]) => (
+                    <input key={name} type="hidden" name={name} value={value} />
+                  ))
+                : null}
               {hasLinkedHistory ? (
                 <input
                   name="confirmationText"

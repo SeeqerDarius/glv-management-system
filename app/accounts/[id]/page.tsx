@@ -13,6 +13,7 @@ import { AccountDaysProgress } from "@/components/account-days-progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -227,7 +228,7 @@ export default async function AccountDetailsPage({
             <div>
               <dt className="text-gray-500">Phone</dt>
               <dd className="font-medium text-gray-950">
-                {account.customer.phone}
+                {account.customer.phone || "-"}
               </dd>
             </div>
             <div>
@@ -323,15 +324,9 @@ export default async function AccountDetailsPage({
         </div>
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Delivery</p>
-          <p
-            className={`mt-2 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              isDelivered
-                ? "bg-green-100 text-green-700"
-                : "bg-amber-100 text-amber-700"
-            }`}
-          >
-            {isDelivered ? "Delivered" : "Pending"}
-          </p>
+          <div className="mt-2">
+            <DeliveryStatusIcon status={account.deliveryStatus} />
+          </div>
           {account.deliveredAt ? (
             <p className="mt-2 text-xs text-gray-500">
               Delivered {formatDate(account.deliveredAt)}

@@ -427,7 +427,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     accountsSheet.addRow([
       account.customer.customerId,
       account.customer.fullName,
-      account.customer.phone,
+      account.customer.phone || "-",
       account.customer.staff.code,
       account.product.name,
       account.dailyAmount,
@@ -583,7 +583,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ledgerSheet.addRow([
       account.customer.staff.code,
       account.customer.fullName,
-      account.customer.phone,
+      account.customer.phone || "-",
       account.product.name,
       account.dailyAmount,
       account.payments

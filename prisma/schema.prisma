@@ -51,7 +51,7 @@ model Customer {
   id         String            @id @default(cuid())
   customerId String            @unique
   fullName   String
-  phone      String
+  phone      String?
   address    String?
   nationalId String?
   photoUrl   String?

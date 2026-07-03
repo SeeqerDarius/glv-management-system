@@ -86,9 +86,8 @@ export default async function EditCustomerPage({
           <span className="text-sm font-medium text-gray-700">Phone</span>
           <input
             name="phone"
-            defaultValue={customer.phone}
+            defaultValue={customer.phone ?? ""}
             className="w-full rounded border p-3"
-            required
           />
         </label>
 

@@ -60,7 +60,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     id: string;
     customerId: string;
     fullName: string;
-    phone: string;
+    phone: string | null;
     staff: { code: string };
     accounts: Array<{ id: string }>;
     _count: { accounts: number };
@@ -243,7 +243,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                     {customer.customerId}
                   </td>
                   <td className="p-3">{customer.fullName}</td>
-                  <td className="p-3">{customer.phone}</td>
+                  <td className="p-3">{customer.phone || "-"}</td>
                   <td className="p-3">{customer.staff.code}</td>
                   <td className="p-3">{customer._count.accounts}</td>
                   <td className="p-3 text-right">
