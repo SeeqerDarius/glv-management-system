@@ -1,12 +1,22 @@
 import Link from "next/link";
-import { SearchIcon, Eye, Pencil, Trash2 } from "lucide-react";
+import {
+  Eye,
+  ListChecksIcon,
+  PackageCheckIcon,
+  Pencil,
+  SearchIcon,
+  Trash2,
+} from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProductCategoryBadge } from "@/lib/product-categories";
+import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
 
 type ProductsPageProps = {
   searchParams: Promise<{
     q?: string;
+    tab?: string;
     error?: string;
     deleted?: string;
   }>;
@@ -16,22 +26,38 @@ function money(value: number) {
   return `GHS ${value.toFixed(2)}`;
 }
 
-export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { q, error, deleted } = await searchParams;
-  const query = q?.trim() ?? "";
+function percent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
 
-  const products = await prisma.product.findMany({
-    where: query
-      ? {
-          OR: [
-            { name: { contains: query, mode: "insensitive" } },
-            { category: { contains: query, mode: "insensitive" } },
-          ],
-        }
-      : undefined,
-    orderBy: { name: "asc" },
-    include: { _count: { select: { accounts: true } } },
-  });
+export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const { q, tab, error, deleted } = await searchParams;
+  const query = q?.trim() ?? "";
+  const activeTab = tab === "procurement" ? "procurement" : "products";
+
+  const [products, procurement] = await Promise.all([
+    prisma.product.findMany({
+      where: query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { category: { contains: query, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: { name: "asc" },
+      include: { _count: { select: { accounts: true } } },
+    }),
+    getProcurementList(),
+  ]);
+
+  const procurementItems = query
+    ? procurement.items.filter(
+        (item) =>
+          item.productName.toLowerCase().includes(query.toLowerCase()) ||
+          item.category.toLowerCase().includes(query.toLowerCase())
+      )
+    : procurement.items;
 
   const totalQty = products.reduce((s, p) => s + p._count.accounts, 0);
   const totalProfit = products.reduce(
@@ -58,13 +84,48 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </Link>
       </div>
 
+      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
+        <Link
+          href="/products"
+          className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
+            activeTab === "products"
+              ? "bg-green-900 text-lime-300"
+              : "bg-white text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <ListChecksIcon className="size-4" />
+          Product List
+        </Link>
+        <Link
+          href="/products?tab=procurement"
+          className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
+            activeTab === "procurement"
+              ? "bg-green-900 text-lime-300"
+              : "bg-white text-gray-600 hover:bg-gray-50"
+          }`}
+        >
+          <PackageCheckIcon className="size-4" />
+          Procurement List
+        </Link>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "Total products", value: products.length },
-          { label: "Total qty on sale", value: totalQty },
-          { label: "Expected profit", value: money(totalProfit), green: true },
-        ].map((s) => (
+        {(activeTab === "procurement"
+          ? [
+              { label: "Products to buy", value: procurementItems.length },
+              { label: "Total units", value: procurementItems.reduce((sum, item) => sum + item.quantity, 0) },
+              {
+                label: "Estimated total cost",
+                value: money(procurementItems.reduce((sum, item) => sum + item.totalCost, 0)),
+                green: true,
+              },
+            ]
+          : [
+              { label: "Total products", value: products.length },
+              { label: "Total qty on sale", value: totalQty },
+              { label: "Expected profit", value: money(totalProfit), green: true },
+            ]).map((s) => (
           <div key={s.label} className="rounded-lg bg-gray-50 px-4 py-3">
             <p className="text-[11px] uppercase tracking-widest text-gray-400">
               {s.label}
@@ -104,8 +165,18 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </div>
       )}
 
+      {activeTab === "procurement" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          Products appear here when customer accounts for that product are at
+          least {procurement.thresholdPercent}% paid and not yet fully paid.
+        </div>
+      ) : null}
+
       {/* Search */}
       <form className="relative max-w-sm">
+        {activeTab === "procurement" ? (
+          <input type="hidden" name="tab" value="procurement" />
+        ) : null}
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
         <input
           name="q"
@@ -115,7 +186,96 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         />
       </form>
 
-      {/* Table */}
+      {activeTab === "procurement" ? (
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[840px] text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50">
+                  <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Product</th>
+                  <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Category</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Units</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Cost price</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Transport</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Unit total</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Total</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Avg. paid</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {procurementItems.map((item) => (
+                  <tr
+                    key={item.productId}
+                    className="transition-colors hover:bg-gray-50/70"
+                  >
+                    <td className="px-3 py-3 font-medium text-gray-900">
+                      {item.productName}
+                    </td>
+                    <td className="px-3 py-3">
+                      <ProductCategoryBadge category={item.category} />
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums font-semibold text-gray-950">
+                      {item.quantity}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                      {money(item.unitCost)}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                      {money(item.transportCost)}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                      {money(item.landedUnitCost)}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums font-semibold text-green-700">
+                      {money(item.totalCost)}
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                      {percent(item.averageProgress)}
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <Link
+                        href={`/products/${item.productId}`}
+                        aria-label={`View ${item.productName}`}
+                        title="View"
+                        className="group/view ml-auto flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-600"
+                      >
+                        <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              {procurementItems.length > 0 ? (
+                <tfoot>
+                  <tr className="border-t bg-gray-50 font-semibold text-gray-950">
+                    <td className="px-3 py-3" colSpan={2}>Total</td>
+                    <td className="px-3 py-3 text-right tabular-nums">
+                      {procurementItems.reduce((sum, item) => sum + item.quantity, 0)}
+                    </td>
+                    <td className="px-3 py-3" colSpan={3}></td>
+                    <td className="px-3 py-3 text-right tabular-nums text-green-700">
+                      {money(procurementItems.reduce((sum, item) => sum + item.totalCost, 0))}
+                    </td>
+                    <td className="px-3 py-3" colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              ) : null}
+            </table>
+
+            {procurementItems.length === 0 && (
+              <div className="flex flex-col items-center gap-1 py-14 text-center">
+                <p className="text-sm font-medium text-gray-700">
+                  No products are ready for procurement
+                </p>
+                <p className="text-xs text-gray-400">
+                  Products will appear here when accounts cross the payment threshold.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm" style={{ tableLayout: "fixed" }}>
@@ -160,10 +320,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       {product.name}
                     </td>
 
-                    <td className="px-3 py-3 text-left truncate">
-                      <span className="inline-block max-w-full truncate rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
-                        {product.category}
-                      </span>
+                    <td className="px-3 py-3 text-left">
+                      <ProductCategoryBadge category={product.category} />
                     </td>
 
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
@@ -249,6 +407,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -33,7 +33,7 @@ const defaults = {
   administrationFeePercent: 0,
   refundDeductionPercent: 0,
   deliveryTimeAfterCompletionDays: 0,
-  procurementThresholdPercent: 50,
+  procurementThresholdPercent: 85,
   minimumDeposit: 0,
   defaultCurrency: "GHS",
   defaultMonthlySalary: 0,

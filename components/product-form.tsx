@@ -7,18 +7,7 @@ import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
-
-const categories = [
-  "Refrigerators",
-  "Air Conditioners",
-  "TVs",
-  "Fans",
-  "Phones",
-  "Rice Cookers",
-  "Blenders",
-  "Home Appliances",
-  "Combos",
-];
+import { productCategories } from "@/lib/product-categories";
 
 type ProductFormProps = {
   action: (
@@ -112,9 +101,9 @@ export function ProductForm({
           required
         >
           <option value="">Select category</option>
-          {categories.map((category) => (
-            <option key={category} value={category}>
-              {category}
+          {productCategories.map((category) => (
+            <option key={category.label} value={category.label}>
+              {category.label}
             </option>
           ))}
         </select>

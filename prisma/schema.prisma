@@ -180,7 +180,7 @@ model Setting {
   administrationFeePercent        Float     @default(0)
   refundDeductionPercent          Float     @default(0)
   deliveryTimeAfterCompletionDays Int       @default(0)
-  procurementThresholdPercent     Float     @default(50)
+  procurementThresholdPercent     Float     @default(85)
   minimumDeposit                  Float     @default(0)
   defaultCurrency                 String    @default("GHS")
   defaultMonthlySalary            Float     @default(0)
