@@ -18,6 +18,12 @@ function addDays(date: Date, days: number) {
   return result;
 }
 
+function assertFiniteAccountValue(name: string, value: number) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid account ${name}.`);
+  }
+}
+
 type AccountProduct = {
   id: string;
   layawayPrice: number;
@@ -41,6 +47,18 @@ export async function createCustomerAccountForProduct({
   const targetAmount = product.layawayPrice;
   const dailyAmount = product.dailyAmount;
   const expectedEndDate = addDays(startDate, product.duration);
+
+  assertFiniteAccountValue("target amount", targetAmount);
+  assertFiniteAccountValue("daily amount", dailyAmount);
+
+  if (
+    !Number.isInteger(product.duration) ||
+    product.duration <= 0 ||
+    Number.isNaN(startDate.getTime()) ||
+    Number.isNaN(expectedEndDate.getTime())
+  ) {
+    throw new Error("Invalid account schedule.");
+  }
 
   const account = await tx.customerAccount.create({
     data: {
