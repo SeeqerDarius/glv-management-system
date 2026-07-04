@@ -2,6 +2,8 @@
 
 import {
   AccountStatus,
+  CreditSource,
+  CreditStatus,
   DeliveryStatus,
   UserPermission,
   UserRole,
@@ -403,6 +405,166 @@ export async function updateAccountPrice(formData: FormData): Promise<void> {
   revalidatePath(`/accounts/${account.id}`);
   revalidatePath(`/customers/${account.customerId}`);
   redirect(`${returnTo}?updated=account-price`);
+}
+
+export async function updateAccountProduct(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+  const productId = cleanInput(formData.get("productId"));
+  const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
+  const adminPassword = cleanInput(formData.get("adminPassword"));
+
+  if (!productId) {
+    redirect(`${returnTo}?error=invalid-account-product`);
+  }
+
+  if (!adminPassword) {
+    redirect(`${returnTo}?error=admin-password-required`);
+  }
+
+  const passwordValid = await verifyAdminPassword(user.id, adminPassword);
+
+  if (!passwordValid) {
+    redirect(`${returnTo}?error=invalid-admin-password`);
+  }
+
+  const [account, product] = await Promise.all([
+    prisma.customerAccount.findUnique({
+      where: {
+        id,
+      },
+      include: {
+        product: true,
+      },
+    }),
+    prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
+    }),
+  ]);
+
+  if (!account) {
+    redirect("/accounts?error=account-not-found");
+  }
+
+  if (!product || !product.active) {
+    redirect(`${returnTo}?error=invalid-account-product`);
+  }
+
+  if (product.id === account.productId) {
+    redirect(`${returnTo}?updated=account-product`);
+  }
+
+  const expectedEndDate = new Date(account.startDate);
+  expectedEndDate.setDate(expectedEndDate.getDate() + product.duration);
+
+  const nextTargetAmount = product.layawayPrice;
+  const nextDailyAmount = product.dailyAmount;
+  const nextBalance = Math.max(nextTargetAmount - account.totalPaid, 0);
+  const creditAmount = Math.max(account.totalPaid - nextTargetAmount, 0);
+  const nextStatus =
+    nextBalance <= 0
+      ? AccountStatus.COMPLETED
+      : account.status === AccountStatus.COMPLETED
+        ? AccountStatus.ACTIVE
+        : account.status;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customerAccount.update({
+      where: {
+        id: account.id,
+      },
+      data: {
+        productId: product.id,
+        targetAmount: nextTargetAmount,
+        dailyAmount: nextDailyAmount,
+        expectedEndDate,
+        balance: nextBalance,
+        status: nextStatus,
+        deliveryStatus: DeliveryStatus.PENDING,
+        deliveredAt: null,
+        deliveredBy: null,
+      },
+    });
+
+    const existingCredits = await tx.customerCredit.aggregate({
+      where: {
+        accountId: account.id,
+        status: {
+          not: CreditStatus.VOID,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+    const existingCreditAmount = existingCredits._sum.amount ?? 0;
+    const additionalCreditAmount = Math.max(
+      creditAmount - existingCreditAmount,
+      0
+    );
+
+    const createdCredit =
+      additionalCreditAmount > 0
+        ? await tx.customerCredit.create({
+            data: {
+              customerId: account.customerId,
+              accountId: account.id,
+              amount: additionalCreditAmount,
+              remainingAmount: additionalCreditAmount,
+              status: CreditStatus.OPEN,
+              source: CreditSource.MANUAL_ADJUSTMENT,
+              notes: `Credit from product correction: ${account.product.name} to ${product.name}`,
+              createdBy: user.id,
+            },
+          })
+        : null;
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "UPDATE_ACCOUNT_PRODUCT",
+        entity: "CustomerAccount",
+        entityId: account.id,
+        oldValue: JSON.stringify({
+          productId: account.productId,
+          productName: account.product.name,
+          targetAmount: account.targetAmount,
+          dailyAmount: account.dailyAmount,
+          expectedEndDate: account.expectedEndDate,
+          balance: account.balance,
+          status: account.status,
+          deliveryStatus: account.deliveryStatus,
+          deliveredAt: account.deliveredAt,
+          deliveredBy: account.deliveredBy,
+        }),
+        newValue: JSON.stringify({
+          productId: product.id,
+          productName: product.name,
+          targetAmount: nextTargetAmount,
+          dailyAmount: nextDailyAmount,
+          expectedEndDate,
+          balance: nextBalance,
+          status: nextStatus,
+          deliveryStatus: DeliveryStatus.PENDING,
+          deliveredAt: null,
+          deliveredBy: null,
+          retainedTotalPaid: account.totalPaid,
+          creditAmount,
+          additionalCreditId: createdCredit?.id ?? null,
+          additionalCreditAmount,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${account.id}`);
+  revalidatePath(`/customers/${account.customerId}`);
+  revalidatePath(`/products/${account.productId}`);
+  revalidatePath(`/products/${product.id}`);
+  redirect(`${returnTo}?updated=account-product`);
 }
 
 export async function updateAccountDeliveryStatus(formData: FormData): Promise<void> {

@@ -1,5 +1,11 @@
-import { AccountStatus, type CustomerAccount } from "@prisma/client";
+import {
+  AccountStatus,
+  CreditSource,
+  CreditStatus,
+  type CustomerAccount,
+} from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 
 export function getCurrentWeekRange(now = new Date()) {
@@ -88,6 +94,8 @@ function expectedCollectionForRange(
 }
 
 export async function getAdminReportSummary() {
+  await refreshAccountLifecycleStatuses();
+
   const month = getCurrentMonthRange();
   const totalCustomers = await prisma.customer.count();
   const staff = await prisma.staff.findMany({
@@ -117,6 +125,21 @@ export async function getAdminReportSummary() {
     orderBy: { paymentDate: "desc" },
     include: { account: { include: { customer: true, product: true } } },
   });
+  const openCreditAggregate = await prisma.customerCredit.aggregate({
+    where: {
+      status: CreditStatus.OPEN,
+    },
+    _count: true,
+    _sum: {
+      remainingAmount: true,
+    },
+  });
+  const closureRefundCount = await prisma.customerCredit.count({
+    where: {
+      status: CreditStatus.OPEN,
+      source: CreditSource.ACCOUNT_CLOSURE_REFUND,
+    },
+  });
 
   const statusCounts = accounts.reduce(
     (totals, account) => {
@@ -127,12 +150,17 @@ export async function getAdminReportSummary() {
       [AccountStatus.ACTIVE]: 0,
       [AccountStatus.COMPLETED]: 0,
       [AccountStatus.OVERDUE]: 0,
+      [AccountStatus.DORMANT]: 0,
+      [AccountStatus.PROBATION]: 0,
+      [AccountStatus.CLOSED]: 0,
       [AccountStatus.CANCELLED]: 0,
       [AccountStatus.SUSPENDED]: 0,
     }
   );
   const includedAccounts = accounts.filter(
-    (account) => account.status !== AccountStatus.CANCELLED
+    (account) =>
+      account.status !== AccountStatus.CANCELLED &&
+      account.status !== AccountStatus.CLOSED
   );
   const expectedReceivables = accounts
     .filter((account) => {
@@ -177,11 +205,17 @@ export async function getAdminReportSummary() {
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
     overdueAccounts: statusCounts.OVERDUE,
+    dormantAccounts: statusCounts.DORMANT,
+    probationAccounts: statusCounts.PROBATION,
+    closedAccounts: statusCounts.CLOSED,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
+    openCreditAmount: openCreditAggregate._sum.remainingAmount ?? 0,
+    openCreditCount: openCreditAggregate._count,
+    closureRefundCount,
     totalPaymentsCollected: totalCollected,
     expectedReceivables,
-    totalOutstandingBalance: accounts.reduce(
+    totalOutstandingBalance: includedAccounts.reduce(
       (total, account) => total + account.balance,
       0
     ),
@@ -210,6 +244,8 @@ export async function getAdminReportSummary() {
 }
 
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
+  await refreshAccountLifecycleStatuses(now);
+
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
   const staff = await prisma.staff.findMany({ orderBy: { code: "asc" } });
@@ -253,7 +289,11 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       )
       .reduce((total, payment) => total + payment.amount, 0);
     const expectedProfit = memberAccounts
-      .filter((account) => account.status !== AccountStatus.CANCELLED)
+      .filter(
+        (account) =>
+          account.status !== AccountStatus.CANCELLED &&
+          account.status !== AccountStatus.CLOSED
+      )
       .reduce(
         (total, account) => total + account.targetAmount - accountCost(account),
         0
@@ -285,12 +325,16 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       accountsOpened: memberAccounts.filter(
         (account) => account.createdAt >= start && account.createdAt <= end
       ).length,
-      totalContractValue: memberAccounts.reduce(
+      totalContractValue: memberAccounts
+        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .reduce(
         (total, account) => total + account.targetAmount,
         0
       ),
       totalCollected,
-      outstandingBalance: memberAccounts.reduce(
+      outstandingBalance: memberAccounts
+        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .reduce(
         (total, account) => total + account.balance,
         0
       ),
@@ -305,7 +349,9 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
             payment.paymentDate >= month.start && payment.paymentDate <= month.end
         )
         .reduce((total, payment) => total + payment.amount, 0),
-      expectedTotalCollection: memberAccounts.reduce(
+      expectedTotalCollection: memberAccounts
+        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .reduce(
         (total, account) => total + account.targetAmount,
         0
       ),
@@ -352,7 +398,9 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     0
   );
   const includedAccounts = accounts.filter(
-    (account) => account.status !== AccountStatus.CANCELLED
+    (account) =>
+      account.status !== AccountStatus.CANCELLED &&
+      account.status !== AccountStatus.CLOSED
   );
   const totalProductCost = includedAccounts.reduce(
     (total, account) => total + accountCost(account),
@@ -405,7 +453,7 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         })
         .reduce((total, account) => total + account.balance, 0),
       totalCollected,
-      totalOutstandingBalance: accounts.reduce(
+      totalOutstandingBalance: includedAccounts.reduce(
         (total, account) => total + account.balance,
         0
       ),
@@ -432,6 +480,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 }
 
 export async function getStaffDashboardSummary(staffId: string, now = new Date()) {
+  await refreshAccountLifecycleStatuses(now);
+
   const week = getCurrentWeekRange(now);
   const dayStart = new Date(now);
   dayStart.setHours(0, 0, 0, 0);
@@ -553,6 +603,9 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       [AccountStatus.ACTIVE]: 0,
       [AccountStatus.COMPLETED]: 0,
       [AccountStatus.OVERDUE]: 0,
+      [AccountStatus.DORMANT]: 0,
+      [AccountStatus.PROBATION]: 0,
+      [AccountStatus.CLOSED]: 0,
       [AccountStatus.CANCELLED]: 0,
       [AccountStatus.SUSPENDED]: 0,
     }
@@ -565,6 +618,9 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
     overdueAccounts: statusCounts.OVERDUE,
+    dormantAccounts: statusCounts.DORMANT,
+    probationAccounts: statusCounts.PROBATION,
+    closedAccounts: statusCounts.CLOSED,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
     paymentsRecordedToday,
@@ -590,6 +646,8 @@ export async function getActivityReport({
   includeFinancialValues?: boolean;
   now?: Date;
 }) {
+  await refreshAccountLifecycleStatuses(now);
+
   const week = getCurrentWeekRange(now);
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const scopedCustomerWhere = staffId ? { staffId } : {};
@@ -718,7 +776,9 @@ export async function getActivityReport({
           : null,
         expectedWeeklyCollection,
         outstanding: includeFinancialValues
-          ? memberAccounts.reduce((total, account) => total + account.balance, 0)
+          ? memberAccounts
+              .filter((account) => account.status !== AccountStatus.CLOSED)
+              .reduce((total, account) => total + account.balance, 0)
           : null,
       };
     })

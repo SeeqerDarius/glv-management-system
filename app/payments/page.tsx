@@ -5,6 +5,7 @@ import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -37,7 +38,8 @@ function parseDateFilter(value?: string) {
 }
 
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
-  const { error, deleted, from, method, page, q, to } = await searchParams;
+  const { error, deleted, from, method, page, q, staffId, to } =
+    await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -50,6 +52,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const currentPage = Math.max(Number(page || "1"), 1);
   const query = q?.trim() ?? "";
   const selectedMethod = method?.trim() ?? "";
+  const selectedStaffId = staffId?.trim() ?? "";
   const fromDate = parseDateFilter(from);
   const toDate = parseDateFilter(to);
   if (toDate) {
@@ -63,6 +66,14 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       account: {
         customer: {
           staffId: session.user.staffId,
+        },
+      },
+    });
+  } else if (selectedStaffId) {
+    filters.push({
+      account: {
+        customer: {
+          staffId: selectedStaffId,
         },
       },
     });
@@ -140,6 +151,12 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     amount: number;
     paymentDate: Date;
     method: string;
+    credit: {
+      id: string;
+      amount: number;
+      remainingAmount: number;
+      status: string;
+    } | null;
     account: {
       id: string;
       balance: number;
@@ -152,10 +169,13 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
       };
     };
   }> = [];
+  let staff: Array<{ id: string; code: string; fullName: string }> = [];
   let totalPayments = 0;
   let loadError = false;
 
   try {
+    await refreshAccountLifecycleStatuses();
+
     payments = await prisma.payment.findMany({
       where: paymentFilter,
       orderBy: { paymentDate: "desc" },
@@ -167,6 +187,14 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         amount: true,
         paymentDate: true,
         method: true,
+        credit: {
+          select: {
+            id: true,
+            amount: true,
+            remainingAmount: true,
+            status: true,
+          },
+        },
         account: {
           select: {
             id: true,
@@ -186,6 +214,14 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     });
 
     totalPayments = await prisma.payment.count({ where: paymentFilter });
+
+    if (isAdmin) {
+      staff = await prisma.staff.findMany({
+        where: { active: true },
+        orderBy: { fullName: "asc" },
+        select: { id: true, code: true, fullName: true },
+      });
+    }
   } catch (err) {
     console.error("PAYMENTS_LOAD_ERROR", err);
     loadError = true;
@@ -194,6 +230,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const totalPages = Math.max(Math.ceil(totalPayments / PAGE_SIZE), 1);
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
+  if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
   if (selectedMethod) urlParams.set("method", selectedMethod);
   if (from) urlParams.set("from", from);
   if (to) urlParams.set("to", to);
@@ -291,7 +328,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         </div>
       ) : null}
 
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_160px_150px_150px_auto] md:items-end">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_160px_160px_150px_150px_auto] md:items-end">
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-600">Search</span>
           <div className="relative">
@@ -304,6 +341,24 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
             />
           </div>
         </label>
+
+        {isAdmin ? (
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-gray-600">Staff</span>
+            <select
+              name="staffId"
+              defaultValue={selectedStaffId}
+              className="w-full rounded border p-3 text-sm"
+            >
+              <option value="">All staff</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.code} - {member.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-600">Method</span>
@@ -429,6 +484,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                       <th className="p-3 font-medium">Receipt</th>
                                       <th className="p-3 font-medium">Date</th>
                                       <th className="p-3 font-medium">Amount</th>
+                                      <th className="p-3 font-medium">Credit</th>
                                       <th className="p-3 font-medium">Method</th>
                                       {isAdmin ? (
                                         <th className="p-3 text-right font-medium">
@@ -448,6 +504,16 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                         </td>
                                         <td className="p-3">
                                           {formatMoney(payment.amount)}
+                                        </td>
+                                        <td className="p-3">
+                                          {payment.credit ? (
+                                            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">
+                                              {formatMoney(payment.credit.amount)}{" "}
+                                              {payment.credit.status.toLowerCase()}
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-gray-400">-</span>
+                                          )}
                                         </td>
                                         <td className="p-3">{payment.method}</td>
                                         {isAdmin ? (

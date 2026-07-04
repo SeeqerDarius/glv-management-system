@@ -10,11 +10,14 @@ import {
 } from "lucide-react";
 import { deleteAccount, updateAccountDeliveryStatus } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
+import { AccountProductCorrectionForm } from "@/components/account-product-correction-form";
+import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -39,7 +42,7 @@ export default async function AccountDetailsPage({
   searchParams,
 }: AccountDetailsPageProps) {
   const { id } = await params;
-  const { error } = await searchParams;
+  const { error, refunded, updated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -48,6 +51,8 @@ export default async function AccountDetailsPage({
     session?.user?.permissions,
     UserPermission.MANAGE_ACCOUNTS,
   );
+
+  await refreshAccountLifecycleStatuses();
 
   const account = await prisma.customerAccount.findFirst({
     where: {
@@ -72,6 +77,18 @@ export default async function AccountDetailsPage({
           paymentDate: "desc",
         },
       },
+      credits: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          payment: {
+            select: {
+              receiptNo: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -79,39 +96,60 @@ export default async function AccountDetailsPage({
     notFound();
   }
 
+  const products = isAdmin
+    ? await prisma.product.findMany({
+        where: {
+          active: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          layawayPrice: true,
+          dailyAmount: true,
+          duration: true,
+        },
+      })
+    : [];
+
   const status = getEffectiveAccountStatus(account);
   const canRecordPayment =
     account.balance > 0 &&
-    !["COMPLETED", "CANCELLED", "SUSPENDED"].includes(account.status);
+    !["COMPLETED", "CANCELLED", "SUSPENDED", "CLOSED"].includes(account.status);
   const isCompleted = status === "COMPLETED" && account.balance <= 0;
   const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold text-gray-950">
-              {account.product.name}
-            </h1>
-            <Badge variant={status === "OVERDUE" ? "destructive" : "default"}>
-              {status}
-            </Badge>
-          </div>
-          <p className="mt-1 text-sm text-gray-600">
-            Account for {account.customer.fullName}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-start gap-3">
           <Link
             href="/accounts"
             aria-label="Back to accounts"
             title="Back"
-            className="group/back flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
+            className="group/back mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-950">
+                {account.product.name}
+              </h1>
+              <Badge variant={status === "OVERDUE" ? "destructive" : "default"}>
+                {status}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-gray-600">
+              Account for {account.customer.fullName}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-0.5">
           {isAdmin ? (
             <ConfirmDeleteForm
               action={deleteAccount}
@@ -133,6 +171,17 @@ export default async function AccountDetailsPage({
             >
               <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
             </Link>
+          ) : null}
+          {isAdmin ? (
+            <AccountProductCorrectionForm
+              accountId={account.id}
+              currentProductId={account.product.id}
+              currentProductName={account.product.name}
+              products={products}
+              totalPaid={account.totalPaid}
+              returnTo={`/accounts/${account.id}`}
+              showLabel
+            />
           ) : null}
         </div>
       </div>
@@ -189,6 +238,30 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
+      {updated === "account-product" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account product corrected. Existing payments now count toward the corrected product.
+        </div>
+      ) : null}
+
+      {refunded === "credit" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Customer credit marked as refunded.
+        </div>
+      ) : null}
+
+      {error === "invalid-account-product" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Select an active replacement product before correcting this account.
+        </div>
+      ) : null}
+
+      {error === "credit-not-found" || error === "credit-not-open" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          This credit could not be refunded. It may already be closed.
+        </div>
+      ) : null}
+
       {error === "account-delete-blocked" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           This account could not be deleted. Review its related records and try again.
@@ -203,7 +276,7 @@ export default async function AccountDetailsPage({
 
       {error === "admin-password-required" || error === "invalid-admin-password" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          Enter a valid admin password before deleting account records.
+          Enter a valid admin password before changing account records.
         </div>
       ) : null}
 
@@ -301,6 +374,65 @@ export default async function AccountDetailsPage({
           duration={account.product.duration}
           showLabel
         />
+      </section>
+
+      <section className="rounded-lg border bg-white">
+        <div className="border-b p-5">
+          <h2 className="text-base font-semibold text-gray-950">
+            Refund / Credit Ledger
+          </h2>
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-left text-gray-700">
+              <th className="p-3 font-medium">Date</th>
+              <th className="p-3 font-medium">Receipt</th>
+              <th className="p-3 font-medium">Credit</th>
+              <th className="p-3 font-medium">Remaining</th>
+              <th className="p-3 font-medium">Status</th>
+              {isAdmin ? (
+                <th className="p-3 text-right font-medium">Actions</th>
+              ) : null}
+            </tr>
+          </thead>
+          <tbody>
+            {account.credits.map((credit) => (
+              <tr key={credit.id} className="border-t">
+                <td className="p-3">{formatDate(credit.createdAt)}</td>
+                <td className="p-3 font-mono text-xs">
+                  {credit.payment?.receiptNo ?? "-"}
+                </td>
+                <td className="p-3 font-semibold text-gray-950">
+                  {formatMoney(credit.amount)}
+                </td>
+                <td className="p-3">{formatMoney(credit.remainingAmount)}</td>
+                <td className="p-3">{credit.status}</td>
+                {isAdmin ? (
+                  <td className="p-3 text-right">
+                    {credit.status === "OPEN" && credit.remainingAmount > 0 ? (
+                      <div className="flex justify-end">
+                        <CustomerCreditRefundForm
+                          creditId={credit.id}
+                          amount={credit.remainingAmount}
+                          returnTo={`/accounts/${account.id}`}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {account.credits.length === 0 ? (
+          <div className="border-t p-8 text-center text-sm text-gray-600">
+            No overpayment credits recorded for this account.
+          </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">

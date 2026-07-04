@@ -59,6 +59,7 @@ model Customer {
   createdAt  DateTime          @default(now())
   staff      Staff             @relation(fields: [staffId], references: [id])
   accounts   CustomerAccount[]
+  credits    CustomerCredit[]
 }
 
 model Product {
@@ -108,6 +109,7 @@ model CustomerAccount {
   customer        Customer      @relation(fields: [customerId], references: [id])
   product         Product       @relation(fields: [productId], references: [id])
   payments        Payment[]
+  credits         CustomerCredit[]
 }
 
 model Payment {
@@ -121,6 +123,30 @@ model Payment {
   receivedBy  String
   createdAt   DateTime        @default(now())
   account     CustomerAccount @relation(fields: [accountId], references: [id])
+  credit      CustomerCredit?
+}
+
+model CustomerCredit {
+  id              String        @id @default(cuid())
+  customerId      String
+  accountId       String?
+  paymentId       String?       @unique
+  amount          Float
+  remainingAmount Float
+  status          CreditStatus  @default(OPEN)
+  source          CreditSource  @default(PAYMENT_OVERPAYMENT)
+  notes           String?
+  createdBy       String
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  customer        Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  account         CustomerAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  payment         Payment?      @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([customerId, status])
+  @@index([accountId])
+  @@index([paymentId])
 }
 
 model AuditLog {
@@ -212,6 +238,9 @@ enum AccountStatus {
   ACTIVE
   COMPLETED
   OVERDUE
+  DORMANT
+  PROBATION
+  CLOSED
   SUSPENDED
   CANCELLED
 }
@@ -219,4 +248,17 @@ enum AccountStatus {
 enum DeliveryStatus {
   PENDING
   DELIVERED
+}
+
+enum CreditStatus {
+  OPEN
+  REFUNDED
+  APPLIED
+  VOID
+}
+
+enum CreditSource {
+  PAYMENT_OVERPAYMENT
+  ACCOUNT_CLOSURE_REFUND
+  MANUAL_ADJUSTMENT
 }

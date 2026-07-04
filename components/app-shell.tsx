@@ -9,11 +9,11 @@ import { LogoutButton } from "@/components/logout-button";
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
-  "/staff", "/reports", "/audit-logs", "/settings",
+  "/staff", "/credits", "/reports", "/audit-logs", "/settings",
 ];
 
 const pageTitles: Array<[string, string]> = [
-  ["/staff/applications", "Staff Applications"], ["/customers/new", "Create Customer"],
+  ["/credits", "Credits & Refunds"], ["/staff/applications", "Credits & Refunds"], ["/customers/new", "Create Customer"],
   ["/accounts/new", "Create Account"], ["/payments/new", "Record Payment"],
   ["/products/new", "Create Product"], ["/staff/new", "Add Staff"],
   ["/audit-logs", "Audit Logs"], ["/dashboard", "Dashboard"],

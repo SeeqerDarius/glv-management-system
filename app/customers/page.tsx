@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
-import { Eye, HandCoins, Trash2 } from "lucide-react";
+import { Eye, HandCoins, SearchIcon, Trash2 } from "lucide-react";
 import { bulkReassignCustomers, deleteCustomer } from "@/actions/customers";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -22,7 +23,7 @@ function buildPageHref(params: URLSearchParams, page: number) {
 }
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-  const { error, deleted, delegated, q, page } = await searchParams;
+  const { error, deleted, delegated, q, page, staffId } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -33,11 +34,14 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   );
 
   const query = q?.trim() ?? "";
+  const selectedStaffId = staffId?.trim() ?? "";
   const currentPage = Math.max(Number(page || "1"), 1);
 
   const staffFilter: Prisma.CustomerWhereInput | undefined =
     isStaff && !canManageAll && session.user.staffId
       ? { staffId: session.user.staffId }
+      : selectedStaffId
+        ? { staffId: selectedStaffId }
       : undefined;
 
   const searchFilter: Prisma.CustomerWhereInput | undefined = query
@@ -70,6 +74,8 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   let loadError = false;
 
   try {
+    await refreshAccountLifecycleStatuses();
+
     // Sequential to avoid exhausting Neon connections
     customers = await prisma.customer.findMany({
       where,
@@ -90,6 +96,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                 AccountStatus.COMPLETED,
                 AccountStatus.CANCELLED,
                 AccountStatus.SUSPENDED,
+                AccountStatus.CLOSED,
               ],
             },
           },
@@ -117,6 +124,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const totalPages = Math.max(Math.ceil(totalCustomers / PAGE_SIZE), 1);
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
+  if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
 
   if (loadError) {
     return (
@@ -158,16 +166,46 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
       </div>
 
       {/* Search */}
-      <form className="flex max-w-md gap-2">
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Search name, ID or phone"
-          className="flex-1 rounded border bg-white p-3"
-        />
-        <Button type="submit" variant="outline">
-          Search
-        </Button>
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Search</span>
+          <div className="relative">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+            <input
+              name="q"
+              defaultValue={query}
+              placeholder="Search name, ID or phone"
+              className="w-full rounded border bg-white p-3 pl-9 text-sm"
+            />
+          </div>
+        </label>
+
+        {isAdmin ? (
+          <label className="block space-y-1">
+            <span className="text-xs font-medium text-gray-600">Staff</span>
+            <select
+              name="staffId"
+              defaultValue={selectedStaffId}
+              className="w-full rounded border p-3 text-sm"
+            >
+              <option value="">All staff</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.code} - {member.fullName}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        <div className="flex gap-2">
+          <Button type="submit" variant="outline" className="flex-1 md:flex-none">
+            Filter
+          </Button>
+          <Button asChild type="button" variant="outline">
+            <Link href="/customers">Clear</Link>
+          </Button>
+        </div>
       </form>
 
       {/* Toasts */}

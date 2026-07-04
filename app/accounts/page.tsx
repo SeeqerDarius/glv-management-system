@@ -13,6 +13,7 @@ import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -154,6 +155,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   // Fetches accounts (paginated), total count, staff list (admin only), and products
   // ==========================================================================
   try {
+    await refreshAccountLifecycleStatuses();
+
     // Fetch accounts first (most important), then supporting data sequentially
     accounts = await prisma.customerAccount.findMany({
       where,
@@ -288,7 +291,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           <option value="ALL">All statuses</option>
           <option value={AccountStatus.ACTIVE}>Active</option>
           <option value="OVERDUE">Overdue</option>
+          <option value={AccountStatus.DORMANT}>Dormant</option>
+          <option value={AccountStatus.PROBATION}>Probation</option>
           <option value={AccountStatus.COMPLETED}>Completed</option>
+          <option value={AccountStatus.CLOSED}>Closed</option>
           <option value={AccountStatus.CANCELLED}>Cancelled</option>
           <option value={AccountStatus.SUSPENDED}>Suspended</option>
         </select>
@@ -428,7 +434,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                       {account.balance > 0 &&
                       status !== AccountStatus.COMPLETED &&
                       status !== AccountStatus.CANCELLED &&
-                      status !== AccountStatus.SUSPENDED ? (
+                      status !== AccountStatus.SUSPENDED &&
+                      status !== AccountStatus.CLOSED ? (
                         <Link
                           href={`/payments/new?customerId=${account.customer.id}&accountId=${account.id}`}
                           aria-label={`Record payment for ${account.customer.fullName}`}

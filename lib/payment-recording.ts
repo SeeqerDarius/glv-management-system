@@ -71,9 +71,15 @@ export async function recordPaymentForAccount({
   const receiptNo = await generateReceiptNo(tx);
   const nextTotalPaid = account.totalPaid + amount;
   const rawBalance = account.balance - amount;
+  const creditAmount = rawBalance < 0 ? Math.abs(rawBalance) : 0;
   const nextBalance = rawBalance <= 0 ? 0 : rawBalance;
   const nextStatus =
-    rawBalance <= 0 ? AccountStatus.COMPLETED : account.status;
+    rawBalance <= 0
+      ? AccountStatus.COMPLETED
+      : account.status === AccountStatus.DORMANT ||
+          account.status === AccountStatus.PROBATION
+        ? AccountStatus.ACTIVE
+        : account.status;
 
   const createdPayment = await tx.payment.create({
     data: {
@@ -98,6 +104,21 @@ export async function recordPaymentForAccount({
     },
   });
 
+  const createdCredit =
+    creditAmount > 0
+      ? await tx.customerCredit.create({
+          data: {
+            customerId: account.customer.id,
+            accountId: account.id,
+            paymentId: createdPayment.id,
+            amount: creditAmount,
+            remainingAmount: creditAmount,
+            notes: `Overpayment from receipt ${createdPayment.receiptNo}`,
+            createdBy: userId,
+          },
+        })
+      : null;
+
   await tx.auditLog.create({
     data: {
       userId,
@@ -113,6 +134,8 @@ export async function recordPaymentForAccount({
         amount,
         previousBalance: account.balance,
         newBalance: updatedAccount.balance,
+        creditId: createdCredit?.id ?? null,
+        creditAmount,
       }),
     },
   });

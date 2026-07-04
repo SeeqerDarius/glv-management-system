@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
+  Eye,
   Mail,
   Pencil,
   Phone,
@@ -91,29 +92,31 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold text-gray-950">
-              {staff.fullName}
-            </h1>
-            <Badge variant={staff.active ? "default" : "secondary"}>
-              {staff.active ? "Active" : "Inactive"}
-            </Badge>
-          </div>
-          <p className="mt-1 text-sm text-gray-600">
-            Staff code {staff.code}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-start gap-3">
           <Link
             href="/staff"
             aria-label="Back to staff"
             title="Back"
-            className="group/back flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
+            className="group/back mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-3xl font-bold text-gray-950">
+                {staff.fullName}
+              </h1>
+              <Badge variant={staff.active ? "default" : "secondary"}>
+                {staff.active ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+            <p className="mt-1 text-sm text-gray-600">
+              Staff code {staff.code}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-0.5">
           <Link
             href={`/staff/${staff.id}/edit`}
             aria-label={`Edit ${staff.fullName}`}
@@ -278,9 +281,11 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
                   <td className="p-3 text-right">
                     <Link
                       href={`/customers/${customer.id}`}
-                      className="text-sm font-medium text-green-700 hover:underline"
+                      aria-label={`View ${customer.fullName}`}
+                      title="View"
+                      className="group/view ml-auto flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
                     >
-                      View
+                      <Eye className="size-4 transition-all duration-200 group-hover/view:scale-125 group-hover/view:opacity-70" />
                     </Link>
                   </td>
                 </tr>

@@ -81,6 +81,10 @@ export function PaymentForm({
     selectedAccount && Number.isFinite(paymentAmount)
       ? Math.max(selectedAccount.balance - paymentAmount, 0)
       : selectedAccount?.balance ?? 0;
+  const creditAmount =
+    selectedAccount && Number.isFinite(paymentAmount)
+      ? Math.max(paymentAmount - selectedAccount.balance, 0)
+      : 0;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (confirmed) {
@@ -279,6 +283,16 @@ export function PaymentForm({
                   {formatMoney(balanceAfter)}
                 </span>
               </div>
+              {creditAmount > 0 ? (
+                <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-blue-950">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-blue-700">Customer credit</span>
+                    <span className="text-right font-semibold">
+                      {formatMoney(creditAmount)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">

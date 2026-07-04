@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BadgeDollarSignIcon,
   CircleCheckBigIcon,
+  CircleDollarSignIcon,
   ClockAlertIcon,
   HandCoinsIcon,
   TrendingUpIcon,
@@ -134,6 +135,12 @@ export default async function DashboardPage() {
               accent="#d18b35"
             />
             <MetricCard
+              label="Open Credits / Refunds"
+              value={formatMoney(report.openCreditAmount)}
+              icon={CircleDollarSignIcon}
+              accent="#c93636"
+            />
+            <MetricCard
               label="Payments Collected"
               value={formatMoney(report.totalPaymentsCollected)}
               icon={HandCoinsIcon}
@@ -168,6 +175,8 @@ export default async function DashboardPage() {
               <MetricCard label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : "#7ac943"} />
               <MetricCard label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />
               <MetricCard label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : "#7ac943"} />
+              <MetricCard label="Refund Items" value={report.openCreditCount} icon={CircleDollarSignIcon} accent="#c93636" />
+              <MetricCard label="Closure Refunds" value={report.closureRefundCount} icon={ClockAlertIcon} accent="#d18b35" />
             </div>
           </section>
         </div>

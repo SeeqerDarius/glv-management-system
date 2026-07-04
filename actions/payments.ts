@@ -3,6 +3,7 @@
 import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
   parsePaymentDate,
@@ -49,6 +50,27 @@ async function requireAdmin() {
 
 function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+function safeReturnTo(value: string, fallback: string) {
+  return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
+async function verifyAdminPassword(adminUserId: string, password: string) {
+  if (!password) {
+    return false;
+  }
+
+  const adminUser = await prisma.user.findUnique({
+    where: {
+      id: adminUserId,
+    },
+    select: {
+      password: true,
+    },
+  });
+
+  return adminUser ? bcrypt.compare(password, adminUser.password) : false;
 }
 
 export async function recordPayment(
@@ -115,12 +137,13 @@ export async function recordPayment(
 
   if (
     account.status === AccountStatus.CANCELLED ||
-    account.status === AccountStatus.SUSPENDED
+    account.status === AccountStatus.SUSPENDED ||
+    account.status === AccountStatus.CLOSED
   ) {
     return {
       errors: {
         accountId:
-          "Payments cannot be recorded for a cancelled or suspended account.",
+          "Payments cannot be recorded for a cancelled, suspended, or closed account.",
       },
     };
   }
@@ -261,4 +284,76 @@ export async function deletePayment(formData: FormData): Promise<void> {
   revalidatePath(`/accounts/${payment.accountId}`);
   revalidatePath(`/customers/${payment.account.customerId}`);
   redirect("/payments?deleted=payment");
+}
+
+export async function markCustomerCreditRefunded(
+  formData: FormData
+): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+  const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), "/payments");
+  const adminPassword = cleanInput(formData.get("adminPassword"));
+
+  if (!adminPassword) {
+    redirect(`${returnTo}?error=admin-password-required`);
+  }
+
+  const passwordValid = await verifyAdminPassword(user.id, adminPassword);
+
+  if (!passwordValid) {
+    redirect(`${returnTo}?error=invalid-admin-password`);
+  }
+
+  const credit = await prisma.customerCredit.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      customer: true,
+      account: true,
+      payment: true,
+    },
+  });
+
+  if (!credit) {
+    redirect(`${returnTo}?error=credit-not-found`);
+  }
+
+  if (credit.status !== "OPEN" || credit.remainingAmount <= 0) {
+    redirect(`${returnTo}?error=credit-not-open`);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const updatedCredit = await tx.customerCredit.update({
+      where: {
+        id: credit.id,
+      },
+      data: {
+        status: "REFUNDED",
+        remainingAmount: 0,
+        resolvedBy: user.id,
+        resolvedAt: new Date(),
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "REFUND_CUSTOMER_CREDIT",
+        entity: "CustomerCredit",
+        entityId: credit.id,
+        oldValue: JSON.stringify(credit),
+        newValue: JSON.stringify(updatedCredit),
+      },
+    });
+  });
+
+  revalidatePath("/payments");
+  revalidatePath("/credits");
+  revalidatePath("/dashboard");
+  revalidatePath(`/customers/${credit.customerId}`);
+  if (credit.accountId) {
+    revalidatePath(`/accounts/${credit.accountId}`);
+  }
+  redirect(`${returnTo}?refunded=credit`);
 }

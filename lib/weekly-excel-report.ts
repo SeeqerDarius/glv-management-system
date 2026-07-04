@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 import { AccountStatus } from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 
 const palette = {
@@ -141,6 +142,8 @@ function finishSheet(
 }
 
 export async function buildWeeklyReportWorkbook(now = new Date()) {
+  await refreshAccountLifecycleStatuses(now);
+
   const { start, end } = getCurrentWeekRange(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -198,18 +201,20 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         item.status === AccountStatus.OVERDUE
     )
     .reduce((sum, item) => sum + item.account.balance, 0);
-  const outstandingBalance = accounts.reduce(
+  const reportableAccounts = accounts.filter(
+    (account) =>
+      account.status !== AccountStatus.CANCELLED &&
+      account.status !== AccountStatus.CLOSED
+  );
+  const outstandingBalance = reportableAccounts.reduce(
     (sum, account) => sum + account.balance,
     0
   );
-  const totalProductCost = accounts
-    .filter((account) => account.status !== AccountStatus.CANCELLED)
-    .reduce(
-      (sum, account) => sum + account.product.costPrice + account.product.transportCost,
-      0
-    );
-  const totalExpectedProfit = accounts
-    .filter((account) => account.status !== AccountStatus.CANCELLED)
+  const totalProductCost = reportableAccounts.reduce(
+    (sum, account) => sum + account.product.costPrice + account.product.transportCost,
+    0
+  );
+  const totalExpectedProfit = reportableAccounts
     .reduce(
       (sum, account) =>
         sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
@@ -257,6 +262,9 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Active accounts", statusCount(AccountStatus.ACTIVE)],
     ["Completed accounts", statusCount(AccountStatus.COMPLETED)],
     ["Overdue accounts", statusCount(AccountStatus.OVERDUE)],
+    ["Dormant accounts", statusCount(AccountStatus.DORMANT)],
+    ["Probation accounts", statusCount(AccountStatus.PROBATION)],
+    ["Closed accounts", statusCount(AccountStatus.CLOSED)],
     ["Cancelled accounts", statusCount(AccountStatus.CANCELLED)],
     ["Suspended accounts", statusCount(AccountStatus.SUSPENDED)],
     ["Total collected", totalCollected],
@@ -577,6 +585,8 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         ? "READY FOR RELEASE"
         : status === AccountStatus.CANCELLED
           ? "CANCELLED"
+          : status === AccountStatus.CLOSED
+            ? "CLOSED"
           : status === AccountStatus.SUSPENDED
             ? "SUSPENDED"
             : "NOT READY";
@@ -614,7 +624,11 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         fgColor: { argb: palette.limeSoft },
       };
     }
-    if (cell.value === "CANCELLED" || cell.value === "SUSPENDED") {
+    if (
+      cell.value === "CANCELLED" ||
+      cell.value === "SUSPENDED" ||
+      cell.value === "CLOSED"
+    ) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",

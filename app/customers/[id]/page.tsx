@@ -6,14 +6,24 @@ import {
   UserPermission,
   UserRole,
 } from "@prisma/client";
-import { Eye, HandCoins, PackageCheck, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Eye,
+  HandCoins,
+  PackageCheck,
+  PencilLine,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { deleteAccount, updateAccountDeliveryStatus } from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { AccountPriceOverrideForm } from "@/components/account-price-override-form";
+import { AccountProductCorrectionForm } from "@/components/account-product-correction-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
-import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
+import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -30,7 +40,7 @@ export default async function CustomerProfilePage({
   searchParams,
 }: CustomerProfilePageProps) {
   const { id } = await params;
-  const { deleted, error, updated } = await searchParams;
+  const { deleted, error, refunded, updated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -39,6 +49,8 @@ export default async function CustomerProfilePage({
     session?.user?.permissions,
     UserPermission.MANAGE_CUSTOMERS,
   );
+
+  await refreshAccountLifecycleStatuses();
 
   const customer = await prisma.customer.findFirst({
     where: {
@@ -64,6 +76,28 @@ export default async function CustomerProfilePage({
           },
         },
       },
+      credits: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          account: {
+            select: {
+              id: true,
+              product: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          payment: {
+            select: {
+              receiptNo: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -71,28 +105,62 @@ export default async function CustomerProfilePage({
     notFound();
   }
 
+  const products = isAdmin
+    ? await prisma.product.findMany({
+        where: {
+          active: true,
+        },
+        orderBy: {
+          name: "asc",
+        },
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          layawayPrice: true,
+          dailyAmount: true,
+          duration: true,
+        },
+      })
+    : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-950">
-            {customer.fullName}
-          </h1>
-          <p className="mt-1 text-sm text-gray-600">{customer.customerId}</p>
+        <div className="flex items-start gap-3">
+          <Link
+            href="/customers"
+            aria-label="Back to customers"
+            title="Back"
+            className="group/back mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
+          >
+            <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-gray-950">
+              {customer.fullName}
+            </h1>
+            <p className="mt-1 text-sm text-gray-600">{customer.customerId}</p>
+          </div>
         </div>
 
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
-            <Link href="/customers">Back</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link href={`/accounts/new?customerId=${customer.id}`}>
-              New Account
-            </Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/customers/${customer.id}/edit`}>Edit</Link>
-          </Button>
+        <div className="flex items-center gap-0.5">
+          <Link
+            href={`/accounts/new?customerId=${customer.id}`}
+            aria-label="Create account"
+            title="Create Account"
+            className="group/add flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+          >
+            <Plus className="size-4 transition-transform duration-200 group-hover/add:scale-125 group-hover/add:rotate-90" />
+          </Link>
+          <Link
+            href={`/customers/${customer.id}/edit`}
+            aria-label={`Edit ${customer.fullName}`}
+            title="Edit"
+            className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-700"
+          >
+            <PencilLine className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-6" />
+          </Link>
         </div>
       </div>
 
@@ -156,6 +224,18 @@ export default async function CustomerProfilePage({
         </div>
       ) : null}
 
+      {updated === "account-product" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account product corrected. Existing payments now count toward the corrected product.
+        </div>
+      ) : null}
+
+      {refunded === "credit" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Customer credit marked as refunded.
+        </div>
+      ) : null}
+
       {error === "account-delete-blocked" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           This account could not be deleted. Review its related records and try
@@ -166,6 +246,18 @@ export default async function CustomerProfilePage({
       {error === "invalid-account-price" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Enter a valid account price greater than zero.
+        </div>
+      ) : null}
+
+      {error === "invalid-account-product" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Select an active replacement product before correcting this account.
+        </div>
+      ) : null}
+
+      {error === "credit-not-found" || error === "credit-not-open" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          This credit could not be refunded. It may already be closed.
         </div>
       ) : null}
 
@@ -180,6 +272,67 @@ export default async function CustomerProfilePage({
           Enter a valid admin password before changing account records.
         </div>
       ) : null}
+
+      <section className="rounded-lg border bg-white">
+        <div className="border-b p-5">
+          <h2 className="text-base font-semibold text-gray-950">
+            Refund / Credit Ledger
+          </h2>
+        </div>
+
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-left text-gray-700">
+              <th className="p-3 font-medium">Date</th>
+              <th className="p-3 font-medium">Product</th>
+              <th className="p-3 font-medium">Receipt</th>
+              <th className="p-3 font-medium">Credit</th>
+              <th className="p-3 font-medium">Remaining</th>
+              <th className="p-3 font-medium">Status</th>
+              {isAdmin ? (
+                <th className="p-3 text-right font-medium">Actions</th>
+              ) : null}
+            </tr>
+          </thead>
+          <tbody>
+            {customer.credits.map((credit) => (
+              <tr key={credit.id} className="border-t">
+                <td className="p-3">{credit.createdAt.toLocaleDateString("en-GB")}</td>
+                <td className="p-3">{credit.account?.product.name ?? "-"}</td>
+                <td className="p-3 font-mono text-xs">
+                  {credit.payment?.receiptNo ?? "-"}
+                </td>
+                <td className="p-3 font-semibold text-gray-950">
+                  {formatMoney(credit.amount)}
+                </td>
+                <td className="p-3">{formatMoney(credit.remainingAmount)}</td>
+                <td className="p-3">{credit.status}</td>
+                {isAdmin ? (
+                  <td className="p-3 text-right">
+                    {credit.status === "OPEN" && credit.remainingAmount > 0 ? (
+                      <div className="flex justify-end">
+                        <CustomerCreditRefundForm
+                          creditId={credit.id}
+                          amount={credit.remainingAmount}
+                          returnTo={`/customers/${customer.id}`}
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">-</span>
+                    )}
+                  </td>
+                ) : null}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {customer.credits.length === 0 ? (
+          <div className="border-t p-8 text-center text-sm text-gray-600">
+            No overpayment credits recorded for this customer.
+          </div>
+        ) : null}
+      </section>
 
       <section className="rounded-lg border bg-white">
         <div className="border-b p-5">
@@ -208,7 +361,8 @@ export default async function CustomerProfilePage({
                 account.balance > 0 &&
                 status !== AccountStatus.COMPLETED &&
                 status !== AccountStatus.CANCELLED &&
-                status !== AccountStatus.SUSPENDED;
+                status !== AccountStatus.SUSPENDED &&
+                status !== AccountStatus.CLOSED;
               const canMarkDelivered =
                 status === AccountStatus.COMPLETED &&
                 account.balance <= 0 &&
@@ -278,6 +432,16 @@ export default async function CustomerProfilePage({
                           accountId={account.id}
                           productName={account.product.name}
                           currentPrice={account.targetAmount}
+                          returnTo={`/customers/${customer.id}`}
+                        />
+                      ) : null}
+                      {isAdmin ? (
+                        <AccountProductCorrectionForm
+                          accountId={account.id}
+                          currentProductId={account.product.id}
+                          currentProductName={account.product.name}
+                          products={products}
+                          totalPaid={account.totalPaid}
                           returnTo={`/customers/${customer.id}`}
                         />
                       ) : null}
