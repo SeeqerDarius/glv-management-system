@@ -5,11 +5,8 @@ import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
+import { formatMoney } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
-
-function money(value: number) {
-  return `GHS ${value.toFixed(2)}`;
-}
 
 const onlineWindowMs = 5 * 60 * 1000;
 
@@ -284,7 +281,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               <div>
                 <p className="text-xs text-gray-400">Salary</p>
                 <p className="font-medium text-gray-800">
-                  {money(member.monthlySalary)}
+                  {formatMoney(member.monthlySalary)}
                 </p>
               </div>
               <div>
@@ -416,7 +413,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                     {member._count.customers}
                   </td>
                   <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                    {money(member.monthlySalary)}
+                    {formatMoney(member.monthlySalary)}
                   </td>
                   <td className="px-3 py-3 text-center">
                     <span

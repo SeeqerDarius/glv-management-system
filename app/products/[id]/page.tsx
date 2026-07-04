@@ -4,6 +4,7 @@ import { AccountStatus } from "@prisma/client";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { formatMoney } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
 
 type ProductDetailsPageProps = {
@@ -11,10 +12,6 @@ type ProductDetailsPageProps = {
     id: string;
   }>;
 };
-
-function money(value: number) {
-  return `GHS ${value.toFixed(2)}`;
-}
 
 export default async function ProductDetailsPage({
   params,
@@ -136,7 +133,7 @@ export default async function ProductDetailsPage({
               Cost Price
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {money(product.costPrice)}
+              {formatMoney(product.costPrice)}
             </p>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
@@ -144,7 +141,7 @@ export default async function ProductDetailsPage({
               Transport Cost
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {money(product.transportCost)}
+              {formatMoney(product.transportCost)}
             </p>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
@@ -152,7 +149,7 @@ export default async function ProductDetailsPage({
               Daily Amount
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {money(product.dailyAmount)}
+              {formatMoney(product.dailyAmount)}
             </p>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
@@ -168,7 +165,7 @@ export default async function ProductDetailsPage({
               Layaway Price
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {money(product.layawayPrice)}
+              {formatMoney(product.layawayPrice)}
             </p>
           </div>
         </div>
@@ -185,7 +182,7 @@ export default async function ProductDetailsPage({
               Profit / Unit
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
-              {money(layawayProfit)}
+              {formatMoney(layawayProfit)}
             </p>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
@@ -201,7 +198,7 @@ export default async function ProductDetailsPage({
               Exp. Revenue
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {money(expectedLayawayRevenue)}
+              {formatMoney(expectedLayawayRevenue)}
             </p>
           </div>
           <div className="rounded-lg bg-gray-50 px-4 py-3">
@@ -209,7 +206,7 @@ export default async function ProductDetailsPage({
               Exp. Profit
             </p>
             <p className="mt-1 text-xl font-semibold tabular-nums text-green-700">
-              {money(expectedLayawayProfit)}
+              {formatMoney(expectedLayawayProfit)}
             </p>
           </div>
         </div>
@@ -222,8 +219,8 @@ export default async function ProductDetailsPage({
           </p>
           <p className="mt-1">
             <span className="font-medium text-gray-900">Calculated:</span>{" "}
-            {money(product.dailyAmount)} × {product.duration} ={" "}
-            {money(product.layawayPrice)}
+            {formatMoney(product.dailyAmount)} × {product.duration} ={" "}
+            {formatMoney(product.layawayPrice)}
           </p>
         </div>
       </div>

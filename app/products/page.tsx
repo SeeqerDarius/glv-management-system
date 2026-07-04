@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { formatMoney } from "@/lib/accounts";
 import { ProductCategoryBadge } from "@/lib/product-categories";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
@@ -21,10 +22,6 @@ type ProductsPageProps = {
     deleted?: string;
   }>;
 };
-
-function money(value: number) {
-  return `GHS ${value.toFixed(2)}`;
-}
 
 function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
@@ -117,14 +114,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               { label: "Total units", value: procurementItems.reduce((sum, item) => sum + item.quantity, 0) },
               {
                 label: "Estimated total cost",
-                value: money(procurementItems.reduce((sum, item) => sum + item.totalCost, 0)),
+                value: formatMoney(procurementItems.reduce((sum, item) => sum + item.totalCost, 0)),
                 green: true,
               },
             ]
           : [
               { label: "Total products", value: products.length },
               { label: "Total qty on sale", value: totalQty },
-              { label: "Expected profit", value: money(totalProfit), green: true },
+              { label: "Expected profit", value: formatMoney(totalProfit), green: true },
             ]).map((s) => (
           <div key={s.label} className="rounded-lg bg-gray-50 px-4 py-3">
             <p className="text-[11px] uppercase tracking-widest text-gray-400">
@@ -219,16 +216,16 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       {item.quantity}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                      {money(item.unitCost)}
+                      {formatMoney(item.unitCost)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                      {money(item.transportCost)}
+                      {formatMoney(item.transportCost)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                      {money(item.landedUnitCost)}
+                      {formatMoney(item.landedUnitCost)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums font-semibold text-green-700">
-                      {money(item.totalCost)}
+                      {formatMoney(item.totalCost)}
                     </td>
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
                       {percent(item.averageProgress)}
@@ -255,7 +252,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     </td>
                     <td className="px-3 py-3" colSpan={3}></td>
                     <td className="px-3 py-3 text-right tabular-nums text-green-700">
-                      {money(procurementItems.reduce((sum, item) => sum + item.totalCost, 0))}
+                      {formatMoney(procurementItems.reduce((sum, item) => sum + item.totalCost, 0))}
                     </td>
                     <td className="px-3 py-3" colSpan={2}></td>
                   </tr>
@@ -325,11 +322,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     </td>
 
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                      {money(product.dailyAmount)}
+                      {formatMoney(product.dailyAmount)}
                     </td>
 
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                      {money(product.layawayPrice)}
+                      {formatMoney(product.layawayPrice)}
                     </td>
 
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
@@ -337,7 +334,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     </td>
 
                     <td className="px-3 py-3 text-right tabular-nums font-medium text-green-700">
-                      {money(expectedProfit)}
+                      {formatMoney(expectedProfit)}
                     </td>
 
                     <td className="px-3 py-3 text-right">

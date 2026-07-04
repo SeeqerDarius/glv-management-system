@@ -18,7 +18,10 @@ export function getEffectiveAccountStatus(account: AccountStatusInput) {
 }
 
 export function formatMoney(value: number) {
-  return `GHS ${value.toFixed(2)}`;
+  return `GHS ${value.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function getAccountDaysProgress({

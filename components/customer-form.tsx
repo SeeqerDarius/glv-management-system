@@ -7,6 +7,7 @@ import { useActionState } from "react";
 import type { CustomerFormState } from "@/actions/customers";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
+import { formatMoney } from "@/lib/accounts";
 
 type StaffOption = { id: string; fullName: string; code: string };
 type ProductOption = {
@@ -81,8 +82,8 @@ export function CustomerForm({ action, staff, products, canAssignStaff }: {
             <option value="">No product account yet</option>
             {products.map((product) => (
               <option key={product.id} value={product.id}>
-                {product.name} - {product.category} | GHS{" "}
-                {product.layawayPrice.toFixed(2)}
+                {product.name} - {product.category} |{" "}
+                {formatMoney(product.layawayPrice)}
               </option>
             ))}
           </select>
@@ -96,7 +97,7 @@ export function CustomerForm({ action, staff, products, canAssignStaff }: {
             <div>
               <p className="text-xs text-gray-500">Daily Amount</p>
               <p className="font-semibold text-gray-950">
-                GHS {selectedProduct.dailyAmount.toFixed(2)}
+                {formatMoney(selectedProduct.dailyAmount)}
               </p>
             </div>
             <div>
@@ -108,7 +109,7 @@ export function CustomerForm({ action, staff, products, canAssignStaff }: {
             <div>
               <p className="text-xs text-gray-500">Target</p>
               <p className="font-semibold text-gray-950">
-                GHS {selectedProduct.layawayPrice.toFixed(2)}
+                {formatMoney(selectedProduct.layawayPrice)}
               </p>
             </div>
           </div>

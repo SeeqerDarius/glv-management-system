@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatMoney } from "@/lib/accounts";
 import { permissionLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
@@ -37,10 +38,6 @@ function formatDateTime(date: Date) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-}
-
-function money(value: number) {
-  return `GHS ${value.toFixed(2)}`;
 }
 
 export default async function StaffDetailsPage({ params }: StaffDetailsPageProps) {
@@ -155,13 +152,13 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Monthly Salary</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
-            {money(staff.monthlySalary)}
+            {formatMoney(staff.monthlySalary)}
           </p>
         </div>
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Recent Salary Paid</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
-            {money(salaryPaid)}
+            {formatMoney(salaryPaid)}
           </p>
           <p className="mt-1 text-xs text-gray-500">
             Last {staff.salaryPayments.length} payment
@@ -320,7 +317,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
                 <tr key={payment.id} className="border-t">
                   <td className="p-3">{formatDate(payment.paymentDate)}</td>
                   <td className="p-3 text-right font-semibold text-gray-950">
-                    {money(payment.amount)}
+                    {formatMoney(payment.amount)}
                   </td>
                   <td className="p-3">{payment.notes || "-"}</td>
                 </tr>

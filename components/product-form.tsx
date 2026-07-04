@@ -7,6 +7,7 @@ import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
+import { formatMoney } from "@/lib/accounts";
 import { productCategories } from "@/lib/product-categories";
 
 type ProductFormProps = {
@@ -177,7 +178,7 @@ export function ProductForm({
           Calculated Layaway Price
         </p>
         <p className="mt-1 text-xl font-semibold text-gray-950">
-          GHS {layawayPrice.toFixed(2)}
+          {formatMoney(layawayPrice)}
         </p>
         <p className="mt-1 text-sm text-gray-600">
           Daily Amount x Duration Days. The final value is calculated on the

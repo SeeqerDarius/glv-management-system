@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createAccount, type AccountFormState } from "@/actions/accounts";
 import { Button } from "@/components/ui/button";
+import { formatMoney } from "@/lib/accounts";
 
 type CustomerOption = {
   id: string;
@@ -81,9 +82,9 @@ export function AccountForm({
           <option value="">Select product</option>
           {products.map((product) => (
             <option key={product.id} value={product.id}>
-              {product.name} - {product.category} | GHS{" "}
-              {product.layawayPrice.toFixed(2)} | GHS{" "}
-              {product.dailyAmount.toFixed(2)}/day | {product.duration} days
+              {product.name} - {product.category} |{" "}
+              {formatMoney(product.layawayPrice)} |{" "}
+              {formatMoney(product.dailyAmount)}/day | {product.duration} days
             </option>
           ))}
         </select>
