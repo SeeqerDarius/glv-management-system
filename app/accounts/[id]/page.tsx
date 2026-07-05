@@ -124,8 +124,8 @@ export default async function AccountDetailsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/accounts"
             aria-label="Back to accounts"
@@ -135,8 +135,8 @@ export default async function AccountDetailsPage({
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-950">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
                 {account.product.name}
               </h1>
               <Badge variant={status === "OVERDUE" ? "destructive" : "default"}>
@@ -149,7 +149,7 @@ export default async function AccountDetailsPage({
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-0.5">
           {isAdmin ? (
             <ConfirmDeleteForm
               action={deleteAccount}
@@ -383,50 +383,52 @@ export default async function AccountDetailsPage({
           </h2>
         </div>
 
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-100 text-left text-gray-700">
-              <th className="p-3 font-medium">Date</th>
-              <th className="p-3 font-medium">Receipt</th>
-              <th className="p-3 font-medium">Credit</th>
-              <th className="p-3 font-medium">Remaining</th>
-              <th className="p-3 font-medium">Status</th>
-              {isAdmin ? (
-                <th className="p-3 text-right font-medium">Actions</th>
-              ) : null}
-            </tr>
-          </thead>
-          <tbody>
-            {account.credits.map((credit) => (
-              <tr key={credit.id} className="border-t">
-                <td className="p-3">{formatDate(credit.createdAt)}</td>
-                <td className="p-3 font-mono text-xs">
-                  {credit.payment?.receiptNo ?? "-"}
-                </td>
-                <td className="p-3 font-semibold text-gray-950">
-                  {formatMoney(credit.amount)}
-                </td>
-                <td className="p-3">{formatMoney(credit.remainingAmount)}</td>
-                <td className="p-3">{credit.status}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-left text-gray-700">
+                <th className="p-3 font-medium">Date</th>
+                <th className="p-3 font-medium">Receipt</th>
+                <th className="p-3 font-medium">Credit</th>
+                <th className="p-3 font-medium">Remaining</th>
+                <th className="p-3 font-medium">Status</th>
                 {isAdmin ? (
-                  <td className="p-3 text-right">
-                    {credit.status === "OPEN" && credit.remainingAmount > 0 ? (
-                      <div className="flex justify-end">
-                        <CustomerCreditRefundForm
-                          creditId={credit.id}
-                          amount={credit.remainingAmount}
-                          returnTo={`/accounts/${account.id}`}
-                        />
-                      </div>
-                    ) : (
-                      <span className="text-xs text-gray-400">-</span>
-                    )}
-                  </td>
+                  <th className="p-3 text-right font-medium">Actions</th>
                 ) : null}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {account.credits.map((credit) => (
+                <tr key={credit.id} className="border-t">
+                  <td className="p-3">{formatDate(credit.createdAt)}</td>
+                  <td className="p-3 font-mono text-xs">
+                    {credit.payment?.receiptNo ?? "-"}
+                  </td>
+                  <td className="p-3 font-semibold text-gray-950">
+                    {formatMoney(credit.amount)}
+                  </td>
+                  <td className="p-3">{formatMoney(credit.remainingAmount)}</td>
+                  <td className="p-3">{credit.status}</td>
+                  {isAdmin ? (
+                    <td className="p-3 text-right">
+                      {credit.status === "OPEN" && credit.remainingAmount > 0 ? (
+                        <div className="flex justify-end">
+                          <CustomerCreditRefundForm
+                            creditId={credit.id}
+                            amount={credit.remainingAmount}
+                            returnTo={`/accounts/${account.id}`}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {account.credits.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">
@@ -474,30 +476,32 @@ export default async function AccountDetailsPage({
           </h2>
         </div>
 
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-100 text-left text-gray-700">
-              <th className="p-3 font-medium">Receipt</th>
-              <th className="p-3 font-medium">Date</th>
-              <th className="p-3 font-medium">Amount</th>
-              <th className="p-3 font-medium">Method</th>
-              <th className="p-3 font-medium">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {account.payments.map((payment) => (
-              <tr key={payment.id} className="border-t">
-                <td className="p-3 font-semibold text-gray-950">
-                  {payment.receiptNo}
-                </td>
-                <td className="p-3">{formatDate(payment.paymentDate)}</td>
-                <td className="p-3">{formatMoney(payment.amount)}</td>
-                <td className="p-3">{payment.method}</td>
-                <td className="p-3">{payment.notes || "-"}</td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="bg-gray-100 text-left text-gray-700">
+                <th className="p-3 font-medium">Receipt</th>
+                <th className="p-3 font-medium">Date</th>
+                <th className="p-3 font-medium">Amount</th>
+                <th className="p-3 font-medium">Method</th>
+                <th className="p-3 font-medium">Notes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {account.payments.map((payment) => (
+                <tr key={payment.id} className="border-t">
+                  <td className="p-3 font-semibold text-gray-950">
+                    {payment.receiptNo}
+                  </td>
+                  <td className="p-3">{formatDate(payment.paymentDate)}</td>
+                  <td className="p-3">{formatMoney(payment.amount)}</td>
+                  <td className="p-3">{payment.method}</td>
+                  <td className="p-3">{payment.notes || "-"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {account.payments.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">
