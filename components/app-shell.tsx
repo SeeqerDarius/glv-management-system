@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { UserPermission, UserRole } from "@prisma/client";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
+import { SidebarAnimation } from "@/components/sidebar-animation";
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
@@ -55,12 +56,13 @@ export function AppShell({ children, user, brand }: {
     <div className="glv-app-shell min-h-screen bg-gray-50 lg:grid lg:grid-cols-[16.5rem_minmax(0,1fr)]">
       {mobileOpen ? <button type="button" aria-label="Close navigation" className="fixed inset-0 z-40 bg-gray-950/45 backdrop-blur-[1px] lg:hidden" onClick={() => setMobileOpen(false)} /> : null}
       <aside className={`glv-sidebar fixed inset-y-0 left-0 z-50 flex w-[17rem] flex-col text-white transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:w-auto lg:translate-x-0 ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <div className="flex h-18 items-center justify-between border-b border-white/10 px-5">
+        <SidebarAnimation />
+        <div className="relative z-10 flex h-18 items-center justify-between border-b border-white/10 px-5">
           <div className="flex items-center gap-3"><span className="glv-brand-mark">{tradingName.slice(0, 4)}</span><div><p className="text-sm font-bold text-white">{companyName}</p><p className="text-xs text-lime-200">{tagline}</p></div></div>
           <button type="button" onClick={() => setMobileOpen(false)} className="inline-flex size-9 items-center justify-center rounded-md text-white/75 hover:bg-white/10 hover:text-white lg:hidden" aria-label="Close menu"><X className="size-5" /></button>
         </div>
         <DashboardNav isAdmin={isAdmin} permissions={user.permissions} onNavigate={() => setMobileOpen(false)} />
-        <div className="mt-auto border-t border-white/10 p-4"><LogoutButton /></div>
+        <div className="relative z-10 mt-auto border-t border-white/10 p-4"><LogoutButton /></div>
       </aside>
 
       <div className="flex min-h-screen min-w-0 flex-col">

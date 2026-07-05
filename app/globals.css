@@ -170,9 +170,65 @@ textarea:focus {
 /* ─── Sidebar ────────────────────────────────────────────────────────────────── */
 
 .glv-sidebar {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(180deg, #0d2b18 0%, #091f11 60%, #071a0e 100%);
   box-shadow: var(--glv-shadow-sidebar);
   border-right: 1px solid rgb(255 255 255 / 0.04);
+}
+
+.glv-sidebar-animation {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.glv-sidebar-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-image:
+    linear-gradient(rgb(255 255 255 / 1) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 1) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.glv-sidebar-scan {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(184 237 78 / 0.16),
+    transparent
+  );
+  animation: glv-sidebar-scan 7s linear infinite;
+}
+
+.glv-sidebar-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(52px);
+}
+
+.glv-sidebar-glow-top {
+  left: 1.25rem;
+  top: -5rem;
+  height: 13rem;
+  width: 13rem;
+  background: rgb(184 237 78 / 0.13);
+}
+
+.glv-sidebar-glow-bottom {
+  right: -5rem;
+  bottom: 5rem;
+  height: 12rem;
+  width: 12rem;
+  background: rgb(74 222 128 / 0.1);
 }
 
 .glv-sidebar-section-label {
@@ -250,6 +306,23 @@ textarea:focus {
 
 .glv-nav-link-active .glv-nav-link-icon {
   opacity: 1;
+}
+
+@keyframes glv-sidebar-scan {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
 }
 
 /* ─── Sidebar Divider ─────────────────────────────────────────────────────────── */
