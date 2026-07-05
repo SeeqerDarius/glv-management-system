@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { UserPermission, UserRole } from "@prisma/client";
+import { AiSupportChat } from "@/components/ai-support-chat";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -114,6 +115,9 @@ export function AppShell({ children, user, brand }: {
         <main className="glv-main-content min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8"><div className="mx-auto max-w-[90rem]">{children}</div></main>
         <Footer />
       </div>
+      {isAdmin ? (
+        <AiSupportChat userName={user.name || "GLV User"} roleLabel={roleLabel} />
+      ) : null}
     </div>
   );
 }
