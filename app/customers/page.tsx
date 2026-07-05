@@ -247,7 +247,8 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
       ) : null}
 
       <div className="overflow-hidden rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[860px] text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               {isAdmin ? <th className="p-3 font-medium">Select</th> : null}
@@ -325,6 +326,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
             })}
           </tbody>
         </table>
+        </div>
 
         {customers.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">

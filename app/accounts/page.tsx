@@ -352,7 +352,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       {/* The main data table showing all filtered accounts                      */}
       {/* ==================================================================== */}
       <div className="overflow-hidden rounded-lg border bg-white">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[920px] text-sm">
           {/* ================================================================== */}
           {/* SECTION: Table Header                                                */}
           {/* Column labels for the accounts table                                 */}
@@ -452,6 +453,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
             })}
           </tbody>
         </table>
+        </div>
 
         {/* ================================================================== */}
         {/* SECTION: Empty State                                                 */}

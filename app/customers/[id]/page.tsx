@@ -126,8 +126,8 @@ export default async function CustomerProfilePage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/customers"
             aria-label="Back to customers"
@@ -136,15 +136,15 @@ export default async function CustomerProfilePage({
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-950">
+          <div className="min-w-0">
+            <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
               {customer.fullName}
             </h1>
             <p className="mt-1 text-sm text-gray-600">{customer.customerId}</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex flex-wrap items-center gap-0.5">
           <Link
             href={`/accounts/new?customerId=${customer.id}`}
             aria-label="Create account"
@@ -280,7 +280,8 @@ export default async function CustomerProfilePage({
           </h2>
         </div>
 
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[760px] text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               <th className="p-3 font-medium">Date</th>
@@ -326,6 +327,7 @@ export default async function CustomerProfilePage({
             ))}
           </tbody>
         </table>
+        </div>
 
         {customer.credits.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">
@@ -341,7 +343,8 @@ export default async function CustomerProfilePage({
           </h2>
         </div>
 
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="min-w-[860px] text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
               <th className="p-3 font-medium">Product</th>
@@ -465,6 +468,7 @@ export default async function CustomerProfilePage({
             })}
           </tbody>
         </table>
+        </div>
 
         {customer.accounts.length === 0 ? (
           <div className="border-t p-8 text-center text-sm text-gray-600">

@@ -44,7 +44,8 @@ export function StaffApplicationsList({
 }) {
   return (
     <div className="overflow-hidden rounded-lg border bg-white">
-      <table className="w-full text-sm">
+      <div className="overflow-x-auto">
+      <table className="min-w-[760px] text-sm">
         <thead>
           <tr className="bg-gray-100 text-left text-gray-700">
             <th className="p-3 font-medium">Name</th>
@@ -78,6 +79,7 @@ export function StaffApplicationsList({
           ))}
         </tbody>
       </table>
+      </div>
 
       {applications.length === 0 ? (
         <div className="border-t p-8 text-center text-sm text-gray-600">

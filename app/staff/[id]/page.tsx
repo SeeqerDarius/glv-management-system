@@ -88,8 +88,8 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
           <Link
             href="/staff"
             aria-label="Back to staff"
@@ -98,9 +98,9 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-3xl font-bold text-gray-950">
+              <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
                 {staff.fullName}
               </h1>
               <Badge variant={staff.active ? "default" : "secondary"}>
@@ -113,7 +113,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex flex-wrap items-center gap-0.5">
           <Link
             href={`/staff/${staff.id}/edit`}
             aria-label={`Edit ${staff.fullName}`}
@@ -254,7 +254,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           </Button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[680px] text-sm">
             <thead>
               <tr className="bg-gray-100 text-left text-gray-700">
                 <th className="p-3 font-medium">Customer ID</th>
@@ -304,7 +304,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           </h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="min-w-[560px] text-sm">
             <thead>
               <tr className="bg-gray-100 text-left text-gray-700">
                 <th className="p-3 font-medium">Date</th>

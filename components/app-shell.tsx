@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import type { UserPermission, UserRole } from "@prisma/client";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
+
+type AttentionMap = Record<
+  string,
+  {
+    count: number;
+    label: string;
+    href?: string;
+  }
+>;
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
@@ -38,9 +47,35 @@ export function AppShell({ children, user, brand }: {
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [attention, setAttention] = useState<AttentionMap>({});
   const isProtected = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const pageTitle = pageTitles.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "GLV Management";
+
+  useEffect(() => {
+    if (!isProtected || !user) {
+      return;
+    }
+
+    let active = true;
+
+    fetch("/api/notifications", { cache: "no-store" })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data: { attention?: AttentionMap } | null) => {
+        if (active) {
+          setAttention(data?.attention ?? {});
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAttention({});
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isProtected, pathname, user]);
 
   if (!isProtected || !user) {
     return <div className="flex min-h-screen flex-col"><div className="flex-1">{children}</div><Footer /></div>;
@@ -59,7 +94,12 @@ export function AppShell({ children, user, brand }: {
           <div className="flex items-center gap-3"><span className="glv-brand-mark">{tradingName.slice(0, 4)}</span><div><p className="text-sm font-bold text-white">{companyName}</p><p className="text-xs text-lime-200">{tagline}</p></div></div>
           <button type="button" onClick={() => setMobileOpen(false)} className="inline-flex size-9 items-center justify-center rounded-md text-white/75 hover:bg-white/10 hover:text-white lg:hidden" aria-label="Close menu"><X className="size-5" /></button>
         </div>
-        <DashboardNav isAdmin={isAdmin} permissions={user.permissions} onNavigate={() => setMobileOpen(false)} />
+        <DashboardNav
+          isAdmin={isAdmin}
+          permissions={user.permissions}
+          attention={attention}
+          onNavigate={() => setMobileOpen(false)}
+        />
         <div className="mt-auto border-t border-white/10 p-4"><LogoutButton /></div>
       </aside>
 

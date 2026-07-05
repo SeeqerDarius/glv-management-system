@@ -134,7 +134,7 @@ export default async function AccountDetailsPage({
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
                 {account.product.name}
@@ -384,7 +384,7 @@ export default async function AccountDetailsPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-[620px] text-sm">
             <thead>
               <tr className="bg-gray-100 text-left text-gray-700">
                 <th className="p-3 font-medium">Date</th>
@@ -477,7 +477,7 @@ export default async function AccountDetailsPage({
         </div>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="min-w-[620px] text-sm">
             <thead>
               <tr className="bg-gray-100 text-left text-gray-700">
                 <th className="p-3 font-medium">Receipt</th>

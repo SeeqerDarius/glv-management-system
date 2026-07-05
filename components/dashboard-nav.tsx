@@ -48,10 +48,19 @@ const navigation = [
 export function DashboardNav({
   isAdmin,
   permissions,
+  attention,
   onNavigate,
 }: {
   isAdmin: boolean;
   permissions: UserPermission[];
+  attention?: Record<
+    string,
+    {
+      count: number;
+      label: string;
+      href?: string;
+    }
+  >;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
@@ -74,6 +83,8 @@ export function DashboardNav({
           const Icon = item.icon;
 
           const firstAdminItem = item.href === firstAdminHref;
+          const attentionItem = attention?.[item.href];
+          const attentionCount = attentionItem?.count ?? 0;
 
           return (
             <div key={item.href}>
@@ -88,7 +99,16 @@ export function DashboardNav({
               )}
             >
               <Icon className="size-4" />
-              <span>{item.label}</span>
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {attentionCount > 0 ? (
+                <span
+                  title={attentionItem?.label}
+                  aria-label={attentionItem?.label}
+                  className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-green-950"
+                >
+                  {attentionCount > 99 ? "99+" : attentionCount}
+                </span>
+              ) : null}
               </Link>
             </div>
           );
