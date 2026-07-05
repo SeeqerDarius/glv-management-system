@@ -32,26 +32,30 @@ export function SidebarAnimation() {
     const parent = parentElement;
     const ctx = context;
     let animationId = 0;
+    let width = 1;
+    let height = 1;
     let particles: Particle[] = [];
     const pointer = { x: -999, y: -999 };
 
     function resize() {
       const rect = parent.getBoundingClientRect();
       const ratio = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.floor(rect.width * ratio));
-      canvas.height = Math.max(1, Math.floor(rect.height * ratio));
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
+      width = Math.max(1, rect.width);
+      height = Math.max(1, rect.height);
+      canvas.width = Math.floor(width * ratio);
+      canvas.height = Math.floor(height * ratio);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     }
 
     function seedParticles() {
-      const rect = parent.getBoundingClientRect();
-      const count = Math.max(18, Math.floor((rect.width * rect.height) / 15000));
+      const density = width < 280 ? 19000 : 15000;
+      const count = Math.min(64, Math.max(14, Math.floor((width * height) / density)));
 
       particles = Array.from({ length: count }, () => ({
-        x: Math.random() * rect.width,
-        y: Math.random() * rect.height,
+        x: Math.random() * width,
+        y: Math.random() * height,
         vx: (Math.random() - 0.5) * 0.18,
         vy: (Math.random() - 0.5) * 0.18,
         r: Math.random() * 1.2 + 0.5,
@@ -60,17 +64,16 @@ export function SidebarAnimation() {
     }
 
     function draw() {
-      const rect = parent.getBoundingClientRect();
-      ctx.clearRect(0, 0, rect.width, rect.height);
+      ctx.clearRect(0, 0, width, height);
 
       for (const particle of particles) {
         particle.x += particle.vx;
         particle.y += particle.vy;
 
-        if (particle.x < 0) particle.x = rect.width;
-        if (particle.x > rect.width) particle.x = 0;
-        if (particle.y < 0) particle.y = rect.height;
-        if (particle.y > rect.height) particle.y = 0;
+        if (particle.x < 0) particle.x = width;
+        if (particle.x > width) particle.x = 0;
+        if (particle.y < 0) particle.y = height;
+        if (particle.y > height) particle.y = 0;
 
         const dx = particle.x - pointer.x;
         const dy = particle.y - pointer.y;
@@ -123,10 +126,16 @@ export function SidebarAnimation() {
       seedParticles();
     }
 
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(handleResize);
+
     resize();
     seedParticles();
     draw();
 
+    resizeObserver?.observe(parent);
     parent.addEventListener("pointermove", handlePointerMove);
     parent.addEventListener("pointerleave", handlePointerLeave);
     window.addEventListener("resize", handleResize);
@@ -136,6 +145,7 @@ export function SidebarAnimation() {
       parent.removeEventListener("pointermove", handlePointerMove);
       parent.removeEventListener("pointerleave", handlePointerLeave);
       window.removeEventListener("resize", handleResize);
+      resizeObserver?.disconnect();
     };
   }, []);
 
