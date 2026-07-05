@@ -1,13 +1,12 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
-import { formatMoney } from "@/lib/accounts";
 import { productCategories } from "@/lib/product-categories";
 
 type ProductFormProps = {
@@ -29,6 +28,11 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-red-700">{message}</p>;
 }
 
+function money(value: number) {
+  if (!Number.isFinite(value)) return "GHS 0.00";
+  return `GHS ${value.toFixed(2)}`;
+}
+
 export function ProductForm({
   action,
   product,
@@ -38,31 +42,28 @@ export function ProductForm({
 }: ProductFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dailyAmount, setDailyAmount] = useState(
-    product?.dailyAmount?.toString() ??
-      (defaultDailyAmount > 0 ? defaultDailyAmount.toString() : "")
+    product?.dailyAmount ?? defaultDailyAmount
   );
-  const [duration, setDuration] = useState(
-    product?.duration?.toString() ?? defaultDuration.toString()
-  );
-  const dailyAmountValue = Number(dailyAmount);
-  const durationValue = Number(duration);
-  const layawayPrice =
-    Number.isFinite(dailyAmountValue) &&
-    dailyAmountValue > 0 &&
-    Number.isInteger(durationValue) &&
-    durationValue > 0
-      ? dailyAmountValue * durationValue
-      : 0;
+  const [duration, setDuration] = useState(product?.duration ?? defaultDuration);
+
+  const calculatedLayawayPrice = useMemo(() => {
+    return dailyAmount * duration;
+  }, [dailyAmount, duration]);
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
-      {state.duplicateWarning ? <input type="hidden" name="confirmDuplicate" value="true" /> : null}
+      {state.duplicateWarning ? (
+        <input type="hidden" name="confirmDuplicate" value="true" />
+      ) : null}
 
       {state.duplicateWarning ? (
         <div className="flex gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
           <AlertTriangle className="mt-0.5 size-5 shrink-0" />
-          <div><p className="font-semibold">Possible duplicate found</p><p className="mt-1">{state.duplicateWarning}</p></div>
+          <div>
+            <p className="font-semibold">Possible duplicate found</p>
+            <p className="mt-1">{state.duplicateWarning}</p>
+          </div>
         </div>
       ) : null}
 
@@ -139,20 +140,20 @@ export function ProductForm({
           />
           <FieldError message={state.errors?.transportCost} />
         </label>
+      </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
         <label className="block space-y-1">
-          <span className="text-sm font-medium text-gray-700">
-            Daily Amount
-          </span>
+          <span className="text-sm font-medium text-gray-700">Daily Amount</span>
           <input
             name="dailyAmount"
             type="number"
             min="0"
             step="0.01"
-            value={dailyAmount}
-            onChange={(event) => setDailyAmount(event.target.value)}
+            defaultValue={product?.dailyAmount ?? defaultDailyAmount}
             className="w-full rounded border p-3"
             required
+            onChange={(event) => setDailyAmount(Number(event.target.value))}
           />
           <FieldError message={state.errors?.dailyAmount} />
         </label>
@@ -164,27 +165,38 @@ export function ProductForm({
             type="number"
             min="1"
             step="1"
-            value={duration}
-            onChange={(event) => setDuration(event.target.value)}
+            defaultValue={product?.duration ?? defaultDuration}
             className="w-full rounded border p-3"
             required
+            onChange={(event) => setDuration(Number(event.target.value))}
           />
           <FieldError message={state.errors?.duration} />
         </label>
       </div>
 
-      <div className="rounded-lg border border-lime-200 bg-lime-50 p-4">
-        <p className="text-xs font-medium uppercase text-lime-900">
-          Calculated Layaway Price
+      <div className="rounded-md border border-lime-200 bg-lime-50 p-4">
+        <p className="text-sm font-medium text-lime-950">
+          Layaway Price is calculated automatically.
         </p>
-        <p className="mt-1 text-xl font-semibold text-gray-950">
-          {formatMoney(layawayPrice)}
-        </p>
-        <p className="mt-1 text-sm text-gray-600">
-          Daily Amount x Duration Days. The final value is calculated on the
-          server.
+        <p className="mt-1 text-sm text-lime-800">
+          {money(dailyAmount)} × {duration || 0} days ={" "}
+          <span className="font-semibold">{money(calculatedLayawayPrice)}</span>
         </p>
       </div>
+
+      <label className="block space-y-1">
+        <span className="text-sm font-medium text-gray-700">Quantity On Sale</span>
+        <input
+          name="quantityOnSale"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={product?.quantityOnSale ?? 0}
+          className="w-full rounded border p-3"
+          required
+        />
+        <FieldError message={state.errors?.quantityOnSale} />
+      </label>
 
       <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
         <input
@@ -198,8 +210,15 @@ export function ProductForm({
 
       <div className="flex gap-3">
         <Button type="submit" disabled={pending}>
-          {pending ? <GlvLoading compact label="Saving" /> : state.duplicateWarning ? "Add Anyway" : submitLabel}
+          {pending ? (
+            <GlvLoading compact label="Saving" />
+          ) : state.duplicateWarning ? (
+            "Add Anyway"
+          ) : (
+            submitLabel
+          )}
         </Button>
+
         <Button asChild type="button" variant="outline">
           <Link href="/products">Cancel</Link>
         </Button>

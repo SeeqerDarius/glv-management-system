@@ -61,7 +61,14 @@ export function DashboardNav({
       href?: string;
     }
   >;
-  onNavigate?: () => void;
+  onNavigate?: (
+    href: string,
+    attentionItem?: {
+      count: number;
+      label: string;
+      href?: string;
+    }
+  ) => void;
 }) {
   const pathname = usePathname();
   const visibleNavigation = navigation.filter(
@@ -90,8 +97,8 @@ export function DashboardNav({
             <div key={item.href}>
               {firstAdminItem ? <p className="mb-2 mt-5 px-3 text-[0.68rem] font-bold uppercase text-lime-200/60">Administration</p> : null}
               <Link
-              href={item.href}
-              onClick={onNavigate}
+              href={attentionItem?.href ?? item.href}
+              onClick={() => onNavigate?.(item.href, attentionItem)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "glv-nav-link mb-1 flex h-10 items-center gap-3 whitespace-nowrap rounded-md px-3 text-sm font-medium",

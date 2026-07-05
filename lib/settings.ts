@@ -8,7 +8,7 @@ export const fallbackSettings = {
   phone: "",
   installmentDurationDays: 184,
   defaultDailyCollection: 0,
-  procurementThresholdPercent: 85,
+  procurementThresholdPercent: 70,
   defaultMonthlySalary: 0,
   receiptPrefix: "GLV/RCPT",
   customerIdPrefix: "GLV",

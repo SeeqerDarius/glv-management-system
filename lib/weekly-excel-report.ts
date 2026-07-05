@@ -3,6 +3,7 @@ import { AccountStatus } from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
+import { getProcurementList } from "@/lib/procurement";
 
 const palette = {
   ink: "17351F",
@@ -237,6 +238,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const netProfitSoFar = totalCollected - totalProductCost - salaryPaidThisMonth;
   const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
   const period = formatPeriod(start, end);
+  const procurement = await getProcurementList();
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "GLV Management System";
@@ -271,6 +273,9 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Expected receivables", expectedReceivables],
     ["Outstanding balance", outstandingBalance],
     ["Product cost exposure", totalProductCost],
+    ["Procurement products ready", procurement.items.length],
+    ["Procurement units ready", procurement.totalQuantity],
+    ["Procurement estimated cost", procurement.totalCost],
     ["Current month payroll", currentMonthPayroll],
     ["Salary paid this month", salaryPaidThisMonth],
     ["Total salaries paid", totalSalariesPaid],
@@ -290,10 +295,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   }
   summary.getCell("B5").numFmt = dateFormat;
   summary.getCell("B6").numFmt = dateFormat;
-  for (let row = 15; row <= 26; row += 1) {
+  [15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 28, 29].forEach((row) => {
     summary.getCell(row, 2).numFmt = currencyFormat;
-  }
-  summary.getCell("B24").numFmt = "0.0%";
+  });
+  summary.getCell("B27").numFmt = "0.0%";
   finishSheet(summary, [30, 23]);
 
   const staffRows = staff
@@ -548,6 +553,69 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     {
       currencyColumns: [3, 4, 5, 7, 9, 11, 12],
       percentageColumns: [10],
+    }
+  );
+
+  const readyProcurementSheet = workbook.addWorksheet("Procurement List", {
+    properties: { tabColor: { argb: palette.lime } },
+  });
+  initializeSheet(
+    readyProcurementSheet,
+    "PROCUREMENT LIST",
+    `Products ready to buy | ${period} | Threshold: ${procurement.thresholdPercent}% paid`,
+    [
+      "Product Name",
+      "Category",
+      "Units To Buy",
+      "Cost Price",
+      "Transport Cost",
+      "Landed Unit Cost",
+      "Estimated Total Cost",
+      "Layaway Price",
+      "Average Paid %",
+      "Highest Paid %",
+    ]
+  );
+  procurement.items.forEach((item) => {
+    readyProcurementSheet.addRow([
+      item.productName,
+      item.category,
+      item.quantity,
+      item.unitCost,
+      item.transportCost,
+      item.landedUnitCost,
+      item.totalCost,
+      item.layawayPrice,
+      item.averageProgress,
+      item.highestProgress,
+    ]);
+  });
+  if (procurement.items.length > 0) {
+    readyProcurementSheet.addRow([
+      "Total",
+      "",
+      procurement.totalQuantity,
+      "",
+      "",
+      "",
+      procurement.totalCost,
+      "",
+      "",
+      "",
+    ]);
+    readyProcurementSheet.lastRow!.font = {
+      name: "Aptos",
+      size: 10,
+      bold: true,
+      color: { argb: palette.ink },
+    };
+  }
+  finishSheet(
+    readyProcurementSheet,
+    [28, 18, 14, 16, 16, 18, 20, 16, 16, 16],
+    {
+      currencyColumns: [4, 5, 6, 7, 8],
+      percentageColumns: [9, 10],
     }
   );
 

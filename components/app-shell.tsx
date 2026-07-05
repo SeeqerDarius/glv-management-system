@@ -17,6 +17,12 @@ type AttentionMap = Record<
   }
 >;
 
+const dismissedAttentionStorageKey = "glv-dismissed-attention";
+
+function attentionSignature(key: string, item: AttentionMap[string]) {
+  return `${key}|${item.href ?? ""}|${item.count}|${item.label}`;
+}
+
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
   "/staff", "/credits", "/reports", "/audit-logs", "/settings",
@@ -49,6 +55,21 @@ export function AppShell({ children, user, brand }: {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [attention, setAttention] = useState<AttentionMap>({});
+  const [dismissedAttention, setDismissedAttention] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") {
+      return new Set();
+    }
+
+    try {
+      const stored = window.localStorage.getItem(dismissedAttentionStorageKey);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed)
+        ? new Set(parsed.filter((value) => typeof value === "string"))
+        : new Set();
+    } catch {
+      return new Set();
+    }
+  });
   const isProtected = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
   const isAdmin = user?.role === "ADMIN" || user?.role === "SUPER_ADMIN";
   const pageTitle = pageTitles.find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`))?.[1] ?? "GLV Management";
@@ -64,7 +85,15 @@ export function AppShell({ children, user, brand }: {
       .then((response) => (response.ok ? response.json() : null))
       .then((data: { attention?: AttentionMap } | null) => {
         if (active) {
-          setAttention(data?.attention ?? {});
+          const nextAttention = data?.attention ?? {};
+          setAttention(
+            Object.fromEntries(
+              Object.entries(nextAttention).filter(
+                ([key, item]) =>
+                  !dismissedAttention.has(attentionSignature(key, item))
+              )
+            )
+          );
         }
       })
       .catch(() => {
@@ -76,7 +105,35 @@ export function AppShell({ children, user, brand }: {
     return () => {
       active = false;
     };
-  }, [isProtected, pathname, user]);
+  }, [dismissedAttention, isProtected, pathname, user]);
+
+  function dismissAttention(key: string, item?: AttentionMap[string]) {
+    if (!item) {
+      setMobileOpen(false);
+      return;
+    }
+
+    const signature = attentionSignature(key, item);
+    setAttention((current) => {
+      const remaining = { ...current };
+      delete remaining[key];
+      return remaining;
+    });
+    setDismissedAttention((current) => {
+      const next = new Set(current);
+      next.add(signature);
+      try {
+        window.localStorage.setItem(
+          dismissedAttentionStorageKey,
+          JSON.stringify(Array.from(next))
+        );
+      } catch {
+        // Local dismissal is best effort; the live notification still works.
+      }
+      return next;
+    });
+    setMobileOpen(false);
+  }
 
   if (!isProtected || !user) {
     return <div className="flex min-h-screen flex-col"><div className="flex-1">{children}</div><Footer /></div>;
@@ -99,7 +156,7 @@ export function AppShell({ children, user, brand }: {
           isAdmin={isAdmin}
           permissions={user.permissions}
           attention={attention}
-          onNavigate={() => setMobileOpen(false)}
+          onNavigate={dismissAttention}
         />
         <div className="mt-auto border-t border-white/10 p-4"><LogoutButton /></div>
       </aside>

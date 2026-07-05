@@ -153,6 +153,7 @@ export async function updateSettings(formData: FormData): Promise<void> {
   revalidatePath("/settings");
   revalidatePath("/dashboard");
   revalidatePath("/reports");
+  revalidatePath("/products");
   revalidatePath("/products/new");
   revalidatePath("/", "layout");
   redirect("/settings?saved=1");

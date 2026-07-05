@@ -583,6 +583,7 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     select: {
       id: true,
       customerId: true,
+      productId: true,
       status: true,
       balance: true,
       deliveryStatus: true,
@@ -658,4 +659,6 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   revalidatePath("/accounts");
   revalidatePath(`/accounts/${account.id}`);
   revalidatePath(`/customers/${account.customerId}`);
+  revalidatePath("/products");
+  revalidatePath(`/products/${account.productId}`);
 }

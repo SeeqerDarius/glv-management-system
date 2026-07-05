@@ -165,7 +165,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       {activeTab === "procurement" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
           Products appear here when customer accounts for that product are at
-          least {procurement.thresholdPercent}% paid and not yet fully paid.
+          least {procurement.thresholdPercent}% paid, including fully paid
+          accounts that are still pending delivery.
         </div>
       ) : null}
 

@@ -1,9 +1,10 @@
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 
 const procurementStatuses = [
   AccountStatus.ACTIVE,
+  AccountStatus.COMPLETED,
   AccountStatus.OVERDUE,
   AccountStatus.DORMANT,
   AccountStatus.PROBATION,
@@ -25,14 +26,15 @@ export type ProcurementListItem = {
 
 export async function getProcurementList() {
   const settings = await getSettings();
-  const thresholdPercent = Number(settings.procurementThresholdPercent ?? 85);
+  const thresholdPercent = Math.min(
+    Number(settings.procurementThresholdPercent ?? 70),
+    70
+  );
   const threshold = Math.min(Math.max(thresholdPercent, 0), 100) / 100;
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
-      balance: {
-        gt: 0,
-      },
+      deliveryStatus: DeliveryStatus.PENDING,
       status: {
         in: procurementStatuses,
       },
@@ -60,7 +62,7 @@ export async function getProcurementList() {
     const progress =
       account.targetAmount > 0 ? account.totalPaid / account.targetAmount : 0;
 
-    if (progress < threshold || progress >= 1) {
+    if (progress < threshold) {
       continue;
     }
 
