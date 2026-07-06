@@ -18,19 +18,37 @@ type ProductOption = {
   dailyAmount: number;
   duration: number;
 };
+type ExistingCustomerOption = {
+  id: string;
+  fullName: string;
+  customerId: string;
+};
 
-export function CustomerForm({ action, staff, products, canAssignStaff }: {
+function normalizeName(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function CustomerForm({ action, staff, products, existingCustomers, canAssignStaff }: {
   action: (state: CustomerFormState, formData: FormData) => Promise<CustomerFormState>;
   staff: StaffOption[];
   products: ProductOption[];
+  existingCustomers: ExistingCustomerOption[];
   canAssignStaff: boolean;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [fullName, setFullName] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [firstPaymentAmount, setFirstPaymentAmount] = useState("");
   const selectedProduct = products.find(
     (product) => product.id === selectedProductId
   );
+  const normalizedFullName = normalizeName(fullName);
+  const existingNameMatch =
+    normalizedFullName.length > 0
+      ? existingCustomers.find(
+          (customer) => normalizeName(customer.fullName) === normalizedFullName
+        )
+      : null;
   const submitLabel = selectedProduct
     ? "Create Customer & Account"
     : "Create Customer";
@@ -51,7 +69,23 @@ export function CustomerForm({ action, staff, products, canAssignStaff }: {
       ) : null}
       {state.duplicateWarning ? <input type="hidden" name="confirmDuplicate" value="true" /> : null}
 
-      <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Full Name</span><input name="fullName" className="w-full rounded border p-3" required />{state.errors?.fullName ? <p className="text-sm text-red-700">{state.errors.fullName}</p> : null}</label>
+      <label className="block space-y-1">
+        <span className="text-sm font-medium text-gray-700">Full Name</span>
+        <input
+          name="fullName"
+          value={fullName}
+          onChange={(event) => setFullName(event.target.value)}
+          className="w-full rounded border p-3"
+          required
+        />
+        {existingNameMatch ? (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            This name already exists as {existingNameMatch.fullName} (
+            {existingNameMatch.customerId}).
+          </p>
+        ) : null}
+        {state.errors?.fullName ? <p className="text-sm text-red-700">{state.errors.fullName}</p> : null}
+      </label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Phone <span className="font-normal text-gray-400">(optional)</span></span><input name="phone" className="w-full rounded border p-3" />{state.errors?.phone ? <p className="text-sm text-red-700">{state.errors.phone}</p> : null}</label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Address</span><textarea name="address" className="min-h-24 w-full rounded border p-3" /></label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">National ID <span className="font-normal text-gray-400">(optional)</span></span><input name="nationalId" className="w-full rounded border p-3" /></label>

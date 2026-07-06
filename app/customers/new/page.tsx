@@ -33,6 +33,16 @@ export default async function NewCustomerPage() {
       duration: true,
     },
   });
+  const existingCustomers = await prisma.customer.findMany({
+    orderBy: {
+      fullName: "asc",
+    },
+    select: {
+      id: true,
+      fullName: true,
+      customerId: true,
+    },
+  });
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -47,6 +57,7 @@ export default async function NewCustomerPage() {
         action={createCustomer}
         staff={staff}
         products={products}
+        existingCustomers={existingCustomers}
         canAssignStaff={canAssignStaff}
       />
     </div>
