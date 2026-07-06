@@ -94,13 +94,13 @@ async function resolveStaffId(formData: FormData, role: UserRole, staffId?: stri
   return selectedStaffId;
 }
 
-const CUSTOMER_ID_CREATE_ATTEMPTS = 5;
+const CUSTOMER_ID_CREATE_ATTEMPTS = 25;
 
 type CustomerIdClient =
   | Pick<typeof prisma, "staff" | "customer" | "$queryRaw">
   | Prisma.TransactionClient;
 
-async function generateCustomerIdWithClient(
+async function getNextCustomerIdSeed(
   client: CustomerIdClient,
   staffId: string,
   options: { lockPrefix?: boolean } = {}
@@ -144,20 +144,19 @@ async function generateCustomerIdWithClient(
     return Number.isFinite(value) && value > max ? value : max;
   }, 0);
 
-  return `${prefix}${String(maxNumber + 1).padStart(3, "0")}`;
+  return {
+    prefix,
+    nextNumber: maxNumber + 1,
+  };
+}
+
+function formatCustomerId(prefix: string, sequence: number) {
+  return `${prefix}${String(sequence).padStart(3, "0")}`;
 }
 
 export async function generateCustomerId(staffId: string) {
-  return generateCustomerIdWithClient(prisma, staffId);
-}
-
-function isCustomerIdCollision(error: unknown) {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002" &&
-    Array.isArray(error.meta?.target) &&
-    error.meta.target.some((target) => String(target).includes("customerId"))
-  );
+  const seed = await getNextCustomerIdSeed(prisma, staffId);
+  return formatCustomerId(seed.prefix, seed.nextNumber);
 }
 
 export async function createCustomer(
@@ -277,22 +276,43 @@ export async function createCustomer(
         }
       | null = null;
 
-    for (let attempt = 1; attempt <= CUSTOMER_ID_CREATE_ATTEMPTS; attempt += 1) {
-      try {
-        result = await prisma.$transaction(async (tx) => {
-          const customerId = await generateCustomerIdWithClient(tx, staffId, {
-            lockPrefix: true,
-          });
-          const createdCustomer = await tx.customer.create({
-            data: {
-              customerId,
-              fullName,
-              phone: phone || null,
-              address: cleanInput(formData.get("address")) || null,
-              nationalId: cleanInput(formData.get("nationalId")) || null,
-              staffId,
-            },
-          });
+    result = await prisma.$transaction(async (tx) => {
+      const seed = await getNextCustomerIdSeed(tx, staffId, {
+        lockPrefix: true,
+      });
+      let createdCustomer: Awaited<ReturnType<typeof prisma.customer.create>> | null = null;
+
+      for (let attempt = 0; attempt < CUSTOMER_ID_CREATE_ATTEMPTS; attempt += 1) {
+        const customerId = formatCustomerId(seed.prefix, seed.nextNumber + attempt);
+        const existingCustomerId = await tx.customer.findUnique({
+          where: {
+            customerId,
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        if (existingCustomerId) {
+          continue;
+        }
+
+        createdCustomer = await tx.customer.create({
+          data: {
+            customerId,
+            fullName,
+            phone: phone || null,
+            address: cleanInput(formData.get("address")) || null,
+            nationalId: cleanInput(formData.get("nationalId")) || null,
+            staffId,
+          },
+        });
+        break;
+      }
+
+      if (!createdCustomer) {
+        throw new Error("Unable to allocate a unique customer ID.");
+      }
 
           await tx.auditLog.create({
             data: {
@@ -339,19 +359,7 @@ export async function createCustomer(
             customer: createdCustomer,
             accountId: account?.id ?? null,
           };
-        });
-        break;
-      } catch (error) {
-        if (
-          attempt < CUSTOMER_ID_CREATE_ATTEMPTS &&
-          isCustomerIdCollision(error)
-        ) {
-          continue;
-        }
-
-        throw error;
-      }
-    }
+    });
 
     if (!result) {
       throw new Error("Unable to allocate a unique customer ID.");
