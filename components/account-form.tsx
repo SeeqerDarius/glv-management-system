@@ -49,6 +49,13 @@ export function AccountForm({
     initialState
   );
   const [firstPaymentAmount, setFirstPaymentAmount] = useState("");
+  const selectedCustomerExists = customers.some(
+    (customer) => customer.id === selectedCustomerId
+  );
+  const [customerId, setCustomerId] = useState(
+    selectedCustomerExists ? selectedCustomerId : ""
+  );
+  const selectedCustomer = customers.find((customer) => customer.id === customerId);
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -62,7 +69,8 @@ export function AccountForm({
         <span className="text-sm font-medium text-gray-700">Customer</span>
         <select
           name="customerId"
-          defaultValue={selectedCustomerId}
+          value={customerId}
+          onChange={(event) => setCustomerId(event.target.value)}
           className="w-full rounded border p-3"
           required
         >
@@ -73,6 +81,17 @@ export function AccountForm({
             </option>
           ))}
         </select>
+        {selectedCustomer ? (
+          <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+            <p className="font-medium text-gray-950">
+              Assigned staff: {selectedCustomer.staff.fullName}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-600">
+              Staff code: {selectedCustomer.staff.code} | Customer ID:{" "}
+              {selectedCustomer.customerId}
+            </p>
+          </div>
+        ) : null}
         <FieldError message={state.errors?.customerId} />
       </label>
 
