@@ -130,6 +130,7 @@ async function generateCustomerIdWithClient(
 
   const existingCustomers = await client.customer.findMany({
     where: {
+      staffId,
       customerId: {
         startsWith: prefix,
       },
