@@ -26,11 +26,13 @@ export type ProcurementListItem = {
 
 export async function getProcurementList() {
   const settings = await getSettings();
-  const thresholdPercent = Math.min(
-    Number(settings.procurementThresholdPercent ?? 70),
-    70
+  const configuredThreshold = Number(
+    settings.procurementThresholdPercent ?? 70
   );
-  const threshold = Math.min(Math.max(thresholdPercent, 0), 100) / 100;
+  const thresholdPercent = Number.isFinite(configuredThreshold)
+    ? Math.min(Math.max(configuredThreshold, 0), 100)
+    : 70;
+  const threshold = thresholdPercent / 100;
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
