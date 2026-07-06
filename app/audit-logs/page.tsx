@@ -4,8 +4,38 @@ import { prisma } from "@/lib/prisma";
 type AuditLogsPageProps = {
   searchParams: Promise<{
     q?: string;
+    sort?: string;
   }>;
 };
+
+const auditSortOptions = [
+  "newest",
+  "oldest",
+  "action-az",
+  "entity-az",
+  "user-az",
+] as const;
+type AuditSort = (typeof auditSortOptions)[number];
+
+function isAuditSort(value: string): value is AuditSort {
+  return auditSortOptions.includes(value as AuditSort);
+}
+
+function getAuditOrderBy(sort: AuditSort) {
+  switch (sort) {
+    case "oldest":
+      return { createdAt: "asc" } as const;
+    case "action-az":
+      return { action: "asc" } as const;
+    case "entity-az":
+      return { entity: "asc" } as const;
+    case "user-az":
+      return { userId: "asc" } as const;
+    case "newest":
+    default:
+      return { createdAt: "desc" } as const;
+  }
+}
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -31,8 +61,12 @@ function previewJson(value: string | null) {
 export default async function AuditLogsPage({
   searchParams,
 }: AuditLogsPageProps) {
-  const { q } = await searchParams;
+  const { q, sort } = await searchParams;
   const query = q?.trim() ?? "";
+  const sortParam = sort ?? "";
+  const selectedSort: AuditSort = isAuditSort(sortParam)
+    ? sortParam
+    : "newest";
 
   const logs = await prisma.auditLog.findMany({
     where: query
@@ -65,9 +99,7 @@ export default async function AuditLogsPage({
           ],
         }
       : undefined,
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: getAuditOrderBy(selectedSort),
     take: 100,
   });
 
@@ -80,13 +112,24 @@ export default async function AuditLogsPage({
         </p>
       </div>
 
-      <form className="flex max-w-xl flex-col gap-2 sm:flex-row">
+      <form className="grid max-w-3xl gap-2 sm:grid-cols-[minmax(0,1fr)_190px_auto]">
         <input
           name="q"
           defaultValue={query}
           placeholder="Search action, entity, record, or user"
           className="w-full rounded border bg-white p-3"
         />
+        <select
+          name="sort"
+          defaultValue={selectedSort}
+          className="w-full rounded border bg-white p-3 text-sm"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="action-az">Action A-Z</option>
+          <option value="entity-az">Entity A-Z</option>
+          <option value="user-az">User ID A-Z</option>
+        </select>
         <button
           type="submit"
           className="rounded bg-green-700 px-4 py-2 text-sm font-medium text-white hover:bg-green-600"

@@ -65,10 +65,25 @@ function getLoginPresence(user: StaffRow["user"], now: Date) {
 type StaffPageProps = {
   searchParams: Promise<{
     q?: string;
+    sort?: string;
     error?: string;
     deleted?: string;
   }>;
 };
+const staffSortOptions = [
+  "newest",
+  "oldest",
+  "name-az",
+  "code-az",
+  "customers-high",
+  "salary-high",
+  "login-recent",
+] as const;
+type StaffSort = (typeof staffSortOptions)[number];
+
+function isStaffSort(value: string): value is StaffSort {
+  return staffSortOptions.includes(value as StaffSort);
+}
 
 type StaffListItem = Prisma.StaffGetPayload<{
   include: {
@@ -86,8 +101,12 @@ type StaffRow = StaffListItem & {
 };
 
 export default async function StaffPage({ searchParams }: StaffPageProps) {
-  const { q, error, deleted } = await searchParams;
+  const { q, sort, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
+  const sortParam = sort ?? "";
+  const selectedSort: StaffSort = isStaffSort(sortParam)
+    ? sortParam
+    : "newest";
   const now = new Date();
   let staff: StaffRow[];
 
@@ -157,7 +176,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       };
     });
 
-    staff = query
+    const filteredStaff = query
       ? staffWithResetRequests.filter(
           (s) =>
             s.fullName.toLowerCase().includes(query.toLowerCase()) ||
@@ -166,6 +185,29 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             (s.phone ?? "").toLowerCase().includes(query.toLowerCase()),
         )
       : staffWithResetRequests;
+
+    staff = [...filteredStaff].sort((a, b) => {
+      switch (selectedSort) {
+        case "oldest":
+          return a.createdAt.getTime() - b.createdAt.getTime();
+        case "name-az":
+          return a.fullName.localeCompare(b.fullName);
+        case "code-az":
+          return a.code.localeCompare(b.code);
+        case "customers-high":
+          return b._count.customers - a._count.customers;
+        case "salary-high":
+          return b.monthlySalary - a.monthlySalary;
+        case "login-recent":
+          return (
+            (b.user?.lastSeenAt?.getTime() ?? 0) -
+            (a.user?.lastSeenAt?.getTime() ?? 0)
+          );
+        case "newest":
+        default:
+          return b.createdAt.getTime() - a.createdAt.getTime();
+      }
+    });
   } catch {
     return (
       <div className="space-y-6">
@@ -230,14 +272,35 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       )}
 
       {/* Search */}
-      <form className="relative w-full max-w-sm">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Search by name, email, code, or phone"
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
-        />
+      <form className="grid w-full max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+          <input
+            name="q"
+            defaultValue={query}
+            placeholder="Search by name, email, code, or phone"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+          />
+        </div>
+        <select
+          name="sort"
+          defaultValue={selectedSort}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="name-az">Name A-Z</option>
+          <option value="code-az">Code A-Z</option>
+          <option value="customers-high">Most customers</option>
+          <option value="salary-high">Highest salary</option>
+          <option value="login-recent">Recent login</option>
+        </select>
+        <button
+          type="submit"
+          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Filter
+        </button>
       </form>
 
       {/* Table */}

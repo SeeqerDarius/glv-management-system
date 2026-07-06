@@ -18,19 +18,55 @@ type ProductsPageProps = {
   searchParams: Promise<{
     q?: string;
     tab?: string;
+    sort?: string;
     error?: string;
     deleted?: string;
   }>;
 };
+
+const productSortOptions = [
+  "name-az",
+  "name-za",
+  "category-az",
+  "daily-high",
+  "price-high",
+  "profit-high",
+  "quantity-high",
+] as const;
+type ProductSort = (typeof productSortOptions)[number];
+
+const procurementSortOptions = [
+  "quantity-high",
+  "product-az",
+  "cost-high",
+  "paid-high",
+  "average-paid-high",
+] as const;
+type ProcurementSort = (typeof procurementSortOptions)[number];
+
+function isProductSort(value: string): value is ProductSort {
+  return productSortOptions.includes(value as ProductSort);
+}
+
+function isProcurementSort(value: string): value is ProcurementSort {
+  return procurementSortOptions.includes(value as ProcurementSort);
+}
 
 function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { q, tab, error, deleted } = await searchParams;
+  const { q, tab, sort, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
   const activeTab = tab === "procurement" ? "procurement" : "products";
+  const sortParam = sort ?? "";
+  const selectedProductSort: ProductSort = isProductSort(sortParam)
+    ? sortParam
+    : "name-az";
+  const selectedProcurementSort: ProcurementSort = isProcurementSort(sortParam)
+    ? sortParam
+    : "quantity-high";
 
   const [products, procurement] = await Promise.all([
     prisma.product.findMany({
@@ -48,13 +84,59 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     getProcurementList(),
   ]);
 
-  const procurementItems = query
+  const procurementItems = (query
     ? procurement.items.filter(
         (item) =>
           item.productName.toLowerCase().includes(query.toLowerCase()) ||
           item.category.toLowerCase().includes(query.toLowerCase())
       )
-    : procurement.items;
+    : procurement.items
+  ).sort((a, b) => {
+    switch (selectedProcurementSort) {
+      case "product-az":
+        return a.productName.localeCompare(b.productName);
+      case "cost-high":
+        return b.totalCost - a.totalCost;
+      case "paid-high":
+        return b.highestProgress - a.highestProgress;
+      case "average-paid-high":
+        return b.averageProgress - a.averageProgress;
+      case "quantity-high":
+      default:
+        return (
+          b.quantity - a.quantity ||
+          b.highestProgress - a.highestProgress ||
+          a.productName.localeCompare(b.productName)
+        );
+    }
+  });
+
+  const sortedProducts = [...products].sort((a, b) => {
+    const profitA =
+      (a.layawayPrice - a.costPrice - a.transportCost) * a._count.accounts;
+    const profitB =
+      (b.layawayPrice - b.costPrice - b.transportCost) * b._count.accounts;
+
+    switch (selectedProductSort) {
+      case "name-za":
+        return b.name.localeCompare(a.name);
+      case "category-az":
+        return (
+          a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+        );
+      case "daily-high":
+        return b.dailyAmount - a.dailyAmount;
+      case "price-high":
+        return b.layawayPrice - a.layawayPrice;
+      case "profit-high":
+        return profitB - profitA;
+      case "quantity-high":
+        return b._count.accounts - a._count.accounts;
+      case "name-az":
+      default:
+        return a.name.localeCompare(b.name);
+    }
+  });
 
   const totalQty = products.reduce((s, p) => s + p._count.accounts, 0);
   const totalProfit = products.reduce(
@@ -119,7 +201,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               },
             ]
           : [
-              { label: "Total products", value: products.length },
+              { label: "Total products", value: sortedProducts.length },
               { label: "Total qty on sale", value: totalQty },
               { label: "Expected profit", value: formatMoney(totalProfit), green: true },
             ]).map((s) => (
@@ -171,17 +253,54 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       ) : null}
 
       {/* Search */}
-      <form className="relative max-w-sm">
+      <form className="grid max-w-3xl gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]">
         {activeTab === "procurement" ? (
           <input type="hidden" name="tab" value="procurement" />
         ) : null}
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
-        <input
-          name="q"
-          defaultValue={query}
-          placeholder="Search by name or category"
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
-        />
+        <div className="relative">
+          <SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+          <input
+            name="q"
+            defaultValue={query}
+            placeholder="Search by name or category"
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+          />
+        </div>
+        <select
+          name="sort"
+          defaultValue={
+            activeTab === "procurement"
+              ? selectedProcurementSort
+              : selectedProductSort
+          }
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
+        >
+          {activeTab === "procurement" ? (
+            <>
+              <option value="quantity-high">Most units</option>
+              <option value="product-az">Product A-Z</option>
+              <option value="cost-high">Highest total cost</option>
+              <option value="paid-high">Highest paid %</option>
+              <option value="average-paid-high">Highest avg. paid</option>
+            </>
+          ) : (
+            <>
+              <option value="name-az">Name A-Z</option>
+              <option value="name-za">Name Z-A</option>
+              <option value="category-az">Category A-Z</option>
+              <option value="daily-high">Highest daily</option>
+              <option value="price-high">Highest layaway total</option>
+              <option value="profit-high">Highest expected profit</option>
+              <option value="quantity-high">Most accounts</option>
+            </>
+          )}
+        </select>
+        <button
+          type="submit"
+          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Filter
+        </button>
       </form>
 
       {activeTab === "procurement" ? (
@@ -302,7 +421,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </thead>
 
             <tbody className="divide-y divide-gray-100">
-              {products.map((product) => {
+              {sortedProducts.map((product) => {
                 const unitProfit =
                   product.layawayPrice -
                   product.costPrice -

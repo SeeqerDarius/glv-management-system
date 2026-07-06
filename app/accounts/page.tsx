@@ -28,6 +28,7 @@ type AccountsPageProps = {
     staffId?: string;
     status?: string;
     productId?: string;
+    sort?: string;
     page?: string;
     error?: string;
     deleted?: string;
@@ -40,6 +41,40 @@ type AccountsPageProps = {
 // Pagination size, date formatting, and URL builder for pagination links
 // ============================================================================
 const PAGE_SIZE = 20;
+const accountSortOptions = [
+  "newest",
+  "oldest",
+  "customer-az",
+  "product-az",
+  "paid-high",
+  "balance-high",
+  "expected-soon",
+] as const;
+type AccountSort = (typeof accountSortOptions)[number];
+
+function isAccountSort(value: string): value is AccountSort {
+  return accountSortOptions.includes(value as AccountSort);
+}
+
+function getAccountOrderBy(sort: AccountSort): Prisma.CustomerAccountOrderByWithRelationInput {
+  switch (sort) {
+    case "oldest":
+      return { createdAt: "asc" };
+    case "customer-az":
+      return { customer: { fullName: "asc" } };
+    case "product-az":
+      return { product: { name: "asc" } };
+    case "paid-high":
+      return { totalPaid: "desc" };
+    case "balance-high":
+      return { balance: "desc" };
+    case "expected-soon":
+      return { expectedEndDate: "asc" };
+    case "newest":
+    default:
+      return { createdAt: "desc" };
+  }
+}
 
 function buildPageHref(params: URLSearchParams, page: number) {
   const nextParams = new URLSearchParams(params);
@@ -70,6 +105,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const selectedStatus = params.status || AccountStatus.ACTIVE;
   const selectedStaffId = params.staffId || "";
   const selectedProductId = params.productId || "";
+  const sortParam = params.sort ?? "";
+  const selectedSort: AccountSort = isAccountSort(sortParam)
+    ? sortParam
+    : "newest";
   const currentPage = Math.max(Number(params.page || "1"), 1);
 
   // ==========================================================================
@@ -160,7 +199,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     // Fetch accounts first (most important), then supporting data sequentially
     accounts = await prisma.customerAccount.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: getAccountOrderBy(selectedSort),
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
@@ -214,6 +253,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
   if (selectedStatus) urlParams.set("status", selectedStatus);
   if (selectedProductId) urlParams.set("productId", selectedProductId);
+  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
 
   // ==========================================================================
   // SECTION: Error State (Database Unavailable)
@@ -268,7 +308,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       {/* SECTION: Filter Form                                                   */}
       {/* Search input, staff/status/product dropdowns, and filter button        */}
       {/* ==================================================================== */}
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-5">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-6">
         <input
           name="q"
           defaultValue={query}
@@ -307,6 +347,16 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
               {product.name}
             </option>
           ))}
+        </select>
+
+        <select name="sort" defaultValue={selectedSort} className="rounded border p-3">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="customer-az">Customer A-Z</option>
+          <option value="product-az">Product A-Z</option>
+          <option value="paid-high">Highest paid</option>
+          <option value="balance-high">Highest balance</option>
+          <option value="expected-soon">Expected date soonest</option>
         </select>
 
         <Button type="submit" variant="outline">

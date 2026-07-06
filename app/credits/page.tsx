@@ -15,6 +15,34 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
+const creditSortOptions = [
+  "newest",
+  "oldest",
+  "amount-high",
+  "remaining-high",
+  "customer-az",
+] as const;
+type CreditSort = (typeof creditSortOptions)[number];
+
+function isCreditSort(value: string): value is CreditSort {
+  return creditSortOptions.includes(value as CreditSort);
+}
+
+function getCreditOrderBy(sort: CreditSort): Prisma.CustomerCreditOrderByWithRelationInput {
+  switch (sort) {
+    case "oldest":
+      return { createdAt: "asc" };
+    case "amount-high":
+      return { amount: "desc" };
+    case "remaining-high":
+      return { remainingAmount: "desc" };
+    case "customer-az":
+      return { customer: { fullName: "asc" } };
+    case "newest":
+    default:
+      return { createdAt: "desc" };
+  }
+}
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -69,6 +97,10 @@ export default async function CreditsPage({
   const q = query.q?.trim() ?? "";
   const selectedStatus = query.status?.trim() || CreditStatus.OPEN;
   const selectedSource = query.source?.trim() || "";
+  const sortParam = query.sort ?? "";
+  const selectedSort: CreditSort = isCreditSort(sortParam)
+    ? sortParam
+    : "newest";
   const filters: Prisma.CustomerCreditWhereInput[] = [];
 
   if (selectedStatus !== "ALL") {
@@ -100,9 +132,7 @@ export default async function CreditsPage({
 
   const credits = await prisma.customerCredit.findMany({
     where,
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: getCreditOrderBy(selectedSort),
     include: {
       customer: {
         include: {
@@ -168,7 +198,7 @@ export default async function CreditsPage({
         </div>
       ) : null}
 
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_170px_190px_auto] md:items-end">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_170px_190px_180px_auto] md:items-end">
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-600">Search</span>
           <div className="relative">
@@ -212,6 +242,21 @@ export default async function CreditsPage({
             <option value={CreditSource.MANUAL_ADJUSTMENT}>
               Manual adjustment
             </option>
+          </select>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Sort</span>
+          <select
+            name="sort"
+            defaultValue={selectedSort}
+            className="w-full rounded border p-3 text-sm"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="amount-high">Highest amount</option>
+            <option value="remaining-high">Highest remaining</option>
+            <option value="customer-az">Customer A-Z</option>
           </select>
         </label>
 

@@ -15,6 +15,34 @@ type CustomersPageProps = {
 };
 
 const PAGE_SIZE = 25;
+const customerSortOptions = [
+  "newest",
+  "oldest",
+  "name-az",
+  "name-za",
+  "id-az",
+] as const;
+type CustomerSort = (typeof customerSortOptions)[number];
+
+function isCustomerSort(value: string): value is CustomerSort {
+  return customerSortOptions.includes(value as CustomerSort);
+}
+
+function getCustomerOrderBy(sort: CustomerSort): Prisma.CustomerOrderByWithRelationInput {
+  switch (sort) {
+    case "oldest":
+      return { createdAt: "asc" };
+    case "name-az":
+      return { fullName: "asc" };
+    case "name-za":
+      return { fullName: "desc" };
+    case "id-az":
+      return { customerId: "asc" };
+    case "newest":
+    default:
+      return { createdAt: "desc" };
+  }
+}
 
 function buildPageHref(params: URLSearchParams, page: number) {
   const next = new URLSearchParams(params);
@@ -23,7 +51,8 @@ function buildPageHref(params: URLSearchParams, page: number) {
 }
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
-  const { error, deleted, delegated, q, page, staffId } = await searchParams;
+  const { error, deleted, delegated, q, page, sort, staffId } =
+    await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -35,6 +64,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
 
   const query = q?.trim() ?? "";
   const selectedStaffId = staffId?.trim() ?? "";
+  const sortParam = sort ?? "";
+  const selectedSort: CustomerSort = isCustomerSort(sortParam)
+    ? sortParam
+    : "newest";
   const currentPage = Math.max(Number(page || "1"), 1);
 
   const staffFilter: Prisma.CustomerWhereInput | undefined =
@@ -79,7 +112,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     // Sequential to avoid exhausting Neon connections
     customers = await prisma.customer.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: getCustomerOrderBy(selectedSort),
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
@@ -126,6 +159,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
+  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
 
   if (loadError) {
     return (
@@ -167,7 +201,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
       </div>
 
       {/* Search */}
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_220px_190px_auto] md:items-end">
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-600">Search</span>
           <div className="relative">
@@ -198,6 +232,21 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
             </select>
           </label>
         ) : null}
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Sort</span>
+          <select
+            name="sort"
+            defaultValue={selectedSort}
+            className="w-full rounded border p-3 text-sm"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="name-az">Name A-Z</option>
+            <option value="name-za">Name Z-A</option>
+            <option value="id-az">Customer ID A-Z</option>
+          </select>
+        </label>
 
         <div className="flex gap-2">
           <Button type="submit" variant="outline" className="flex-1 md:flex-none">

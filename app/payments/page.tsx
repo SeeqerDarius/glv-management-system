@@ -23,6 +23,34 @@ type PaymentsPageProps = {
 };
 
 const PAGE_SIZE = 50;
+const paymentSortOptions = [
+  "newest",
+  "oldest",
+  "amount-high",
+  "amount-low",
+  "receipt-az",
+] as const;
+type PaymentSort = (typeof paymentSortOptions)[number];
+
+function isPaymentSort(value: string): value is PaymentSort {
+  return paymentSortOptions.includes(value as PaymentSort);
+}
+
+function getPaymentOrderBy(sort: PaymentSort): Prisma.PaymentOrderByWithRelationInput {
+  switch (sort) {
+    case "oldest":
+      return { paymentDate: "asc" };
+    case "amount-high":
+      return { amount: "desc" };
+    case "amount-low":
+      return { amount: "asc" };
+    case "receipt-az":
+      return { receiptNo: "asc" };
+    case "newest":
+    default:
+      return { paymentDate: "desc" };
+  }
+}
 
 function buildPageHref(params: URLSearchParams, page: number) {
   const next = new URLSearchParams(params);
@@ -38,7 +66,7 @@ function parseDateFilter(value?: string) {
 }
 
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
-  const { error, deleted, from, method, page, q, staffId, to } =
+  const { error, deleted, from, method, page, q, sort, staffId, to } =
     await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
@@ -53,6 +81,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const query = q?.trim() ?? "";
   const selectedMethod = method?.trim() ?? "";
   const selectedStaffId = staffId?.trim() ?? "";
+  const sortParam = sort ?? "";
+  const selectedSort: PaymentSort = isPaymentSort(sortParam)
+    ? sortParam
+    : "newest";
   const fromDate = parseDateFilter(from);
   const toDate = parseDateFilter(to);
   if (toDate) {
@@ -178,7 +210,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
 
     payments = await prisma.payment.findMany({
       where: paymentFilter,
-      orderBy: { paymentDate: "desc" },
+      orderBy: getPaymentOrderBy(selectedSort),
       skip: (currentPage - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       select: {
@@ -234,6 +266,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   if (selectedMethod) urlParams.set("method", selectedMethod);
   if (from) urlParams.set("from", from);
   if (to) urlParams.set("to", to);
+  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
 
   // Group payments: staff → customer → account
   const groupedPayments = payments.reduce(
@@ -328,7 +361,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         </div>
       ) : null}
 
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_160px_160px_150px_150px_auto] md:items-end">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-[minmax(0,1fr)_160px_160px_150px_150px_170px_auto] md:items-end">
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-600">Search</span>
           <div className="relative">
@@ -393,6 +426,21 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
             defaultValue={to ?? ""}
             className="w-full rounded border p-3 text-sm"
           />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-xs font-medium text-gray-600">Sort</span>
+          <select
+            name="sort"
+            defaultValue={selectedSort}
+            className="w-full rounded border p-3 text-sm"
+          >
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="amount-high">Highest amount</option>
+            <option value="amount-low">Lowest amount</option>
+            <option value="receipt-az">Receipt A-Z</option>
+          </select>
         </label>
 
         <div className="flex gap-2">
