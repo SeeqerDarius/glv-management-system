@@ -365,7 +365,8 @@ export default async function CustomerProfilePage({
                 status !== AccountStatus.COMPLETED &&
                 status !== AccountStatus.CANCELLED &&
                 status !== AccountStatus.SUSPENDED &&
-                status !== AccountStatus.CLOSED;
+                status !== AccountStatus.CLOSED &&
+                status !== AccountStatus.ARCHIVED;
               const canMarkDelivered =
                 status === AccountStatus.COMPLETED &&
                 account.balance <= 0 &&

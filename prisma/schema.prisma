@@ -241,6 +241,7 @@ enum AccountStatus {
   DORMANT
   PROBATION
   CLOSED
+  ARCHIVED
   SUSPENDED
   CANCELLED
 }

@@ -97,6 +97,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                 AccountStatus.CANCELLED,
                 AccountStatus.SUSPENDED,
                 AccountStatus.CLOSED,
+                AccountStatus.ARCHIVED,
               ],
             },
           },

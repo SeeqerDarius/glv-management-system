@@ -2,6 +2,7 @@ import {
   AccountStatus,
   CreditSource,
   CreditStatus,
+  DeliveryStatus,
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -9,7 +10,9 @@ import { prisma } from "@/lib/prisma";
 const DORMANT_AFTER_DAYS = 21;
 const PROBATION_AFTER_MONTHS = 4;
 const CLOSE_AFTER_MONTHS = 6;
+const ARCHIVE_AFTER_DELIVERY_DAYS = 2;
 const CLOSURE_SERVICE_FEE_RATE = 0.32;
+export const DORMANT_REACTIVATION_SERVICE_FEE_RATE = 0.32;
 
 function addDays(date: Date, days: number) {
   const result = new Date(date);
@@ -42,12 +45,48 @@ function getLastActivityDate(account: LifecycleAccount) {
   return account.payments[0]?.paymentDate ?? account.startDate;
 }
 
+export function getDormantReactivationCutoffDate(account: {
+  startDate: Date;
+  payments: Array<{ paymentDate: Date }>;
+}) {
+  const lastActivityDate = account.payments[0]?.paymentDate ?? account.startDate;
+  return addMonths(lastActivityDate, CLOSE_AFTER_MONTHS);
+}
+
+export function isDormantReactivationEligible(
+  account: {
+    status: AccountStatus;
+    startDate: Date;
+    payments: Array<{ paymentDate: Date }>;
+  },
+  now = new Date()
+) {
+  return (
+    (account.status === AccountStatus.DORMANT ||
+      account.status === AccountStatus.PROBATION ||
+      account.status === AccountStatus.CLOSED) &&
+    now >= getDormantReactivationCutoffDate(account)
+  );
+}
+
+export function getDormantReactivationAmounts(totalPaid: number) {
+  const serviceFee = Math.max(totalPaid, 0) * DORMANT_REACTIVATION_SERVICE_FEE_RATE;
+  const nextTotalPaid = Math.max(totalPaid - serviceFee, 0);
+
+  return {
+    serviceFee,
+    nextTotalPaid,
+    serviceFeeRate: DORMANT_REACTIVATION_SERVICE_FEE_RATE,
+  };
+}
+
 function getNextLifecycleStatus(account: LifecycleAccount, now: Date) {
   if (
     account.status === AccountStatus.COMPLETED ||
     account.status === AccountStatus.CANCELLED ||
     account.status === AccountStatus.SUSPENDED ||
     account.status === AccountStatus.CLOSED ||
+    account.status === AccountStatus.ARCHIVED ||
     account.balance <= 0
   ) {
     return account.status;
@@ -82,6 +121,57 @@ export function getClosureRefundAmounts(totalPaid: number) {
 }
 
 export async function refreshAccountLifecycleStatuses(now = new Date()) {
+  const archiveCutoff = addDays(now, -ARCHIVE_AFTER_DELIVERY_DAYS);
+  const deliveredCompletedAccounts = await prisma.customerAccount.findMany({
+    where: {
+      status: AccountStatus.COMPLETED,
+      deliveryStatus: DeliveryStatus.DELIVERED,
+      deliveredAt: {
+        lte: archiveCutoff,
+      },
+    },
+    select: {
+      id: true,
+      deliveredAt: true,
+      deliveredBy: true,
+      customerId: true,
+      productId: true,
+    },
+  });
+
+  for (const account of deliveredCompletedAccounts) {
+    await prisma.$transaction(async (tx) => {
+      await tx.customerAccount.update({
+        where: {
+          id: account.id,
+        },
+        data: {
+          status: AccountStatus.ARCHIVED,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          userId: "system",
+          action: "ARCHIVE_DELIVERED_ACCOUNT",
+          entity: "CustomerAccount",
+          entityId: account.id,
+          oldValue: JSON.stringify({
+            status: AccountStatus.COMPLETED,
+            deliveredAt: account.deliveredAt,
+            deliveredBy: account.deliveredBy,
+          }),
+          newValue: JSON.stringify({
+            status: AccountStatus.ARCHIVED,
+            archivedAfterDeliveryDays: ARCHIVE_AFTER_DELIVERY_DAYS,
+            customerId: account.customerId,
+            productId: account.productId,
+          }),
+        },
+      });
+    });
+  }
+
   const accounts = await prisma.customerAccount.findMany({
     where: {
       balance: {

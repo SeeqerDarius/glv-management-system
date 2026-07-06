@@ -205,7 +205,8 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const reportableAccounts = accounts.filter(
     (account) =>
       account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED
+      account.status !== AccountStatus.CLOSED &&
+      account.status !== AccountStatus.ARCHIVED
   );
   const outstandingBalance = reportableAccounts.reduce(
     (sum, account) => sum + account.balance,
@@ -267,6 +268,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Dormant accounts", statusCount(AccountStatus.DORMANT)],
     ["Probation accounts", statusCount(AccountStatus.PROBATION)],
     ["Closed accounts", statusCount(AccountStatus.CLOSED)],
+    ["Archived accounts", statusCount(AccountStatus.ARCHIVED)],
     ["Cancelled accounts", statusCount(AccountStatus.CANCELLED)],
     ["Suspended accounts", statusCount(AccountStatus.SUSPENDED)],
     ["Total collected", totalCollected],
@@ -285,7 +287,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Net profit so far", netProfitSoFar],
     ["Projected profit / loss", projectedNetProfit],
   ]);
-  for (let row = 5; row <= 22; row += 1) {
+  for (let row = 5; row <= 33; row += 1) {
     summary.getCell(row, 1).font = {
       name: "Aptos",
       size: 10,
@@ -295,10 +297,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   }
   summary.getCell("B5").numFmt = dateFormat;
   summary.getCell("B6").numFmt = dateFormat;
-  [15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 28, 29].forEach((row) => {
+  [19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 32, 33].forEach((row) => {
     summary.getCell(row, 2).numFmt = currencyFormat;
   });
-  summary.getCell("B27").numFmt = "0.0%";
+  summary.getCell("B31").numFmt = "0.0%";
   finishSheet(summary, [30, 23]);
 
   const staffRows = staff
@@ -345,7 +347,12 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
           .reduce((sum, payment) => sum + payment.amount, 0),
         projectedProfitAfterSalary:
           memberAccounts
-            .filter((account) => account.status !== AccountStatus.CANCELLED)
+            .filter(
+              (account) =>
+                account.status !== AccountStatus.CANCELLED &&
+                account.status !== AccountStatus.CLOSED &&
+                account.status !== AccountStatus.ARCHIVED
+            )
             .reduce(
               (sum, account) =>
                 sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
@@ -653,8 +660,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         ? "READY FOR RELEASE"
         : status === AccountStatus.CANCELLED
           ? "CANCELLED"
-          : status === AccountStatus.CLOSED
-            ? "CLOSED"
+        : status === AccountStatus.CLOSED
+          ? "CLOSED"
+          : status === AccountStatus.ARCHIVED
+            ? "ARCHIVED"
           : status === AccountStatus.SUSPENDED
             ? "SUSPENDED"
             : "NOT READY";
@@ -695,7 +704,8 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     if (
       cell.value === "CANCELLED" ||
       cell.value === "SUSPENDED" ||
-      cell.value === "CLOSED"
+      cell.value === "CLOSED" ||
+      cell.value === "ARCHIVED"
     ) {
       cell.fill = {
         type: "pattern",

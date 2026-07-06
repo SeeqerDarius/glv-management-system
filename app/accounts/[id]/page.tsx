@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DeliveryStatus, UserPermission, UserRole } from "@prisma/client";
+import {
+  AccountStatus,
+  DeliveryStatus,
+  UserPermission,
+  UserRole,
+} from "@prisma/client";
 import {
   ArrowLeft,
   HandCoins,
@@ -8,7 +13,11 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { deleteAccount, updateAccountDeliveryStatus } from "@/actions/accounts";
+import {
+  deleteAccount,
+  reactivateDormantAccount,
+  updateAccountDeliveryStatus,
+} from "@/actions/accounts";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { AccountProductCorrectionForm } from "@/components/account-product-correction-form";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
@@ -17,7 +26,12 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import {
+  getDormantReactivationAmounts,
+  getDormantReactivationCutoffDate,
+  isDormantReactivationEligible,
+  refreshAccountLifecycleStatuses,
+} from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -118,9 +132,21 @@ export default async function AccountDetailsPage({
   const status = getEffectiveAccountStatus(account);
   const canRecordPayment =
     account.balance > 0 &&
-    !["COMPLETED", "CANCELLED", "SUSPENDED", "CLOSED"].includes(account.status);
+    account.status !== AccountStatus.COMPLETED &&
+    account.status !== AccountStatus.CANCELLED &&
+    account.status !== AccountStatus.SUSPENDED &&
+    account.status !== AccountStatus.CLOSED &&
+    account.status !== AccountStatus.ARCHIVED;
   const isCompleted = status === "COMPLETED" && account.balance <= 0;
   const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
+  const canReactivateDormant =
+    isAdmin && isDormantReactivationEligible(account);
+  const reactivationCutoffDate = getDormantReactivationCutoffDate(account);
+  const reactivationAmounts = getDormantReactivationAmounts(account.totalPaid);
+  const reactivationBalance = Math.max(
+    account.targetAmount - reactivationAmounts.nextTotalPaid,
+    0
+  );
 
   return (
     <div className="space-y-6">
@@ -232,9 +258,61 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
+      {canReactivateDormant ? (
+        <div className="flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="font-medium">
+              Reactivate this dormant account with the six-month service fee.
+            </p>
+            <p className="mt-1 text-amber-900">
+              Eligible from {formatDate(reactivationCutoffDate)}. A 32% service
+              fee ({formatMoney(reactivationAmounts.serviceFee)}) will be
+              deducted from the old paid balance, leaving{" "}
+              {formatMoney(reactivationAmounts.nextTotalPaid)} paid and{" "}
+              {formatMoney(reactivationBalance)} outstanding.
+            </p>
+          </div>
+          <form
+            action={reactivateDormantAccount}
+            className="flex flex-col gap-2 sm:min-w-72 sm:flex-row sm:items-end"
+          >
+            <input type="hidden" name="id" value={account.id} />
+            <input
+              type="hidden"
+              name="returnTo"
+              value={`/accounts/${account.id}`}
+            />
+            <label className="flex-1 text-xs font-medium text-amber-950">
+              Admin password
+              <input
+                type="password"
+                name="adminPassword"
+                className="mt-1 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-gray-950 outline-none focus:border-amber-500"
+                required
+              />
+            </label>
+            <Button type="submit" className="shrink-0">
+              Reactivate
+            </Button>
+          </form>
+        </div>
+      ) : null}
+
       {error === "delivery-not-completed" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Product delivery can only be changed after the account is fully paid.
+        </div>
+      ) : null}
+
+      {updated === "account-reactivated" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Account reactivated. The dormant service fee was deducted from the old paid balance.
+        </div>
+      ) : null}
+
+      {error === "reactivation-not-eligible" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This account is not eligible for six-month dormant reactivation yet.
         </div>
       ) : null}
 

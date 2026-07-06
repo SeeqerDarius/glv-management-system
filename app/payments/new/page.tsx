@@ -29,6 +29,7 @@ export default async function NewPaymentPage({
           AccountStatus.CANCELLED,
           AccountStatus.SUSPENDED,
           AccountStatus.CLOSED,
+          AccountStatus.ARCHIVED,
         ],
       },
       ...(isStaff && !canManageAll && session.user.staffId

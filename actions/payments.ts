@@ -138,12 +138,13 @@ export async function recordPayment(
   if (
     account.status === AccountStatus.CANCELLED ||
     account.status === AccountStatus.SUSPENDED ||
-    account.status === AccountStatus.CLOSED
+    account.status === AccountStatus.CLOSED ||
+    account.status === AccountStatus.ARCHIVED
   ) {
     return {
       errors: {
         accountId:
-          "Payments cannot be recorded for a cancelled, suspended, or closed account.",
+          "Payments cannot be recorded for a cancelled, suspended, closed, or archived account.",
       },
     };
   }

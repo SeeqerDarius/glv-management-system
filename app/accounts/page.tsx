@@ -295,6 +295,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           <option value={AccountStatus.PROBATION}>Probation</option>
           <option value={AccountStatus.COMPLETED}>Completed</option>
           <option value={AccountStatus.CLOSED}>Closed</option>
+          <option value={AccountStatus.ARCHIVED}>Archived</option>
           <option value={AccountStatus.CANCELLED}>Cancelled</option>
           <option value={AccountStatus.SUSPENDED}>Suspended</option>
         </select>
@@ -436,7 +437,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                       status !== AccountStatus.COMPLETED &&
                       status !== AccountStatus.CANCELLED &&
                       status !== AccountStatus.SUSPENDED &&
-                      status !== AccountStatus.CLOSED ? (
+                      status !== AccountStatus.CLOSED &&
+                      status !== AccountStatus.ARCHIVED ? (
                         <Link
                           href={`/payments/new?customerId=${account.customer.id}&accountId=${account.id}`}
                           aria-label={`Record payment for ${account.customer.fullName}`}

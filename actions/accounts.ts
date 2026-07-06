@@ -13,6 +13,10 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
+  getDormantReactivationAmounts,
+  isDormantReactivationEligible,
+} from "@/lib/account-lifecycle";
+import {
   createCustomerAccountForProduct,
   parseAccountStartDate,
 } from "@/lib/customer-account-creation";
@@ -661,4 +665,133 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   revalidatePath(`/customers/${account.customerId}`);
   revalidatePath("/products");
   revalidatePath(`/products/${account.productId}`);
+}
+
+export async function reactivateDormantAccount(formData: FormData): Promise<void> {
+  const user = await requireAdmin();
+  const id = cleanInput(formData.get("id"));
+  const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
+  const adminPassword = cleanInput(formData.get("adminPassword"));
+
+  if (!adminPassword) {
+    redirect(`${returnTo}?error=admin-password-required`);
+  }
+
+  const passwordValid = await verifyAdminPassword(user.id, adminPassword);
+
+  if (!passwordValid) {
+    redirect(`${returnTo}?error=invalid-admin-password`);
+  }
+
+  const account = await prisma.customerAccount.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      payments: {
+        orderBy: {
+          paymentDate: "desc",
+        },
+        take: 1,
+        select: {
+          paymentDate: true,
+        },
+      },
+      credits: {
+        where: {
+          source: CreditSource.ACCOUNT_CLOSURE_REFUND,
+          status: CreditStatus.OPEN,
+        },
+        select: {
+          id: true,
+          amount: true,
+          remainingAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!account) {
+    redirect("/accounts?error=account-not-found");
+  }
+
+  if (!isDormantReactivationEligible(account)) {
+    redirect(`${returnTo}?error=reactivation-not-eligible`);
+  }
+
+  const { serviceFee, nextTotalPaid, serviceFeeRate } =
+    getDormantReactivationAmounts(account.totalPaid);
+  const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
+  const nextStatus =
+    nextBalance <= 0 ? AccountStatus.COMPLETED : AccountStatus.ACTIVE;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.customerAccount.update({
+      where: {
+        id: account.id,
+      },
+      data: {
+        totalPaid: nextTotalPaid,
+        balance: nextBalance,
+        status: nextStatus,
+        deliveryStatus:
+          nextStatus === AccountStatus.COMPLETED
+            ? account.deliveryStatus
+            : DeliveryStatus.PENDING,
+        deliveredAt:
+          nextStatus === AccountStatus.COMPLETED ? account.deliveredAt : null,
+        deliveredBy:
+          nextStatus === AccountStatus.COMPLETED ? account.deliveredBy : null,
+      },
+    });
+
+    if (account.credits.length > 0) {
+      await tx.customerCredit.updateMany({
+        where: {
+          id: {
+            in: account.credits.map((credit) => credit.id),
+          },
+        },
+        data: {
+          status: CreditStatus.VOID,
+          remainingAmount: 0,
+          resolvedBy: user.id,
+          resolvedAt: new Date(),
+        },
+      });
+    }
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "REACTIVATE_DORMANT_ACCOUNT",
+        entity: "CustomerAccount",
+        entityId: account.id,
+        oldValue: JSON.stringify({
+          status: account.status,
+          totalPaid: account.totalPaid,
+          balance: account.balance,
+          deliveryStatus: account.deliveryStatus,
+          deliveredAt: account.deliveredAt,
+          closureCreditIds: account.credits.map((credit) => credit.id),
+        }),
+        newValue: JSON.stringify({
+          status: nextStatus,
+          totalPaid: nextTotalPaid,
+          balance: nextBalance,
+          serviceFee,
+          serviceFeeRate,
+          voidedClosureCreditIds: account.credits.map((credit) => credit.id),
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${account.id}`);
+  revalidatePath(`/customers/${account.customerId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/reports");
+  revalidatePath("/activity");
+  redirect(`${returnTo}?updated=account-reactivated`);
 }

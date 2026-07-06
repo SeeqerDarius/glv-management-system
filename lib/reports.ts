@@ -153,6 +153,7 @@ export async function getAdminReportSummary() {
       [AccountStatus.DORMANT]: 0,
       [AccountStatus.PROBATION]: 0,
       [AccountStatus.CLOSED]: 0,
+      [AccountStatus.ARCHIVED]: 0,
       [AccountStatus.CANCELLED]: 0,
       [AccountStatus.SUSPENDED]: 0,
     }
@@ -160,7 +161,8 @@ export async function getAdminReportSummary() {
   const includedAccounts = accounts.filter(
     (account) =>
       account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED
+      account.status !== AccountStatus.CLOSED &&
+      account.status !== AccountStatus.ARCHIVED
   );
   const expectedReceivables = accounts
     .filter((account) => {
@@ -208,6 +210,7 @@ export async function getAdminReportSummary() {
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
     closedAccounts: statusCounts.CLOSED,
+    archivedAccounts: statusCounts.ARCHIVED,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
     openCreditAmount: openCreditAggregate._sum.remainingAmount ?? 0,
@@ -292,7 +295,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       .filter(
         (account) =>
           account.status !== AccountStatus.CANCELLED &&
-          account.status !== AccountStatus.CLOSED
+          account.status !== AccountStatus.CLOSED &&
+          account.status !== AccountStatus.ARCHIVED
       )
       .reduce(
         (total, account) => total + account.targetAmount - accountCost(account),
@@ -326,14 +330,22 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         (account) => account.createdAt >= start && account.createdAt <= end
       ).length,
       totalContractValue: memberAccounts
-        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .filter(
+          (account) =>
+            account.status !== AccountStatus.CLOSED &&
+            account.status !== AccountStatus.ARCHIVED
+        )
         .reduce(
         (total, account) => total + account.targetAmount,
         0
       ),
       totalCollected,
       outstandingBalance: memberAccounts
-        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .filter(
+          (account) =>
+            account.status !== AccountStatus.CLOSED &&
+            account.status !== AccountStatus.ARCHIVED
+        )
         .reduce(
         (total, account) => total + account.balance,
         0
@@ -350,7 +362,11 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         )
         .reduce((total, payment) => total + payment.amount, 0),
       expectedTotalCollection: memberAccounts
-        .filter((account) => account.status !== AccountStatus.CLOSED)
+        .filter(
+          (account) =>
+            account.status !== AccountStatus.CLOSED &&
+            account.status !== AccountStatus.ARCHIVED
+        )
         .reduce(
         (total, account) => total + account.targetAmount,
         0
@@ -400,7 +416,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const includedAccounts = accounts.filter(
     (account) =>
       account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED
+      account.status !== AccountStatus.CLOSED &&
+      account.status !== AccountStatus.ARCHIVED
   );
   const totalProductCost = includedAccounts.reduce(
     (total, account) => total + accountCost(account),
@@ -606,6 +623,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       [AccountStatus.DORMANT]: 0,
       [AccountStatus.PROBATION]: 0,
       [AccountStatus.CLOSED]: 0,
+      [AccountStatus.ARCHIVED]: 0,
       [AccountStatus.CANCELLED]: 0,
       [AccountStatus.SUSPENDED]: 0,
     }
@@ -621,6 +639,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
     closedAccounts: statusCounts.CLOSED,
+    archivedAccounts: statusCounts.ARCHIVED,
     cancelledAccounts: statusCounts.CANCELLED,
     suspendedAccounts: statusCounts.SUSPENDED,
     paymentsRecordedToday,
@@ -777,7 +796,11 @@ export async function getActivityReport({
         expectedWeeklyCollection,
         outstanding: includeFinancialValues
           ? memberAccounts
-              .filter((account) => account.status !== AccountStatus.CLOSED)
+              .filter(
+                (account) =>
+                  account.status !== AccountStatus.CLOSED &&
+                  account.status !== AccountStatus.ARCHIVED
+              )
               .reduce((total, account) => total + account.balance, 0)
           : null,
       };
