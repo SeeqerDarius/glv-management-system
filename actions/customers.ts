@@ -1,6 +1,6 @@
 "use server";
 
-import { Prisma, UserPermission, UserRole } from "@prisma/client";
+import { UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
@@ -94,18 +94,8 @@ async function resolveStaffId(formData: FormData, role: UserRole, staffId?: stri
   return selectedStaffId;
 }
 
-const CUSTOMER_ID_CREATE_ATTEMPTS = 5;
-
-type CustomerIdClient =
-  | Pick<typeof prisma, "staff" | "customer" | "$queryRaw">
-  | Prisma.TransactionClient;
-
-async function generateCustomerIdWithClient(
-  client: CustomerIdClient,
-  staffId: string,
-  options: { lockPrefix?: boolean } = {}
-) {
-  const staff = await client.staff.findUnique({
+export async function generateCustomerId(staffId: string) {
+  const staff = await prisma.staff.findUnique({
     where: {
       id: staffId,
     },
@@ -122,13 +112,7 @@ async function generateCustomerIdWithClient(
   const settings = await getSettings();
   const prefix = `${settings.customerIdPrefix}/${staff.code}/${year}/`;
 
-  if (options.lockPrefix) {
-    await client.$queryRaw`
-      SELECT pg_advisory_xact_lock(hashtext(${prefix})::bigint)
-    `;
-  }
-
-  const existingCustomers = await client.customer.findMany({
+  const existingCustomers = await prisma.customer.findMany({
     where: {
       staffId,
       customerId: {
@@ -146,19 +130,6 @@ async function generateCustomerIdWithClient(
   }, 0);
 
   return `${prefix}${String(maxNumber + 1).padStart(3, "0")}`;
-}
-
-export async function generateCustomerId(staffId: string) {
-  return generateCustomerIdWithClient(prisma, staffId);
-}
-
-function isCustomerIdCollision(error: unknown) {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === "P2002" &&
-    Array.isArray(error.meta?.target) &&
-    error.meta.target.some((target) => String(target).includes("customerId"))
-  );
 }
 
 export async function createCustomer(
@@ -243,6 +214,7 @@ export async function createCustomer(
   }
 
   const staffId = await resolveStaffId(formData, user.role, user.staffId);
+  const customerId = await generateCustomerId(staffId);
   const product = productId
     ? await prisma.product.findUnique({
         where: {
@@ -271,92 +243,64 @@ export async function createCustomer(
   let accountId: string | null = null;
 
   try {
-    let result:
-      | {
-          customer: Awaited<ReturnType<typeof prisma.customer.create>>;
-          accountId: string | null;
-        }
-      | null = null;
+    const result = await prisma.$transaction(async (tx) => {
+      const createdCustomer = await tx.customer.create({
+        data: {
+          customerId,
+          fullName,
+          phone: phone || null,
+          address: cleanInput(formData.get("address")) || null,
+          nationalId: cleanInput(formData.get("nationalId")) || null,
+          staffId,
+        },
+      });
 
-    for (let attempt = 1; attempt <= CUSTOMER_ID_CREATE_ATTEMPTS; attempt += 1) {
-      try {
-        result = await prisma.$transaction(async (tx) => {
-          const customerId = await generateCustomerIdWithClient(tx, staffId, {
-            lockPrefix: true,
-          });
-          const createdCustomer = await tx.customer.create({
-            data: {
-              customerId,
-              fullName,
-              phone: phone || null,
-              address: cleanInput(formData.get("address")) || null,
-              nationalId: cleanInput(formData.get("nationalId")) || null,
-              staffId,
-            },
-          });
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "CREATE_CUSTOMER",
+          entity: "Customer",
+          entityId: createdCustomer.id,
+          newValue: JSON.stringify(createdCustomer),
+        },
+      });
 
-          await tx.auditLog.create({
-            data: {
-              userId: user.id,
-              action: "CREATE_CUSTOMER",
-              entity: "Customer",
-              entityId: createdCustomer.id,
-              newValue: JSON.stringify(createdCustomer),
-            },
-          });
-
-          const account =
-            product && startDate
-              ? await createCustomerAccountForProduct({
-                  tx,
-                  userId: user.id,
-                  customerId: createdCustomer.id,
-                  product,
-                  startDate,
-                })
-              : null;
-
-          if (account && wantsFirstPayment && firstPaymentDate) {
-            await recordPaymentForAccount({
+      const account =
+        product && startDate
+          ? await createCustomerAccountForProduct({
               tx,
               userId: user.id,
-              account: {
-                ...account,
-                customer: {
-                  id: createdCustomer.id,
-                },
-                product: {
-                  id: product!.id,
-                },
-              },
-              amount: firstPaymentAmount,
-              paymentDate: firstPaymentDate,
-              method: firstPaymentMethod,
-              notes: firstPaymentNotes,
-            });
-          }
+              customerId: createdCustomer.id,
+              product,
+              startDate,
+            })
+          : null;
 
-          return {
-            customer: createdCustomer,
-            accountId: account?.id ?? null,
-          };
+      if (account && wantsFirstPayment && firstPaymentDate) {
+        await recordPaymentForAccount({
+          tx,
+          userId: user.id,
+          account: {
+            ...account,
+            customer: {
+              id: createdCustomer.id,
+            },
+            product: {
+              id: product!.id,
+            },
+          },
+          amount: firstPaymentAmount,
+          paymentDate: firstPaymentDate,
+          method: firstPaymentMethod,
+          notes: firstPaymentNotes,
         });
-        break;
-      } catch (error) {
-        if (
-          attempt < CUSTOMER_ID_CREATE_ATTEMPTS &&
-          isCustomerIdCollision(error)
-        ) {
-          continue;
-        }
-
-        throw error;
       }
-    }
 
-    if (!result) {
-      throw new Error("Unable to allocate a unique customer ID.");
-    }
+      return {
+        customer: createdCustomer,
+        accountId: account?.id ?? null,
+      };
+    });
 
     customer = result.customer;
     accountId = result.accountId;
