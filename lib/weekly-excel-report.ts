@@ -4,6 +4,7 @@ import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
+import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 
 const palette = {
   ink: "17351F",
@@ -148,7 +149,12 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const { start, end } = getCurrentWeekRange(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  const staff = await prisma.staff.findMany({ orderBy: { code: "asc" } });
+  const staff = await prisma.staff.findMany({
+    orderBy: { code: "asc" },
+    include: {
+      salaryHistory: { orderBy: { effectiveMonth: "asc" } },
+    },
+  });
   const customers = await prisma.customer.findMany({
     select: { id: true, staffId: true },
   });
@@ -228,7 +234,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const totalSalariesPaid = salaryPayments.reduce((sum, payment) => sum + payment.amount, 0);
   const currentMonthPayroll = staff
     .filter((member) => member.active)
-    .reduce((sum, member) => sum + member.monthlySalary, 0);
+    .reduce(
+      (sum, member) => sum + getEffectiveMonthlySalary(member, monthStart),
+      0
+    );
   const outstandingSalaries = Math.max(currentMonthPayroll - salaryPaidThisMonth, 0);
   const monthlyIncome = allPayments
     .filter(({ payment }) => payment.paymentDate >= monthStart && payment.paymentDate <= monthEnd)
@@ -308,6 +317,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       const memberAccounts = accounts.filter(
         (account) => account.customer.staffId === member.id
       );
+      const monthlySalary = getEffectiveMonthlySalary(member, monthStart);
       return {
         code: member.code,
         name: member.fullName,
@@ -336,7 +346,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         salaryPaid: salaryPayments
           .filter((payment) => payment.staffId === member.id)
           .reduce((sum, payment) => sum + payment.amount, 0),
-        monthlySalary: member.monthlySalary,
+        monthlySalary,
         salaryPaidThisMonth: salaryPayments
           .filter(
             (payment) =>
@@ -357,7 +367,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
               (sum, account) =>
                 sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
               0
-            ) - member.monthlySalary,
+            ) - monthlySalary,
       };
     })
     .sort(

@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
 import { generateStaffCode } from "@/actions/staff";
+import { getMonthStart } from "@/lib/salary-history";
 
 export type SignupState = {
   error?: string;
@@ -144,6 +145,15 @@ export async function approveStaffApplication(
           phone: application.phone,
           code,
           monthlySalary: settings.defaultMonthlySalary,
+        },
+      });
+
+      await tx.staffSalaryHistory.create({
+        data: {
+          staffId: staff.id,
+          monthlySalary: settings.defaultMonthlySalary,
+          effectiveMonth: getMonthStart(staff.createdAt),
+          createdBy: reviewer.id,
         },
       });
 

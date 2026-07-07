@@ -34,6 +34,7 @@ model Staff {
   monthlySalary  Float                @default(0)
   customers      Customer[]
   salaryPayments StaffSalaryPayment[]
+  salaryHistory  StaffSalaryHistory[]
   user           User?
 }
 
@@ -90,6 +91,19 @@ model StaffSalaryPayment {
   staff       Staff    @relation(fields: [staffId], references: [id])
 
   @@index([staffId, paymentDate])
+}
+
+model StaffSalaryHistory {
+  id             String   @id @default(cuid())
+  staffId        String
+  monthlySalary  Float
+  effectiveMonth DateTime
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  staff          Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, effectiveMonth])
+  @@index([staffId, effectiveMonth])
 }
 
 model CustomerAccount {

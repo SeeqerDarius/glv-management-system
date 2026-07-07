@@ -11,6 +11,7 @@ import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { parsePermissions } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
+import { getMonthStart } from "@/lib/salary-history";
 
 export type StaffFormState = {
   errors?: {
@@ -238,6 +239,15 @@ export async function createStaff(
         },
       });
 
+      await tx.staffSalaryHistory.create({
+        data: {
+          staffId: createdStaff.id,
+          monthlySalary: settings.defaultMonthlySalary,
+          effectiveMonth: getMonthStart(createdStaff.createdAt),
+          createdBy: user.id,
+        },
+      });
+
       const createdUser = await tx.user.create({
         data: {
           name: fullName,
@@ -336,6 +346,27 @@ export async function updateStaff(formData: FormData): Promise<void> {
         monthlySalary,
       },
     });
+
+    if (isAdminRole(user.role) && monthlySalary !== existingStaff.monthlySalary) {
+      await tx.staffSalaryHistory.upsert({
+        where: {
+          staffId_effectiveMonth: {
+            staffId: updatedStaff.id,
+            effectiveMonth: getMonthStart(),
+          },
+        },
+        update: {
+          monthlySalary,
+          createdBy: user.id,
+        },
+        create: {
+          staffId: updatedStaff.id,
+          monthlySalary,
+          effectiveMonth: getMonthStart(),
+          createdBy: user.id,
+        },
+      });
+    }
 
     if (existingStaff.user) {
       await tx.user.update({

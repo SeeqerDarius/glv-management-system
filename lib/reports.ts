@@ -7,6 +7,7 @@ import {
 import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
+import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 
 export function getCurrentWeekRange(now = new Date()) {
   const day = now.getDay();
@@ -99,7 +100,11 @@ export async function getAdminReportSummary() {
   const month = getCurrentMonthRange();
   const totalCustomers = await prisma.customer.count();
   const staff = await prisma.staff.findMany({
-    select: { monthlySalary: true, active: true },
+    select: {
+      monthlySalary: true,
+      active: true,
+      salaryHistory: { orderBy: { effectiveMonth: "asc" } },
+    },
   });
   const accounts = await prisma.customerAccount.findMany({
     include: {
@@ -183,7 +188,7 @@ export async function getAdminReportSummary() {
   const currentMonthPayroll = staff
     .filter((member) => member.active)
     .reduce(
-      (total, member) => total + member.monthlySalary,
+      (total, member) => total + getEffectiveMonthlySalary(member, month.start),
       0
     );
   const outstandingSalaries = Math.max(
@@ -194,7 +199,7 @@ export async function getAdminReportSummary() {
   const payrollPercentageOfRevenue =
     totalCollected > 0 ? (totalSalaryPaid / totalCollected) * 100 : 0;
   const totalMonthlySalary = staff.reduce(
-    (total, member) => total + member.monthlySalary,
+    (total, member) => total + getEffectiveMonthlySalary(member, month.start),
     0
   );
   const netProfitSoFar = totalCollected - totalProductCost - totalSalaryPaid;
@@ -251,7 +256,12 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
-  const staff = await prisma.staff.findMany({ orderBy: { code: "asc" } });
+  const staff = await prisma.staff.findMany({
+    orderBy: { code: "asc" },
+    include: {
+      salaryHistory: { orderBy: { effectiveMonth: "asc" } },
+    },
+  });
   const customers = await prisma.customer.findMany({
     select: { staffId: true, createdAt: true },
   });
@@ -306,6 +316,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       (total, payment) => total + payment.amount,
       0
     );
+
+    const monthlySalary = getEffectiveMonthlySalary(member, month.start);
 
     return {
       staffId: member.id,
@@ -372,12 +384,12 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         0
       ),
       salaryPaid,
-      monthlySalary: member.monthlySalary,
+      monthlySalary,
       salaryPaidThisMonth: salaryPaid,
-      salaryBalanceThisMonth: Math.max(member.monthlySalary - salaryPaid, 0),
+      salaryBalanceThisMonth: Math.max(monthlySalary - salaryPaid, 0),
       netPosition: totalCollected - salaryPaid,
       expectedProfit,
-      projectedProfitAfterSalary: expectedProfit - member.monthlySalary,
+      projectedProfitAfterSalary: expectedProfit - monthlySalary,
       overdueAccounts: memberAccounts.filter(
         (account) => getEffectiveAccountStatus(account) === AccountStatus.OVERDUE
       ).length,
@@ -406,11 +418,11 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const currentMonthPayroll = staff
     .filter((member) => member.active)
     .reduce(
-      (total, member) => total + member.monthlySalary,
+      (total, member) => total + getEffectiveMonthlySalary(member, month.start),
       0
     );
   const totalMonthlySalary = staff.reduce(
-    (total, member) => total + member.monthlySalary,
+    (total, member) => total + getEffectiveMonthlySalary(member, month.start),
     0
   );
   const includedAccounts = accounts.filter(
