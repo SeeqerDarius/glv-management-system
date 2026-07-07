@@ -138,10 +138,27 @@ function SelectField({
   );
 }
 
-function ToggleField({ label, name, defaultChecked }: { label: string; name: string; defaultChecked: boolean }) {
+function ToggleField({
+  label,
+  name,
+  defaultChecked,
+  description,
+}: {
+  label: string;
+  name: string;
+  defaultChecked: boolean;
+  description?: string;
+}) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2.5 text-sm">
-      <span className="font-medium text-gray-800">{label}</span>
+    <label className="flex items-start justify-between gap-3 rounded-lg border bg-white px-3 py-2.5 text-sm">
+      <span>
+        <span className="block font-medium text-gray-800">{label}</span>
+        {description ? (
+          <span className="mt-1 block text-xs leading-5 text-gray-500">
+            {description}
+          </span>
+        ) : null}
+      </span>
       <input name={name} type="checkbox" defaultChecked={defaultChecked} className="size-4 accent-lime-600" />
     </label>
   );
@@ -246,19 +263,19 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <Field label="Staff Code Length" name="staffCodeLength" type="number" min={2} max={8} defaultValue={values.staffCodeLength} />
         </SettingsSection>
 
-        <SettingsSection title="Security" description="Password and session controls, with placeholders for future backup and 2FA workflows.">
+        <SettingsSection title="Security" description="Password settings plus planned security operations. Items marked as planned are saved for configuration but do not run an automated job yet.">
           <Field label="Password Length" name="passwordLength" type="number" min={6} defaultValue={values.passwordLength} />
           <Field label="Session Timeout Minutes" name="sessionTimeoutMinutes" type="number" min={5} defaultValue={values.sessionTimeoutMinutes} />
-          <ToggleField label="Require Password Change" name="requirePasswordChange" defaultChecked={values.requirePasswordChange} />
-          <ToggleField label="Two-Factor Authentication" name="twoFactorEnabled" defaultChecked={values.twoFactorEnabled} />
-          <ToggleField label="Backup Database" name="backupDatabaseEnabled" defaultChecked={values.backupDatabaseEnabled} />
-          <ToggleField label="Export Database" name="exportDatabaseEnabled" defaultChecked={values.exportDatabaseEnabled} />
+          <ToggleField label="Require Password Change" name="requirePasswordChange" defaultChecked={values.requirePasswordChange} description="Stores the company policy for password reset flows." />
+          <ToggleField label="Two-Factor Authentication (planned)" name="twoFactorEnabled" defaultChecked={values.twoFactorEnabled} description="Saved only. No 2FA provider is connected yet." />
+          <ToggleField label="Backup Database (planned)" name="backupDatabaseEnabled" defaultChecked={values.backupDatabaseEnabled} description="Saved only. It does not create or schedule database backups yet." />
+          <ToggleField label="Export Database (planned)" name="exportDatabaseEnabled" defaultChecked={values.exportDatabaseEnabled} description="Saved only. It does not expose a full database export job yet." />
         </SettingsSection>
 
-        <SettingsSection title="Notifications" description="Communication channels for future reminders, approvals, and payment alerts.">
-          <ToggleField label="Email Notifications" name="emailNotificationsEnabled" defaultChecked={values.emailNotificationsEnabled} />
-          <ToggleField label="SMS Notifications" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} />
-          <ToggleField label="WhatsApp Reminders" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} />
+        <SettingsSection title="Notifications" description="Outbound channel preferences. These are separate from the in-app sidebar attention badges and need provider setup before messages can be sent.">
+          <ToggleField label="Email Notifications (planned)" name="emailNotificationsEnabled" defaultChecked={values.emailNotificationsEnabled} description="Saved only. No email delivery provider is connected yet." />
+          <ToggleField label="SMS Notifications (planned)" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} description="Saved only. No SMS gateway is connected yet." />
+          <ToggleField label="WhatsApp Reminders (planned)" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} description="Saved only. No WhatsApp provider is connected yet." />
         </SettingsSection>
 
         <SettingsSection title="Appearance" description="Branding controls used by the GLV interface and loading states.">
