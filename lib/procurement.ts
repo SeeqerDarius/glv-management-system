@@ -24,7 +24,27 @@ export type ProcurementListItem = {
   highestProgress: number;
 };
 
-export async function getProcurementList() {
+export type ProcurementAccountItem = {
+  accountId: string;
+  customerId: string;
+  customerCode: string;
+  customerName: string;
+  staffCode: string;
+  staffName: string;
+  productId: string;
+  productName: string;
+  category: string;
+  unitCost: number;
+  transportCost: number;
+  landedUnitCost: number;
+  layawayPrice: number;
+  targetAmount: number;
+  totalPaid: number;
+  balance: number;
+  progress: number;
+};
+
+export async function getProcurementAccounts(productId?: string) {
   const settings = await getSettings();
   const configuredThreshold = Number(
     settings.procurementThresholdPercent ?? 70
@@ -36,6 +56,7 @@ export async function getProcurementList() {
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
+      ...(productId ? { productId } : {}),
       deliveryStatus: DeliveryStatus.PENDING,
       status: {
         in: procurementStatuses,
@@ -45,6 +66,20 @@ export async function getProcurementList() {
       id: true,
       targetAmount: true,
       totalPaid: true,
+      balance: true,
+      customer: {
+        select: {
+          id: true,
+          customerId: true,
+          fullName: true,
+          staff: {
+            select: {
+              code: true,
+              fullName: true,
+            },
+          },
+        },
+      },
       product: {
         select: {
           id: true,
@@ -58,7 +93,7 @@ export async function getProcurementList() {
     },
   });
 
-  const grouped = new Map<string, ProcurementListItem & { progressTotal: number }>();
+  const items: ProcurementAccountItem[] = [];
 
   for (const account of accounts) {
     const progress =
@@ -68,32 +103,69 @@ export async function getProcurementList() {
       continue;
     }
 
-    const product = account.product;
-    const landedUnitCost = product.costPrice + product.transportCost;
-    const existing = grouped.get(product.id);
+    const landedUnitCost =
+      account.product.costPrice + account.product.transportCost;
+
+    items.push({
+      accountId: account.id,
+      customerId: account.customer.id,
+      customerCode: account.customer.customerId,
+      customerName: account.customer.fullName,
+      staffCode: account.customer.staff.code,
+      staffName: account.customer.staff.fullName,
+      productId: account.product.id,
+      productName: account.product.name,
+      category: account.product.category,
+      unitCost: account.product.costPrice,
+      transportCost: account.product.transportCost,
+      landedUnitCost,
+      layawayPrice: account.product.layawayPrice,
+      targetAmount: account.targetAmount,
+      totalPaid: account.totalPaid,
+      balance: account.balance,
+      progress,
+    });
+  }
+
+  return {
+    thresholdPercent,
+    items: items.sort(
+      (a, b) =>
+        a.productName.localeCompare(b.productName) ||
+        a.customerName.localeCompare(b.customerName)
+    ),
+  };
+}
+
+export async function getProcurementList() {
+  const procurement = await getProcurementAccounts();
+  const grouped = new Map<string, ProcurementListItem & { progressTotal: number }>();
+
+  for (const account of procurement.items) {
+    const existing = grouped.get(account.productId);
 
     if (existing) {
       existing.quantity += 1;
-      existing.totalCost += landedUnitCost;
-      existing.progressTotal += progress;
+      existing.totalCost += account.landedUnitCost;
+      existing.progressTotal += account.progress;
       existing.averageProgress = existing.progressTotal / existing.quantity;
-      existing.highestProgress = Math.max(existing.highestProgress, progress);
+      existing.highestProgress = Math.max(existing.highestProgress, account.progress);
       continue;
     }
 
-    grouped.set(product.id, {
-      productId: product.id,
-      productName: product.name,
-      category: product.category,
+    grouped.set(account.productId, {
+      productId: account.productId,
+      productName: account.productName,
+      category: account.category,
       quantity: 1,
-      unitCost: product.costPrice,
-      transportCost: product.transportCost,
-      landedUnitCost,
-      totalCost: landedUnitCost,
-      layawayPrice: product.layawayPrice,
-      averageProgress: progress,
-      highestProgress: progress,
-      progressTotal: progress,
+      unitCost: account.unitCost,
+      transportCost: account.transportCost,
+      landedUnitCost: account.landedUnitCost,
+      totalCost: account.landedUnitCost,
+      layawayPrice: account.layawayPrice,
+      averageProgress: account.progress,
+      highestProgress: account.progress,
+      progressTotal: account.progress,
     });
   }
 
@@ -117,7 +189,7 @@ export async function getProcurementList() {
     );
 
   return {
-    thresholdPercent,
+    thresholdPercent: procurement.thresholdPercent,
     items,
     totalQuantity: items.reduce((total, item) => total + item.quantity, 0),
     totalCost: items.reduce((total, item) => total + item.totalCost, 0),

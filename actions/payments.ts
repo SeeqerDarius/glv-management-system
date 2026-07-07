@@ -1,6 +1,12 @@
 "use server";
 
-import { AccountStatus, UserPermission, UserRole } from "@prisma/client";
+import {
+  AccountStatus,
+  CreditStatus,
+  UserPermission,
+  UserRole,
+  type Prisma,
+} from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
@@ -12,6 +18,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
 
 export type PaymentFormState = {
   errors?: {
@@ -22,6 +29,8 @@ export type PaymentFormState = {
     form?: string;
   };
 };
+
+export type PaymentEditFormState = PaymentFormState;
 
 async function requireUser() {
   const session = await auth();
@@ -54,6 +63,54 @@ function cleanInput(value: FormDataEntryValue | null) {
 
 function safeReturnTo(value: string, fallback: string) {
   return value.startsWith("/") && !value.startsWith("//") ? value : fallback;
+}
+
+function canEditPaymentCreatedAt(createdAt: Date, windowHours: number, now = new Date()) {
+  const elapsedMs = now.getTime() - createdAt.getTime();
+  return elapsedMs >= 0 && elapsedMs <= windowHours * 60 * 60 * 1000;
+}
+
+async function recalculateAccountAfterPaymentChange(
+  tx: Prisma.TransactionClient,
+  account: {
+    id: string;
+    targetAmount: number;
+    status: AccountStatus;
+  }
+) {
+  const paymentTotals = await tx.payment.aggregate({
+    where: {
+      accountId: account.id,
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+  const nextTotalPaid = paymentTotals._sum.amount ?? 0;
+  const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
+  const nextStatus =
+    nextBalance <= 0
+      ? AccountStatus.COMPLETED
+      : account.status === AccountStatus.COMPLETED
+        ? AccountStatus.ACTIVE
+        : account.status;
+
+  await tx.customerAccount.update({
+    where: {
+      id: account.id,
+    },
+    data: {
+      totalPaid: nextTotalPaid,
+      balance: nextBalance,
+      status: nextStatus,
+    },
+  });
+
+  return {
+    nextTotalPaid,
+    nextBalance,
+    nextStatus,
+  };
 }
 
 async function verifyAdminPassword(adminUserId: string, password: string) {
@@ -199,6 +256,215 @@ export async function recordPayment(
   redirect(`/accounts/${account.id}?payment=${createdPayment.receiptNo}`);
 }
 
+export async function updatePayment(
+  _state: PaymentEditFormState,
+  formData: FormData
+): Promise<PaymentEditFormState> {
+  const user = await requireUser();
+  const id = cleanInput(formData.get("id"));
+  const amount = Number(cleanInput(formData.get("amount")));
+  const paymentDateValue = cleanInput(formData.get("paymentDate"));
+  const paymentDate = parsePaymentDate(paymentDateValue);
+  const method = cleanInput(formData.get("method"));
+  const notes = cleanInput(formData.get("notes"));
+  const errors: PaymentEditFormState["errors"] = {};
+
+  if (!id) errors.form = "Payment record could not be found.";
+  if (!Number.isFinite(amount) || amount <= 0) {
+    errors.amount = "Payment amount must be greater than zero.";
+  }
+  if (!paymentDate) errors.paymentDate = "Please choose a valid payment date.";
+  if (!method) errors.method = "Please select a payment method.";
+
+  if (Object.keys(errors).length > 0) {
+    return {
+      errors,
+    };
+  }
+  if (!paymentDate) {
+    return {
+      errors: {
+        paymentDate: "Please choose a valid payment date.",
+      },
+    };
+  }
+
+  const settings = await getSettings();
+  const editWindowHours = Number(settings.paymentEditWindowHours ?? 3);
+  const payment = await prisma.payment.findUnique({
+    where: {
+      id,
+    },
+    include: {
+      credit: true,
+      account: {
+        include: {
+          customer: true,
+          product: true,
+        },
+      },
+    },
+  });
+
+  if (!payment) {
+    return {
+      errors: {
+        form: "Payment record could not be found.",
+      },
+    };
+  }
+
+  const canManageAll = hasPermission(
+    user.role,
+    user.permissions,
+    UserPermission.MANAGE_PAYMENTS
+  );
+
+  if (
+    user.role === UserRole.STAFF &&
+    payment.account.customer.staffId !== user.staffId &&
+    !canManageAll
+  ) {
+    return {
+      errors: {
+        form: "You cannot edit payments for another staff member's customer.",
+      },
+    };
+  }
+
+  if (!canEditPaymentCreatedAt(payment.createdAt, editWindowHours)) {
+    return {
+      errors: {
+        form: `This payment can only be edited within ${editWindowHours} hour${editWindowHours === 1 ? "" : "s"} of recording.`,
+      },
+    };
+  }
+
+  const amountChanged = payment.amount !== amount;
+  if (
+    amountChanged &&
+    payment.credit &&
+    (payment.credit.status !== CreditStatus.OPEN ||
+      payment.credit.remainingAmount !== payment.credit.amount)
+  ) {
+    return {
+      errors: {
+        form: "This payment has a resolved or partially used credit and cannot have its amount edited.",
+      },
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const updatedPayment = await tx.payment.update({
+        where: {
+          id: payment.id,
+        },
+        data: {
+          amount,
+          paymentDate,
+          method,
+          notes: notes || null,
+        },
+      });
+
+      const otherPaymentTotals = await tx.payment.aggregate({
+        where: {
+          accountId: payment.accountId,
+          id: {
+            not: payment.id,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+      const otherPaid = otherPaymentTotals._sum.amount ?? 0;
+      const balanceBeforeThisPayment = Math.max(
+        payment.account.targetAmount - otherPaid,
+        0
+      );
+      const creditAmount = Math.max(amount - balanceBeforeThisPayment, 0);
+
+      if (amountChanged) {
+        if (creditAmount > 0) {
+          if (payment.credit) {
+            await tx.customerCredit.update({
+              where: {
+                id: payment.credit.id,
+              },
+              data: {
+                amount: creditAmount,
+                remainingAmount: creditAmount,
+                notes: `Overpayment from receipt ${payment.receiptNo}`,
+              },
+            });
+          } else {
+            await tx.customerCredit.create({
+              data: {
+                customerId: payment.account.customerId,
+                accountId: payment.accountId,
+                paymentId: payment.id,
+                amount: creditAmount,
+                remainingAmount: creditAmount,
+                notes: `Overpayment from receipt ${payment.receiptNo}`,
+                createdBy: user.id,
+              },
+            });
+          }
+        } else if (payment.credit) {
+          await tx.customerCredit.delete({
+            where: {
+              id: payment.credit.id,
+            },
+          });
+        }
+      }
+
+      const recalculated = await recalculateAccountAfterPaymentChange(
+        tx,
+        payment.account
+      );
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE_PAYMENT",
+          entity: "Payment",
+          entityId: payment.id,
+          oldValue: JSON.stringify(payment),
+          newValue: JSON.stringify({
+            paymentId: updatedPayment.id,
+            receiptNo: updatedPayment.receiptNo,
+            accountId: payment.accountId,
+            customerId: payment.account.customerId,
+            productId: payment.account.productId,
+            amount,
+            paymentDate,
+            method,
+            notes: notes || null,
+            newBalance: recalculated.nextBalance,
+            creditAmount,
+          }),
+        },
+      });
+    });
+  } catch (error) {
+    console.error("UPDATE_PAYMENT_ERROR", error);
+    return {
+      errors: {
+        form: "Unable to update payment. Please check the details and try again.",
+      },
+    };
+  }
+
+  revalidatePath("/payments");
+  revalidatePath("/accounts");
+  revalidatePath(`/accounts/${payment.accountId}`);
+  revalidatePath(`/customers/${payment.account.customerId}`);
+  redirect(`/accounts/${payment.accountId}?updated=payment`);
+}
+
 export async function deletePayment(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const id = cleanInput(formData.get("id"));
@@ -245,36 +511,7 @@ export async function deletePayment(formData: FormData): Promise<void> {
         },
       });
 
-      const remainingPayments = await tx.payment.aggregate({
-        where: {
-          accountId: payment.accountId,
-        },
-        _sum: {
-          amount: true,
-        },
-      });
-      const nextTotalPaid = remainingPayments._sum.amount ?? 0;
-      const nextBalance = Math.max(
-        payment.account.targetAmount - nextTotalPaid,
-        0
-      );
-      const nextStatus =
-        nextBalance <= 0
-          ? AccountStatus.COMPLETED
-          : payment.account.status === AccountStatus.COMPLETED
-            ? AccountStatus.ACTIVE
-            : payment.account.status;
-
-      await tx.customerAccount.update({
-        where: {
-          id: payment.accountId,
-        },
-        data: {
-          totalPaid: nextTotalPaid,
-          balance: nextBalance,
-          status: nextStatus,
-        },
-      });
+      await recalculateAccountAfterPaymentChange(tx, payment.account);
     });
   } catch {
     redirect("/payments?error=payment-delete-blocked");

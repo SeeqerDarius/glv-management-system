@@ -182,6 +182,7 @@ model Setting {
   deliveryTimeAfterCompletionDays Int       @default(0)
   procurementThresholdPercent     Float     @default(70)
   minimumDeposit                  Float     @default(0)
+  paymentEditWindowHours          Int       @default(3)
   defaultCurrency                 String    @default("GHS")
   defaultMonthlySalary            Float     @default(0)
   commissionEnabled               Boolean   @default(false)

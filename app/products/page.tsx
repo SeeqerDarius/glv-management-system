@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Eye,
+  FileSpreadsheet,
   ListChecksIcon,
   PackageCheckIcon,
   Pencil,
@@ -246,9 +247,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       {activeTab === "procurement" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
-          Products appear here when customer accounts for that product are at
-          least {procurement.thresholdPercent}% paid, including fully paid
-          accounts that are still pending delivery.
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p>
+              Products appear here when customer accounts for that product are
+              at least {procurement.thresholdPercent}% paid, including fully
+              paid accounts that are still pending delivery.
+            </p>
+            <Link
+              href="/api/procurement/export"
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 font-medium text-amber-950 hover:bg-amber-100"
+            >
+              <FileSpreadsheet className="size-4" />
+              Export Excel
+            </Link>
+          </div>
         </div>
       ) : null}
 
@@ -352,7 +364,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     </td>
                     <td className="px-3 py-3 text-right">
                       <Link
-                        href={`/products/${item.productId}`}
+                        href={`/products/procurement/${item.productId}`}
                         aria-label={`View ${item.productName}`}
                         title="View"
                         className="group/view ml-auto flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-blue-50 hover:text-blue-600"

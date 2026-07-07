@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   HandCoins,
   PackageCheck,
+  Pencil,
   RotateCcw,
   Trash2,
 } from "lucide-react";
@@ -35,6 +36,7 @@ import {
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
 
 type AccountDetailsPageProps = {
   params: Promise<{
@@ -51,6 +53,11 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function canEditPayment(createdAt: Date, windowHours: number) {
+  const elapsedMs = Date.now() - createdAt.getTime();
+  return elapsedMs >= 0 && elapsedMs <= windowHours * 60 * 60 * 1000;
+}
+
 export default async function AccountDetailsPage({
   params,
   searchParams,
@@ -65,6 +72,13 @@ export default async function AccountDetailsPage({
     session?.user?.permissions,
     UserPermission.MANAGE_ACCOUNTS,
   );
+  const canManagePayments = hasPermission(
+    session?.user?.role,
+    session?.user?.permissions,
+    UserPermission.MANAGE_PAYMENTS,
+  );
+  const settings = await getSettings();
+  const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
 
   await refreshAccountLifecycleStatuses();
 
@@ -322,6 +336,12 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
+      {updated === "payment" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Payment updated and account balance recalculated.
+        </div>
+      ) : null}
+
       {refunded === "credit" ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
           Customer credit marked as refunded.
@@ -563,20 +583,43 @@ export default async function AccountDetailsPage({
                 <th className="p-3 font-medium">Amount</th>
                 <th className="p-3 font-medium">Method</th>
                 <th className="p-3 font-medium">Notes</th>
+                <th className="p-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {account.payments.map((payment) => (
-                <tr key={payment.id} className="border-t">
-                  <td className="p-3 font-semibold text-gray-950">
-                    {payment.receiptNo}
-                  </td>
-                  <td className="p-3">{formatDate(payment.paymentDate)}</td>
-                  <td className="p-3">{formatMoney(payment.amount)}</td>
-                  <td className="p-3">{payment.method}</td>
-                  <td className="p-3">{payment.notes || "-"}</td>
-                </tr>
-              ))}
+              {account.payments.map((payment) => {
+                const canEdit =
+                  canEditPayment(payment.createdAt, paymentEditWindowHours) &&
+                  (isAdmin ||
+                    canManagePayments ||
+                    (isStaff && account.customer.staffId === session.user.staffId));
+
+                return (
+                  <tr key={payment.id} className="border-t">
+                    <td className="p-3 font-semibold text-gray-950">
+                      {payment.receiptNo}
+                    </td>
+                    <td className="p-3">{formatDate(payment.paymentDate)}</td>
+                    <td className="p-3">{formatMoney(payment.amount)}</td>
+                    <td className="p-3">{payment.method}</td>
+                    <td className="p-3">{payment.notes || "-"}</td>
+                    <td className="p-3 text-right">
+                      {canEdit ? (
+                        <Link
+                          href={`/payments/${payment.id}/edit`}
+                          aria-label={`Edit receipt ${payment.receiptNo}`}
+                          title="Edit Payment"
+                          className="ml-auto flex size-8 items-center justify-center rounded-md text-gray-400 transition hover:bg-lime-50 hover:text-green-700"
+                        >
+                          <Pencil className="size-4" />
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-gray-400">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

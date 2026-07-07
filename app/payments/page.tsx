@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { UserPermission, UserRole, type Prisma } from "@prisma/client";
-import { Eye, SearchIcon, Trash2 } from "lucide-react";
+import { Eye, Pencil, SearchIcon, Trash2 } from "lucide-react";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -65,6 +66,11 @@ function parseDateFilter(value?: string) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function canEditPayment(createdAt: Date, windowHours: number) {
+  const elapsedMs = Date.now() - createdAt.getTime();
+  return elapsedMs >= 0 && elapsedMs <= windowHours * 60 * 60 * 1000;
+}
+
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
   const { error, deleted, from, method, page, q, sort, staffId, to } =
     await searchParams;
@@ -87,6 +93,8 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     : "newest";
   const fromDate = parseDateFilter(from);
   const toDate = parseDateFilter(to);
+  const settings = await getSettings();
+  const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
   if (toDate) {
     toDate.setHours(23, 59, 59, 999);
   }
@@ -182,6 +190,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     receiptNo: string;
     amount: number;
     paymentDate: Date;
+    createdAt: Date;
     method: string;
     credit: {
       id: string;
@@ -218,6 +227,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
         receiptNo: true,
         amount: true,
         paymentDate: true,
+        createdAt: true,
         method: true,
         credit: {
           select: {
@@ -534,51 +544,71 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                       <th className="p-3 font-medium">Amount</th>
                                       <th className="p-3 font-medium">Credit</th>
                                       <th className="p-3 font-medium">Method</th>
-                                      {isAdmin ? (
-                                        <th className="p-3 text-right font-medium">
-                                          Actions
-                                        </th>
-                                      ) : null}
+                                      <th className="p-3 text-right font-medium">
+                                        Actions
+                                      </th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {accountGroup.payments.map((payment) => (
-                                      <tr key={payment.id} className="border-t">
-                                        <td className="p-3 font-semibold text-gray-950">
-                                          {payment.receiptNo}
-                                        </td>
-                                        <td className="p-3">
-                                          {formatDate(payment.paymentDate)}
-                                        </td>
-                                        <td className="p-3">
-                                          {formatMoney(payment.amount)}
-                                        </td>
-                                        <td className="p-3">
-                                          {payment.credit ? (
-                                            <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">
-                                              {formatMoney(payment.credit.amount)}{" "}
-                                              {payment.credit.status.toLowerCase()}
-                                            </span>
-                                          ) : (
-                                            <span className="text-xs text-gray-400">-</span>
-                                          )}
-                                        </td>
-                                        <td className="p-3">{payment.method}</td>
-                                        {isAdmin ? (
-                                          <td className="p-3 text-right">
-                                            <ConfirmDeleteForm
-                                              action={deletePayment}
-                                              id={payment.id}
-                                              title={`Delete receipt ${payment.receiptNo}?`}
-                                              description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
-                                              triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
-                                            >
-                                              <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
-                                            </ConfirmDeleteForm>
+                                    {accountGroup.payments.map((payment) => {
+                                      const canEdit = canEditPayment(
+                                        payment.createdAt,
+                                        paymentEditWindowHours
+                                      );
+
+                                      return (
+                                        <tr key={payment.id} className="border-t">
+                                          <td className="p-3 font-semibold text-gray-950">
+                                            {payment.receiptNo}
                                           </td>
-                                        ) : null}
-                                      </tr>
-                                    ))}
+                                          <td className="p-3">
+                                            {formatDate(payment.paymentDate)}
+                                          </td>
+                                          <td className="p-3">
+                                            {formatMoney(payment.amount)}
+                                          </td>
+                                          <td className="p-3">
+                                            {payment.credit ? (
+                                              <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">
+                                                {formatMoney(payment.credit.amount)}{" "}
+                                                {payment.credit.status.toLowerCase()}
+                                              </span>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">-</span>
+                                            )}
+                                          </td>
+                                          <td className="p-3">{payment.method}</td>
+                                          <td className="p-3 text-right">
+                                            <div className="flex justify-end gap-1">
+                                              {canEdit ? (
+                                                <Link
+                                                  href={`/payments/${payment.id}/edit`}
+                                                  aria-label={`Edit receipt ${payment.receiptNo}`}
+                                                  title="Edit Payment"
+                                                  className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                                                >
+                                                  <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
+                                                </Link>
+                                              ) : null}
+                                              {isAdmin ? (
+                                                <ConfirmDeleteForm
+                                                  action={deletePayment}
+                                                  id={payment.id}
+                                                  title={`Delete receipt ${payment.receiptNo}?`}
+                                                  description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
+                                                  triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                                                >
+                                                  <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                                                </ConfirmDeleteForm>
+                                              ) : null}
+                                              {!canEdit && !isAdmin ? (
+                                                <span className="text-xs text-gray-400">-</span>
+                                              ) : null}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
                                 </table>
                               </div>

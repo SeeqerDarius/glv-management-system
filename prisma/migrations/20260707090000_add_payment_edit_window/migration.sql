@@ -1,0 +1,2 @@
+ALTER TABLE "Setting"
+ADD COLUMN "paymentEditWindowHours" INTEGER NOT NULL DEFAULT 3;

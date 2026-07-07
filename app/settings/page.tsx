@@ -34,6 +34,7 @@ const defaults = {
   refundDeductionPercent: 0,
   deliveryTimeAfterCompletionDays: 0,
   procurementThresholdPercent: 70,
+  paymentEditWindowHours: 3,
   minimumDeposit: 0,
   defaultCurrency: "GHS",
   defaultMonthlySalary: 0,
@@ -70,6 +71,7 @@ const errorMessages: Record<string, string> = {
   "invalid-number": "Amounts and percentages must be valid positive numbers.",
   "invalid-percent": "Percentage values cannot be more than 100.",
   "invalid-payroll-day": "Payroll day must be between 1 and 31.",
+  "invalid-payment-edit-window": "Payment edit window must be between 3 and 16 hours.",
   "invalid-staff-code-length": "Staff code length must be between 2 and 8 characters.",
   "invalid-password-length": "Password length must be at least 6 characters.",
   "invalid-session-timeout": "Session timeout must be at least 5 minutes.",
@@ -226,6 +228,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <Field label="Refund Deduction %" name="refundDeductionPercent" type="number" min={0} max={100} step="0.01" defaultValue={values.refundDeductionPercent} />
           <Field label="Delivery Time After Completion" name="deliveryTimeAfterCompletionDays" type="number" min={0} defaultValue={values.deliveryTimeAfterCompletionDays} />
           <Field label="Procurement Threshold %" name="procurementThresholdPercent" type="number" min={0} max={100} step="0.01" defaultValue={values.procurementThresholdPercent} />
+          <Field label="Payment Edit Window Hours" name="paymentEditWindowHours" type="number" min={3} max={16} defaultValue={values.paymentEditWindowHours} />
           <Field label="Minimum Deposit" name="minimumDeposit" type="number" min={0} step="0.01" defaultValue={values.minimumDeposit} />
           <Field label="Default Currency" name="defaultCurrency" defaultValue={values.defaultCurrency} />
         </SettingsSection>

@@ -48,6 +48,7 @@ export async function updateSettings(formData: FormData): Promise<void> {
   const refundDeductionPercent = numberValue(formData, "refundDeductionPercent");
   const deliveryTimeAfterCompletionDays = integerValue(formData, "deliveryTimeAfterCompletionDays");
   const procurementThresholdPercent = numberValue(formData, "procurementThresholdPercent");
+  const paymentEditWindowHours = integerValue(formData, "paymentEditWindowHours");
   const minimumDeposit = numberValue(formData, "minimumDeposit");
   const defaultMonthlySalary = numberValue(formData, "defaultMonthlySalary");
   const commissionPercentage = numberValue(formData, "commissionPercentage");
@@ -69,6 +70,13 @@ export async function updateSettings(formData: FormData): Promise<void> {
   }
   if (administrationFeePercent > 100 || refundDeductionPercent > 100 || procurementThresholdPercent > 100 || commissionPercentage > 100) {
     redirect("/settings?error=invalid-percent");
+  }
+  if (
+    paymentEditWindowHours < 3 ||
+    paymentEditWindowHours > 16 ||
+    Number.isNaN(paymentEditWindowHours)
+  ) {
+    redirect("/settings?error=invalid-payment-edit-window");
   }
   if (payrollDay < 1 || payrollDay > 31 || Number.isNaN(payrollDay)) {
     redirect("/settings?error=invalid-payroll-day");
@@ -102,6 +110,7 @@ export async function updateSettings(formData: FormData): Promise<void> {
     refundDeductionPercent,
     deliveryTimeAfterCompletionDays: Math.max(0, deliveryTimeAfterCompletionDays || 0),
     procurementThresholdPercent,
+    paymentEditWindowHours,
     minimumDeposit,
     defaultCurrency: text(formData, "defaultCurrency") || "GHS",
     defaultMonthlySalary,

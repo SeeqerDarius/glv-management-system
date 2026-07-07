@@ -9,6 +9,7 @@ export const fallbackSettings = {
   installmentDurationDays: 184,
   defaultDailyCollection: 0,
   procurementThresholdPercent: 70,
+  paymentEditWindowHours: 3,
   defaultMonthlySalary: 0,
   receiptPrefix: "GLV/RCPT",
   customerIdPrefix: "GLV",
