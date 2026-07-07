@@ -100,7 +100,7 @@ export default async function CreditsPage({
   const sortParam = query.sort ?? "";
   const selectedSort: CreditSort = isCreditSort(sortParam)
     ? sortParam
-    : "newest";
+    : "customer-az";
   const filters: Prisma.CustomerCreditWhereInput[] = [];
 
   if (selectedStatus !== "ALL") {
@@ -252,11 +252,11 @@ export default async function CreditsPage({
             defaultValue={selectedSort}
             className="w-full rounded border p-3 text-sm"
           >
+            <option value="customer-az">Customer A-Z</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="amount-high">Highest amount</option>
             <option value="remaining-high">Highest remaining</option>
-            <option value="customer-az">Customer A-Z</option>
           </select>
         </label>
 

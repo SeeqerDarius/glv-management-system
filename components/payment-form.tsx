@@ -58,7 +58,7 @@ export function PaymentForm({
     preselectedAccount ? selectedAccountId : ""
   );
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("");
+  const [method, setMethod] = useState("Cash");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const selectedAccount = accounts.find((account) => account.id === accountId);
@@ -211,7 +211,6 @@ export function PaymentForm({
           className="w-full rounded border p-3"
           required
         >
-          <option value="">Select method</option>
           <option value="Cash">Cash</option>
           <option value="Mobile Money">Mobile Money</option>
           <option value="Bank Transfer">Bank Transfer</option>

@@ -215,10 +215,10 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
               <span className="text-sm font-medium text-gray-700">Method</span>
               <select
                 name="method"
+                defaultValue="Cash"
                 className="w-full rounded border p-3"
                 required={Boolean(firstPaymentAmount)}
               >
-                <option value="">Select method</option>
                 <option value="Cash">Cash</option>
                 <option value="Mobile Money">Mobile Money</option>
                 <option value="Bank Transfer">Bank Transfer</option>

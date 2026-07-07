@@ -106,7 +106,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   const sortParam = sort ?? "";
   const selectedSort: StaffSort = isStaffSort(sortParam)
     ? sortParam
-    : "newest";
+    : "name-az";
   const now = new Date();
   let staff: StaffRow[];
 
@@ -288,9 +288,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           defaultValue={selectedSort}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
         >
+          <option value="name-az">Name A-Z</option>
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
-          <option value="name-az">Name A-Z</option>
           <option value="code-az">Code A-Z</option>
           <option value="customers-high">Most customers</option>
           <option value="salary-high">Highest salary</option>

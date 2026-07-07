@@ -165,10 +165,10 @@ export function AccountForm({
           <span className="text-sm font-medium text-gray-700">Method</span>
           <select
             name="method"
+            defaultValue="Cash"
             className="w-full rounded border bg-white p-3"
             required={Boolean(firstPaymentAmount)}
           >
-            <option value="">Select method</option>
             <option value="Cash">Cash</option>
             <option value="Mobile Money">Mobile Money</option>
             <option value="Bank Transfer">Bank Transfer</option>

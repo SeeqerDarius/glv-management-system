@@ -67,7 +67,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const sortParam = sort ?? "";
   const selectedSort: CustomerSort = isCustomerSort(sortParam)
     ? sortParam
-    : "newest";
+    : "name-az";
   const currentPage = Math.max(Number(page || "1"), 1);
 
   const staffFilter: Prisma.CustomerWhereInput | undefined =
@@ -159,7 +159,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const urlParams = new URLSearchParams();
   if (query) urlParams.set("q", query);
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
-  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
+  if (selectedSort !== "name-az") urlParams.set("sort", selectedSort);
 
   if (loadError) {
     return (
@@ -240,10 +240,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
             defaultValue={selectedSort}
             className="w-full rounded border p-3 text-sm"
           >
-            <option value="newest">Newest first</option>
-            <option value="oldest">Oldest first</option>
             <option value="name-az">Name A-Z</option>
             <option value="name-za">Name Z-A</option>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
             <option value="id-az">Customer ID A-Z</option>
           </select>
         </label>

@@ -108,7 +108,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const sortParam = params.sort ?? "";
   const selectedSort: AccountSort = isAccountSort(sortParam)
     ? sortParam
-    : "newest";
+    : "customer-az";
   const currentPage = Math.max(Number(params.page || "1"), 1);
 
   // ==========================================================================
@@ -253,7 +253,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
   if (selectedStatus) urlParams.set("status", selectedStatus);
   if (selectedProductId) urlParams.set("productId", selectedProductId);
-  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
+  if (selectedSort !== "customer-az") urlParams.set("sort", selectedSort);
 
   // ==========================================================================
   // SECTION: Error State (Database Unavailable)
@@ -350,10 +350,10 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         </select>
 
         <select name="sort" defaultValue={selectedSort} className="rounded border p-3">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
           <option value="customer-az">Customer A-Z</option>
           <option value="product-az">Product A-Z</option>
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
           <option value="paid-high">Highest paid</option>
           <option value="balance-high">Highest balance</option>
           <option value="expected-soon">Expected date soonest</option>

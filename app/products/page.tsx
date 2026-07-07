@@ -67,7 +67,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     : "name-az";
   const selectedProcurementSort: ProcurementSort = isProcurementSort(sortParam)
     ? sortParam
-    : "quantity-high";
+    : "product-az";
 
   const [products, procurement] = await Promise.all([
     prisma.product.findMany({
@@ -289,8 +289,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         >
           {activeTab === "procurement" ? (
             <>
-              <option value="quantity-high">Most units</option>
               <option value="product-az">Product A-Z</option>
+              <option value="quantity-high">Most units</option>
               <option value="cost-high">Highest total cost</option>
               <option value="paid-high">Highest paid %</option>
               <option value="average-paid-high">Highest avg. paid</option>

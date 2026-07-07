@@ -25,6 +25,7 @@ type PaymentsPageProps = {
 
 const PAGE_SIZE = 50;
 const paymentSortOptions = [
+  "customer-az",
   "newest",
   "oldest",
   "amount-high",
@@ -39,6 +40,8 @@ function isPaymentSort(value: string): value is PaymentSort {
 
 function getPaymentOrderBy(sort: PaymentSort): Prisma.PaymentOrderByWithRelationInput {
   switch (sort) {
+    case "customer-az":
+      return { account: { customer: { fullName: "asc" } } };
     case "oldest":
       return { paymentDate: "asc" };
     case "amount-high":
@@ -90,7 +93,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   const sortParam = sort ?? "";
   const selectedSort: PaymentSort = isPaymentSort(sortParam)
     ? sortParam
-    : "newest";
+    : "customer-az";
   const fromDate = parseDateFilter(from);
   const toDate = parseDateFilter(to);
   const settings = await getSettings();
@@ -276,7 +279,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   if (selectedMethod) urlParams.set("method", selectedMethod);
   if (from) urlParams.set("from", from);
   if (to) urlParams.set("to", to);
-  if (selectedSort !== "newest") urlParams.set("sort", selectedSort);
+  if (selectedSort !== "customer-az") urlParams.set("sort", selectedSort);
 
   // Group payments: staff → customer → account
   const groupedPayments = payments.reduce(
@@ -445,6 +448,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
             defaultValue={selectedSort}
             className="w-full rounded border p-3 text-sm"
           >
+            <option value="customer-az">Customer A-Z</option>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="amount-high">Highest amount</option>

@@ -113,7 +113,7 @@ export async function createAccount(
   const firstPaymentMethod = cleanInput(formData.get("method"));
   const firstPaymentNotes = cleanInput(formData.get("notes"));
   const wantsFirstPayment = Boolean(
-    firstPaymentAmountValue || firstPaymentDateValue || firstPaymentMethod
+    firstPaymentAmountValue || firstPaymentDateValue
   );
   const errors: AccountFormState["errors"] = {};
 
