@@ -8,6 +8,7 @@ import type { CustomerFormState } from "@/actions/customers";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
 import { formatMoney } from "@/lib/accounts";
+import { todayDateInputValue } from "@/lib/date-rules";
 
 type StaffOption = { id: string; fullName: string; code: string };
 type ProductOption = {
@@ -42,6 +43,7 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
   const selectedProduct = products.find(
     (product) => product.id === selectedProductId
   );
+  const today = todayDateInputValue();
   const normalizedFullName = normalizeName(fullName);
   const existingNameMatch =
     normalizedFullName.length > 0
@@ -154,6 +156,7 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
           <input
             name="startDate"
             type="date"
+            max={today}
             className="w-full rounded border bg-white p-3"
             required={Boolean(selectedProduct)}
           />
@@ -200,6 +203,7 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
                 <input
                   name="paymentDate"
                   type="date"
+                  max={today}
                   className="w-full rounded border p-3"
                   required={Boolean(firstPaymentAmount)}
                 />

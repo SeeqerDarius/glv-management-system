@@ -5,6 +5,7 @@ import Link from "next/link";
 import { recordPayment, type PaymentFormState } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
+import { todayDateInputValue } from "@/lib/date-rules";
 
 type AccountOption = {
   id: string;
@@ -62,6 +63,7 @@ export function PaymentForm({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const selectedAccount = accounts.find((account) => account.id === accountId);
+  const today = todayDateInputValue();
   const customers = Array.from(
     new Map(
       accounts.map((account) => [
@@ -195,6 +197,7 @@ export function PaymentForm({
           <input
             name="paymentDate"
             type="date"
+            max={today}
             className="w-full rounded border p-3"
             required
           />

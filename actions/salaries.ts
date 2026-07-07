@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { isFutureDate } from "@/lib/date-rules";
 
 async function requireAdmin() {
   const session = await auth();
@@ -33,6 +34,9 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
   }
   if (!dateValue || Number.isNaN(paymentDate.getTime())) {
     redirect("/reports?salaryError=invalid-date#salary-tracking");
+  }
+  if (isFutureDate(paymentDate)) {
+    redirect("/reports?salaryError=future-date#salary-tracking");
   }
 
   const staff = await prisma.staff.findUnique({ where: { id: staffId } });

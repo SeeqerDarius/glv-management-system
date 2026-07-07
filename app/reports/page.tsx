@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
+import { todayDateInputValue } from "@/lib/date-rules";
 import { getWeeklyStaffPerformanceReport } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 
@@ -63,8 +64,12 @@ export default async function ReportsPage({
     return <DatabaseUnavailable retryHref="/reports" title="Reports are temporarily unavailable" />;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayDateInputValue();
   const salaryError = query.salaryError;
+  const salaryErrorMessage =
+    salaryError === "future-date"
+      ? "Salary payment date cannot be in the future."
+      : "Unable to record salary payment. Check the staff, amount, and date.";
 
   return (
     <div className="space-y-8">
@@ -97,12 +102,12 @@ export default async function ReportsPage({
 
       <section id="salary-tracking" className="space-y-4">
         <div><h2 className="text-lg font-semibold text-gray-950">Monthly Staff Salary Tracking</h2><p className="text-sm text-gray-600">Track monthly payroll, payments made this month, and remaining salary balances.</p></div>
-        {salaryError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">Unable to record salary payment. Check the staff, amount, and date.</p> : null}
+        {salaryError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{salaryErrorMessage}</p> : null}
         {query.salaryRecorded ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Salary payment recorded.</p> : null}
         <form action={recordStaffSalary} className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-2 lg:grid-cols-5">
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{report.rows.map((row) => <option key={row.staffId} value={row.staffId}>{row.staffCode} - {row.staffName}</option>)}</select></label>
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Amount</span><input name="amount" type="number" min="0.01" step="0.01" className="w-full rounded border p-3" required /></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Payment Date</span><input name="paymentDate" type="date" defaultValue={today} className="w-full rounded border p-3" required /></label>
+          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Payment Date</span><input name="paymentDate" type="date" defaultValue={today} max={today} className="w-full rounded border p-3" required /></label>
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
           <div className="flex items-end"><Button type="submit" className="w-full">Record Salary</Button></div>
         </form>

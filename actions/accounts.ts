@@ -27,6 +27,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+import { isFutureDate } from "@/lib/date-rules";
 
 export type AccountFormState = {
   errors?: {
@@ -120,11 +121,17 @@ export async function createAccount(
   if (!customerId) errors.customerId = "Please select a customer.";
   if (!productId) errors.productId = "Please select a product.";
   if (!startDate) errors.startDate = "Please choose a valid start date.";
+  if (startDate && isFutureDate(startDate)) {
+    errors.startDate = "Start date cannot be in the future.";
+  }
   if (wantsFirstPayment && (!Number.isFinite(firstPaymentAmount) || firstPaymentAmount <= 0)) {
     errors.amount = "Payment amount must be greater than zero.";
   }
   if (wantsFirstPayment && !firstPaymentDate) {
     errors.paymentDate = "Please choose a valid payment date.";
+  }
+  if (wantsFirstPayment && firstPaymentDate && isFutureDate(firstPaymentDate)) {
+    errors.paymentDate = "Payment date cannot be in the future.";
   }
   if (wantsFirstPayment && !firstPaymentMethod) {
     errors.method = "Please select a payment method.";

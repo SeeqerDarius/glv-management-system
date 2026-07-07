@@ -7,6 +7,7 @@ import {
   type PaymentEditFormState,
 } from "@/actions/payments";
 import { Button } from "@/components/ui/button";
+import { todayDateInputValue } from "@/lib/date-rules";
 
 type PaymentEditFormProps = {
   payment: {
@@ -33,6 +34,7 @@ export function PaymentEditForm({ payment }: PaymentEditFormProps) {
     updatePayment,
     initialState
   );
+  const today = todayDateInputValue();
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -68,6 +70,7 @@ export function PaymentEditForm({ payment }: PaymentEditFormProps) {
           name="paymentDate"
           type="date"
           defaultValue={payment.paymentDate}
+          max={today}
           className="w-full rounded border p-3"
           required
         />

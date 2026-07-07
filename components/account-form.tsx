@@ -5,6 +5,7 @@ import Link from "next/link";
 import { createAccount, type AccountFormState } from "@/actions/accounts";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
+import { todayDateInputValue } from "@/lib/date-rules";
 
 type CustomerOption = {
   id: string;
@@ -56,6 +57,7 @@ export function AccountForm({
     selectedCustomerExists ? selectedCustomerId : ""
   );
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const today = todayDateInputValue();
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -115,6 +117,7 @@ export function AccountForm({
         <input
           name="startDate"
           type="date"
+          max={today}
           className="w-full rounded border p-3"
           required
         />
@@ -154,6 +157,7 @@ export function AccountForm({
             <input
               name="paymentDate"
               type="date"
+              max={today}
               className="w-full rounded border bg-white p-3"
               required={Boolean(firstPaymentAmount)}
             />

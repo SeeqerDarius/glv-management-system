@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
+import { isFutureDate } from "@/lib/date-rules";
 
 export type PaymentFormState = {
   errors?: {
@@ -148,6 +149,9 @@ export async function recordPayment(
     errors.amount = "Payment amount must be greater than zero.";
   }
   if (!paymentDate) errors.paymentDate = "Please choose a valid payment date.";
+  if (paymentDate && isFutureDate(paymentDate)) {
+    errors.paymentDate = "Payment date cannot be in the future.";
+  }
   if (!method) errors.method = "Please select a payment method.";
 
   if (Object.keys(errors).length > 0) {
@@ -274,6 +278,9 @@ export async function updatePayment(
     errors.amount = "Payment amount must be greater than zero.";
   }
   if (!paymentDate) errors.paymentDate = "Please choose a valid payment date.";
+  if (paymentDate && isFutureDate(paymentDate)) {
+    errors.paymentDate = "Payment date cannot be in the future.";
+  }
   if (!method) errors.method = "Please select a payment method.";
 
   if (Object.keys(errors).length > 0) {
