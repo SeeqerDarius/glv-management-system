@@ -182,6 +182,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             s.fullName.toLowerCase().includes(query.toLowerCase()) ||
             s.email.toLowerCase().includes(query.toLowerCase()) ||
             s.code.toLowerCase().includes(query.toLowerCase()) ||
+            (s.position ?? "").toLowerCase().includes(query.toLowerCase()) ||
             (s.phone ?? "").toLowerCase().includes(query.toLowerCase()),
         )
       : staffWithResetRequests;
@@ -278,7 +279,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           <input
             name="q"
             defaultValue={query}
-            placeholder="Search by name, email, code, or phone"
+            placeholder="Search by name, email, code, position, or phone"
             className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
           />
         </div>
@@ -322,6 +323,11 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   {member.fullName}
                 </h2>
                 <p className="truncate text-sm text-gray-600">{member.email}</p>
+                {member.position ? (
+                  <p className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                    {member.position}
+                  </p>
+                ) : null}
               </div>
               {member.passwordResetRequestedAt ? (
                 <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -411,6 +417,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             <colgroup>
               <col style={{ width: "80px" }} />
               <col style={{ width: "160px" }} />
+              <col style={{ width: "160px" }} />
               <col style={{ width: "200px" }} />
               <col style={{ width: "120px" }} />
               <col style={{ width: "90px" }} />
@@ -426,6 +433,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 </th>
                 <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Name
+                </th>
+                <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">
+                  Position
                 </th>
                 <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Email
@@ -465,6 +475,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   </td>
                   <td className="truncate px-3 py-3 text-gray-900">
                     {member.fullName}
+                  </td>
+                  <td className="truncate px-3 py-3 text-gray-700">
+                    {member.position || "-"}
                   </td>
                   <td className="truncate px-3 py-3 text-gray-700">
                     {member.email}

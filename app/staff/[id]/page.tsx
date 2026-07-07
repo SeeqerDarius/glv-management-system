@@ -110,6 +110,11 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
             <p className="mt-1 text-sm text-gray-600">
               Staff code {staff.code}
             </p>
+            {staff.position ? (
+              <p className="mt-2 inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                {staff.position}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -171,6 +176,12 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
         <div className="rounded-lg border bg-white p-5">
           <h2 className="text-base font-semibold text-gray-950">Profile</h2>
           <dl className="mt-4 grid gap-3 text-sm">
+            <div>
+              <dt className="text-gray-500">Position / Rank</dt>
+              <dd className="mt-1 font-medium text-gray-950">
+                {staff.position || "-"}
+              </dd>
+            </div>
             <div>
               <dt className="flex items-center gap-2 text-gray-500">
                 <Mail className="size-4" />

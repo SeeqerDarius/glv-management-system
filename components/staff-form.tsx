@@ -80,6 +80,17 @@ export function StaffForm() {
         </label>
 
         <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">
+            Position / Rank
+          </span>
+          <input
+            name="position"
+            className="w-full rounded border p-3"
+            placeholder="e.g. Procurement Officer, Supervisor"
+          />
+        </label>
+
+        <label className="block space-y-1">
           <span className="text-sm font-medium text-gray-700">Phone</span>
           <input name="phone" className="w-full rounded border p-3" />
         </label>

@@ -8,7 +8,7 @@ import {
   permissionLabels,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
+import { isAdminRole } from "@/lib/roles";
 
 type EditStaffPageProps = {
   params: Promise<{
@@ -19,7 +19,7 @@ type EditStaffPageProps = {
 export default async function EditStaffPage({ params }: EditStaffPageProps) {
   const { id } = await params;
   const session = await auth();
-  const canGrantPrivileges = isSuperAdminRole(session?.user?.role);
+  const canGrantPrivileges = isAdminRole(session?.user?.role);
   const canManageSalary = isAdminRole(session?.user?.role);
   const staff = await prisma.staff.findUnique({
     where: {
@@ -39,7 +39,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
       <div>
         <h1 className="text-3xl font-bold text-gray-950">Edit Staff</h1>
         <p className="mt-1 text-sm text-gray-600">
-          Update contact details, assignment code, and status.
+          Update contact details, position, access, assignment code, and status.
         </p>
       </div>
 
@@ -73,6 +73,18 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
             name="phone"
             defaultValue={staff.phone ?? ""}
             className="w-full border p-3 rounded"
+          />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">
+            Position / Rank
+          </span>
+          <input
+            name="position"
+            defaultValue={staff.position ?? ""}
+            className="w-full rounded border p-3"
+            placeholder="e.g. Procurement Officer, Supervisor"
           />
         </label>
 
@@ -118,7 +130,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
                 Assistant Admin Privileges
               </legend>
               <p className="mt-1 text-xs text-gray-600">
-                These privileges extend access while the user&apos;s main role remains STAFF.
+                These privileges extend access while the user&apos;s main role remains STAFF. Give Manage Products to let this staff member add products, view procurement, and download the procurement export.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">

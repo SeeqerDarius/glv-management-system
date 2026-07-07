@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { parsePermissions } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
@@ -163,6 +163,7 @@ export async function createStaff(
   const user = await requireStaffManager();
 
   const fullName = cleanInput(formData.get("fullName"));
+  const position = cleanInput(formData.get("position"));
   const email = cleanInput(formData.get("email")).toLowerCase();
   const phone = cleanInput(formData.get("phone"));
   const submittedCode = cleanInput(formData.get("code")).toUpperCase();
@@ -229,6 +230,7 @@ export async function createStaff(
       const createdStaff = await tx.staff.create({
         data: {
           fullName,
+          position: position || null,
           email,
           code,
           phone: phone || null,
@@ -287,6 +289,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
 
   const id = cleanInput(formData.get("id"));
   const fullName = cleanInput(formData.get("fullName"));
+  const position = cleanInput(formData.get("position"));
   const email = cleanInput(formData.get("email")).toLowerCase();
   const phone = cleanInput(formData.get("phone"));
   const submittedCode = cleanInput(formData.get("code")).toUpperCase();
@@ -313,7 +316,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
       : existingStaff.monthlySalary
     : existingStaff.monthlySalary;
 
-  const canGrantPrivileges = isSuperAdminRole(user.role);
+  const canGrantPrivileges = isAdminRole(user.role);
   const requestedPermissions = canGrantPrivileges
     ? parsePermissions(formData.getAll("permissions"))
     : existingStaff.user?.permissions ?? [];
@@ -325,6 +328,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
       },
       data: {
         fullName,
+        position: position || null,
         email,
         code,
         phone: phone || null,

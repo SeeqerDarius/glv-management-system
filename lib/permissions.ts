@@ -15,7 +15,7 @@ export const permissionLabels: Record<UserPermission, string> = {
   [UserPermission.MANAGE_ACCOUNTS]: "Manage Accounts",
   [UserPermission.MANAGE_PAYMENTS]: "Manage Payments",
   [UserPermission.VIEW_REPORTS]: "View Reports",
-  [UserPermission.MANAGE_PRODUCTS]: "Manage Products",
+  [UserPermission.MANAGE_PRODUCTS]: "Manage Products & Procurement",
   [UserPermission.MANAGE_STAFF]: "Manage Staff",
   [UserPermission.VIEW_AUDIT_LOGS]: "View Audit Logs",
 };

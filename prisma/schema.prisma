@@ -26,6 +26,7 @@ model Staff {
   id             String               @id @default(cuid())
   code           String               @unique
   fullName       String
+  position       String?
   email          String               @unique
   phone          String?
   active         Boolean              @default(true)
