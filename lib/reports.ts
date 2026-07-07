@@ -8,6 +8,7 @@ import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
+import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 
 export function getCurrentWeekRange(now = new Date()) {
   const day = now.getDay();
@@ -98,6 +99,8 @@ export async function getAdminReportSummary() {
   await refreshAccountLifecycleStatuses();
 
   const month = getCurrentMonthRange();
+  const salaryDueMonth = previousSalaryMonthStart();
+  const salaryDueMonthEnd = salaryMonthEnd(salaryDueMonth);
   const totalCustomers = await prisma.customer.count();
   const staff = await prisma.staff.findMany({
     select: {
@@ -118,9 +121,9 @@ export async function getAdminReportSummary() {
   });
   const salaryAggregate = await prisma.staffSalaryPayment.aggregate({
     where: {
-      paymentDate: {
-        gte: month.start,
-        lte: month.end,
+      salaryMonth: {
+        gte: salaryDueMonth,
+        lte: salaryDueMonthEnd,
       },
     },
     _sum: { amount: true },
@@ -191,10 +194,13 @@ export async function getAdminReportSummary() {
       (total, member) => total + getEffectiveMonthlySalary(member, month.start),
       0
     );
-  const outstandingSalaries = Math.max(
-    currentMonthPayroll - totalSalaryPaid,
-    0
-  );
+  const dueMonthPayroll = staff
+    .filter((member) => member.active)
+    .reduce(
+      (total, member) => total + getEffectiveMonthlySalary(member, salaryDueMonth),
+      0
+    );
+  const outstandingSalaries = Math.max(dueMonthPayroll - totalSalaryPaid, 0);
   const payrollVsIncome = totalCollected - totalSalaryPaid;
   const payrollPercentageOfRevenue =
     totalCollected > 0 ? (totalSalaryPaid / totalCollected) * 100 : 0;
@@ -256,6 +262,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
+  const salaryDueMonth = previousSalaryMonthStart(now);
+  const salaryDueMonthEnd = salaryMonthEnd(salaryDueMonth);
   const staff = await prisma.staff.findMany({
     orderBy: { code: "asc" },
     include: {
@@ -297,8 +305,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       .filter(
         (payment) =>
           payment.staffId === member.id &&
-          payment.paymentDate >= month.start &&
-          payment.paymentDate <= month.end
+          payment.salaryMonth >= salaryDueMonth &&
+          payment.salaryMonth <= salaryDueMonthEnd
       )
       .reduce((total, payment) => total + payment.amount, 0);
     const expectedProfit = memberAccounts
@@ -317,7 +325,7 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       0
     );
 
-    const monthlySalary = getEffectiveMonthlySalary(member, month.start);
+    const monthlySalary = getEffectiveMonthlySalary(member, salaryDueMonth);
 
     return {
       staffId: member.id,
@@ -406,7 +414,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const totalCollected = payments.reduce((total, payment) => total + payment.amount, 0);
   const totalSalaryPaid = salaryPayments.reduce(
     (total, payment) =>
-      payment.paymentDate >= month.start && payment.paymentDate <= month.end
+      payment.salaryMonth >= salaryDueMonth &&
+      payment.salaryMonth <= salaryDueMonthEnd
         ? total + payment.amount
         : total,
     0
@@ -419,6 +428,13 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     .filter((member) => member.active)
     .reduce(
       (total, member) => total + getEffectiveMonthlySalary(member, month.start),
+      0
+    );
+  const dueMonthPayroll = staff
+    .filter((member) => member.active)
+    .reduce(
+      (total, member) =>
+        total + getEffectiveMonthlySalary(member, salaryDueMonth),
       0
     );
   const totalMonthlySalary = staff.reduce(
@@ -446,7 +462,7 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         payment.paymentDate >= month.start && payment.paymentDate <= month.end
     )
     .reduce((total, payment) => total + payment.amount, 0);
-  const outstandingSalaries = Math.max(currentMonthPayroll - totalSalaryPaid, 0);
+  const outstandingSalaries = Math.max(dueMonthPayroll - totalSalaryPaid, 0);
   const payrollVsIncome = monthlyIncome - totalSalaryPaid;
   const payrollPercentageOfRevenue =
     monthlyIncome > 0 ? (totalSalaryPaid / monthlyIncome) * 100 : 0;

@@ -37,6 +37,14 @@ function enabled(formData: FormData, key: string) {
   return formData.get(key) === "on";
 }
 
+function optionValue(value: string, allowed: string[], fallback: string) {
+  return allowed.includes(value) ? value : fallback;
+}
+
+function colorValue(value: string, fallback: string) {
+  return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+}
+
 export async function updateSettings(formData: FormData): Promise<void> {
   const user = await requireAdmin();
 
@@ -56,6 +64,14 @@ export async function updateSettings(formData: FormData): Promise<void> {
   const staffCodeLength = integerValue(formData, "staffCodeLength");
   const passwordLength = integerValue(formData, "passwordLength");
   const sessionTimeoutMinutes = integerValue(formData, "sessionTimeoutMinutes");
+  const theme = optionValue(text(formData, "theme"), ["light", "dark", "system"], "light");
+  const primaryColor = colorValue(text(formData, "primaryColor"), "#84cc16");
+  const secondaryColor = colorValue(text(formData, "secondaryColor"), "#111827");
+  const dashboardCards = optionValue(
+    text(formData, "dashboardCards"),
+    ["standard", "compact", "detailed"],
+    "standard"
+  );
 
   if (!companyName || !phone) redirect("/settings?error=missing-company");
   if (installmentDurationDays <= 0 || Number.isNaN(installmentDurationDays)) {
@@ -129,10 +145,10 @@ export async function updateSettings(formData: FormData): Promise<void> {
     emailNotificationsEnabled: enabled(formData, "emailNotificationsEnabled"),
     smsNotificationsEnabled: enabled(formData, "smsNotificationsEnabled"),
     whatsappRemindersEnabled: enabled(formData, "whatsappRemindersEnabled"),
-    theme: text(formData, "theme") || "light",
-    primaryColor: text(formData, "primaryColor") || "#84cc16",
-    secondaryColor: text(formData, "secondaryColor") || "#111827",
-    dashboardCards: text(formData, "dashboardCards") || "standard",
+    theme,
+    primaryColor,
+    secondaryColor,
+    dashboardCards,
     loadingAnimation: text(formData, "loadingAnimation") || "glv",
     currentVersion: text(formData, "currentVersion") || "0.1.0",
     databaseStatus: text(formData, "databaseStatus") || "Configured",

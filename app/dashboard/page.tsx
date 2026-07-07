@@ -18,6 +18,7 @@ import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { formatMoney } from "@/lib/accounts";
 import { getAdminReportSummary, getStaffDashboardSummary } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
+import { fallbackSettings, getSettings } from "@/lib/settings";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -27,29 +28,54 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function greetingFor(date = new Date()) {
+  const hour = date.getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function normalizeDashboardCards(value: string | null | undefined) {
+  if (value === "compact" || value === "detailed") {
+    return value;
+  }
+
+  return "standard";
+}
+
 function MetricCard({
   label,
   value,
   icon: Icon,
   accent,
+  mode = "standard",
 }: {
   label: string;
   value: string | number;
   icon: LucideIcon;
   accent: string;
+  mode?: "compact" | "standard" | "detailed";
 }) {
+  const compact = mode === "compact";
+  const detailed = mode === "detailed";
+
   return (
     <div
-      className="glv-metric-card rounded-lg border bg-white p-5"
+      className={`glv-metric-card rounded-lg border bg-white ${compact ? "p-3" : "p-5"}`}
       style={{ "--metric-accent": accent } as CSSProperties}
+      data-card-mode={mode}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className={`flex items-start justify-between ${compact ? "gap-2" : "gap-4"}`}>
         <div>
-          <p className="text-sm font-medium text-gray-500">{label}</p>
-          <p className="mt-2 text-2xl font-semibold text-gray-950">{value}</p>
+          <p className={`${compact ? "text-xs" : "text-sm"} font-medium text-gray-500`}>{label}</p>
+          <p className={`${compact ? "mt-1 text-xl" : "mt-2 text-2xl"} font-semibold text-gray-950`}>{value}</p>
+          {detailed ? (
+            <p className="mt-3 text-xs text-gray-500">Updated from the latest operational records.</p>
+          ) : null}
         </div>
-        <span className="inline-flex size-10 items-center justify-center rounded-md bg-gray-100 text-gray-700">
-          <Icon className="size-5" />
+        <span className={`${compact ? "size-8" : "size-10"} inline-flex items-center justify-center rounded-md bg-gray-100 text-gray-700`}>
+          <Icon className={compact ? "size-4" : "size-5"} />
         </span>
       </div>
     </div>
@@ -59,6 +85,9 @@ function MetricCard({
 export default async function DashboardPage() {
   const session = await auth();
   const isAdmin = isAdminRole(session?.user?.role);
+  const settings = await getSettings().catch(() => fallbackSettings);
+  const dashboardCards = normalizeDashboardCards(settings.dashboardCards);
+  const greeting = greetingFor();
   let report: Awaited<ReturnType<typeof getAdminReportSummary>> | null = null;
   let staffReport: Awaited<ReturnType<typeof getStaffDashboardSummary>> | null = null;
   let reportUnavailable = false;
@@ -86,7 +115,7 @@ export default async function DashboardPage() {
           <p className="text-sm font-medium text-green-700">Business Overview</p>
           <h1 className="mt-1 text-3xl font-bold text-gray-950">GLV Dashboard</h1>
           <p className="mt-1 text-sm text-gray-600">
-            Welcome back, {session?.user?.name}.
+            {greeting}, {session?.user?.name ?? "GLV User"}.
           </p>
         </div>
 
@@ -108,55 +137,64 @@ export default async function DashboardPage() {
               label="Total Customers"
               value={report.totalCustomers}
               icon={UserRoundIcon}
-              accent="#7ac943"
+              accent={settings.primaryColor}
+              mode={dashboardCards}
             />
             <MetricCard
               label="Total Staff"
               value={report.totalStaff}
               icon={UsersIcon}
-              accent="#2f8fb5"
+              accent={settings.secondaryColor}
+              mode={dashboardCards}
             />
             <MetricCard
               label="Active Accounts"
               value={report.activeAccounts}
               icon={WalletCardsIcon}
               accent="#3b8d62"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Completed Accounts"
               value={report.completedAccounts}
               icon={CircleCheckBigIcon}
               accent="#44a36f"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Overdue Accounts"
               value={report.overdueAccounts}
               icon={ClockAlertIcon}
               accent="#d18b35"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Open Credits / Refunds"
               value={formatMoney(report.openCreditAmount)}
               icon={CircleDollarSignIcon}
               accent="#c93636"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Payments Collected"
               value={formatMoney(report.totalPaymentsCollected)}
               icon={HandCoinsIcon}
               accent="#846ab3"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Expected Receivables"
               value={formatMoney(report.expectedReceivables)}
               icon={BadgeDollarSignIcon}
               accent="#317f9d"
+              mode={dashboardCards}
             />
             <MetricCard
               label="Profit Estimate"
               value={formatMoney(report.profitEstimate)}
               icon={TrendingUpIcon}
-              accent="#7ac943"
+              accent={settings.primaryColor}
+              mode={dashboardCards}
             />
           </section>
           <section className="space-y-3">
@@ -165,18 +203,18 @@ export default async function DashboardPage() {
               <p className="text-sm text-gray-600">Current cash position and projected profitability after product costs and monthly payroll.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Product Cost Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
-              <MetricCard label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent="#7ac943" />
-              <MetricCard label="Salary Paid This Month" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
-              <MetricCard label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent="#2f8fb5" />
-              <MetricCard label="Outstanding Salaries" value={formatMoney(report.outstandingSalaries)} icon={UsersIcon} accent="#d18b35" />
-              <MetricCard label="Payroll vs Income" value={formatMoney(report.payrollVsIncome)} icon={BadgeDollarSignIcon} accent={report.payrollVsIncome < 0 ? "#c93636" : "#3b8d62"} />
-              <MetricCard label="Net Profit So Far" value={formatMoney(report.netProfitSoFar)} icon={BadgeDollarSignIcon} accent={report.netProfitSoFar < 0 ? "#c93636" : "#3b8d62"} />
-              <MetricCard label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : "#7ac943"} />
-              <MetricCard label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />
-              <MetricCard label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : "#7ac943"} />
-              <MetricCard label="Refund Items" value={report.openCreditCount} icon={CircleDollarSignIcon} accent="#c93636" />
-              <MetricCard label="Closure Refunds" value={report.closureRefundCount} icon={ClockAlertIcon} accent="#d18b35" />
+              <MetricCard mode={dashboardCards} label="Product Cost Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
+              <MetricCard mode={dashboardCards} label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent={settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Salary Paid for Due Month" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
+              <MetricCard mode={dashboardCards} label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent={settings.secondaryColor} />
+              <MetricCard mode={dashboardCards} label="Outstanding Salaries" value={formatMoney(report.outstandingSalaries)} icon={UsersIcon} accent="#d18b35" />
+              <MetricCard mode={dashboardCards} label="Payroll vs Income" value={formatMoney(report.payrollVsIncome)} icon={BadgeDollarSignIcon} accent={report.payrollVsIncome < 0 ? "#c93636" : "#3b8d62"} />
+              <MetricCard mode={dashboardCards} label="Net Profit So Far" value={formatMoney(report.netProfitSoFar)} icon={BadgeDollarSignIcon} accent={report.netProfitSoFar < 0 ? "#c93636" : "#3b8d62"} />
+              <MetricCard mode={dashboardCards} label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />
+              <MetricCard mode={dashboardCards} label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Refund Items" value={report.openCreditCount} icon={CircleDollarSignIcon} accent="#c93636" />
+              <MetricCard mode={dashboardCards} label="Closure Refunds" value={report.closureRefundCount} icon={ClockAlertIcon} accent="#d18b35" />
             </div>
           </section>
         </div>
@@ -185,12 +223,12 @@ export default async function DashboardPage() {
       ) : staffReport ? (
         <div className="space-y-6">
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent="#7ac943" />
-            <MetricCard label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent="#2f8fb5" />
-            <MetricCard label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
-            <MetricCard label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
-            <MetricCard label="Collected Today" value={formatMoney(staffReport.totalCollectedToday)} icon={BadgeDollarSignIcon} accent="#317f9d" />
-            <MetricCard label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent="#7ac943" />
+            <MetricCard mode={dashboardCards} label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent={settings.primaryColor} />
+            <MetricCard mode={dashboardCards} label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent={settings.secondaryColor} />
+            <MetricCard mode={dashboardCards} label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
+            <MetricCard mode={dashboardCards} label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
+            <MetricCard mode={dashboardCards} label="Collected Today" value={formatMoney(staffReport.totalCollectedToday)} icon={BadgeDollarSignIcon} accent="#317f9d" />
+            <MetricCard mode={dashboardCards} label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent={settings.primaryColor} />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">

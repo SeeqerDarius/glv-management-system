@@ -85,12 +85,14 @@ model StaffSalaryPayment {
   staffId     String
   amount      Float
   paymentDate DateTime
+  salaryMonth DateTime
   notes       String?
   paidBy      String
   createdAt   DateTime @default(now())
   staff       Staff    @relation(fields: [staffId], references: [id])
 
   @@index([staffId, paymentDate])
+  @@index([staffId, salaryMonth])
 }
 
 model StaffSalaryHistory {

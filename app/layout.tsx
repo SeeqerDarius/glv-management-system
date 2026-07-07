@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
 import { auth } from "@/lib/auth";
@@ -21,6 +22,18 @@ export const metadata: Metadata = {
   title: "GLV Management System",
   description: "God's Love Ventures installment and layaway management system.",
 };
+
+function normalizeTheme(theme: string | null | undefined) {
+  if (theme === "dark" || theme === "system") {
+    return theme;
+  }
+
+  return "light";
+}
+
+function normalizeColor(color: string | null | undefined, fallback: string) {
+  return /^#[0-9a-f]{6}$/i.test(color ?? "") ? color : fallback;
+}
 
 export default async function RootLayout({
   children,
@@ -50,6 +63,21 @@ export default async function RootLayout({
   const settings = session?.user
     ? await getSettings().catch(() => fallbackSettings)
     : fallbackSettings;
+  const theme = normalizeTheme(settings.theme);
+  const primaryColor = normalizeColor(
+    settings.primaryColor,
+    fallbackSettings.primaryColor
+  );
+  const secondaryColor = normalizeColor(
+    settings.secondaryColor,
+    fallbackSettings.secondaryColor
+  );
+  const themeStyle = {
+    "--glv-primary": primaryColor,
+    "--glv-secondary": secondaryColor,
+    "--primary": primaryColor,
+    "--ring": primaryColor,
+  } as CSSProperties;
   const shellUser = session?.user?.role
     ? { name: session.user.name, role: session.user.role, permissions: session.user.permissions ?? [], staffCode: staff?.code ?? null }
     : null;
@@ -57,7 +85,9 @@ export default async function RootLayout({
   return (
     <html
       lang="en"
+      data-theme={theme}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      style={themeStyle}
     >
       <body className="min-h-full">
         <AppShell

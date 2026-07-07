@@ -18,6 +18,8 @@ export const fallbackSettings = {
   requirePasswordChange: true,
   primaryColor: "#84cc16",
   secondaryColor: "#111827",
+  theme: "light",
+  dashboardCards: "standard",
   loadingAnimation: "glv",
 };
 

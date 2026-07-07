@@ -7,6 +7,7 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
 import { isFutureDate } from "@/lib/date-rules";
+import { isFutureSalaryMonth, parseSalaryMonth } from "@/lib/salary-periods";
 
 async function requireAdmin() {
   const session = await auth();
@@ -26,6 +27,8 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
   const amount = Number(clean(formData.get("amount")));
   const dateValue = clean(formData.get("paymentDate"));
   const paymentDate = new Date(`${dateValue}T00:00:00`);
+  const salaryMonthValue = clean(formData.get("salaryMonth"));
+  const salaryMonth = parseSalaryMonth(salaryMonthValue);
   const notes = clean(formData.get("notes"));
 
   if (!staffId) redirect("/reports?salaryError=missing-staff#salary-tracking");
@@ -38,6 +41,12 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
   if (isFutureDate(paymentDate)) {
     redirect("/reports?salaryError=future-date#salary-tracking");
   }
+  if (!salaryMonth) {
+    redirect("/reports?salaryError=invalid-salary-month#salary-tracking");
+  }
+  if (isFutureSalaryMonth(salaryMonth)) {
+    redirect("/reports?salaryError=future-salary-month#salary-tracking");
+  }
 
   const staff = await prisma.staff.findUnique({ where: { id: staffId } });
   if (!staff) redirect("/reports?salaryError=missing-staff#salary-tracking");
@@ -48,6 +57,7 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
         staffId: staff.id,
         amount,
         paymentDate,
+        salaryMonth,
         notes: notes || null,
         paidBy: user.id,
       },
@@ -63,6 +73,7 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
           staffId: staff.id,
           amount,
           paymentDate,
+          salaryMonth,
           notes: notes || null,
         }),
       },
