@@ -438,10 +438,14 @@ textarea:focus {
 /* ─── Tables ─────────────────────────────────────────────────────────────────── */
 
 main table {
-  min-width: 820px;
   border-collapse: separate;
   border-spacing: 0;
   width: 100%;
+}
+
+main .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
 }
 
 main .overflow-hidden:has(table) {
@@ -780,10 +784,6 @@ main form.rounded-md.border {
     box-shadow: 0 12px 32px rgb(8 28 16 / 0.22);
   }
 
-  main table {
-    min-width: 640px;
-  }
-
   .glv-stat-value {
     font-size: 1.5rem;
   }
@@ -798,8 +798,10 @@ main form.rounded-md.border {
     font-size: 1.375rem;
   }
 
-  main table {
-    min-width: 520px;
+  main table th,
+  main table td {
+    padding: 0.625rem 0.75rem;
+    font-size: 0.8125rem;
   }
 }
 

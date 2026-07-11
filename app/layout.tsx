@@ -47,7 +47,6 @@ export const viewport: Viewport = {
   themeColor: "#0d2b18",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
 };
 
 function normalizeTheme(theme: string | null | undefined) {
