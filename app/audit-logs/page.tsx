@@ -58,6 +58,96 @@ function previewJson(value: string | null) {
   }
 }
 
+function parseJson(value: string | null) {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function humanizeAction(action: string) {
+  return action
+    .split("_")
+    .map((word) => word.charAt(0) + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function humanizeKey(key: string) {
+  return key
+    .replace(/Id$/, "")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function formatValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (value instanceof Date) return formatDate(value);
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) return formatDate(date);
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return value.join(", ");
+  return JSON.stringify(value);
+}
+
+function pickEntityLabel(log: {
+  entity: string;
+  entityId: string;
+  oldValue: string | null;
+  newValue: string | null;
+}) {
+  const value = parseJson(log.newValue) ?? parseJson(log.oldValue);
+  const candidates = [
+    "customerId",
+    "receiptNo",
+    "code",
+    "fullName",
+    "name",
+    "email",
+    "productName",
+    "staffName",
+    "companyName",
+  ];
+
+  for (const key of candidates) {
+    const candidate = value?.[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate;
+    }
+  }
+
+  if (log.entityId.startsWith("bulk:")) {
+    return `Bulk action (${log.entityId.replace("bulk:", "")} records)`;
+  }
+
+  return `${log.entity} record ${log.entityId.slice(0, 8)}`;
+}
+
+function detailEntries(value: string | null) {
+  const parsed = parseJson(value);
+  if (!parsed) return null;
+
+  const noisyKeys = new Set([
+    "id",
+    "password",
+    "oldValue",
+    "newValue",
+    "createdAt",
+    "updatedAt",
+  ]);
+  return Object.entries(parsed)
+    .filter(([key, entryValue]) => !noisyKeys.has(key) && entryValue !== null)
+    .slice(0, 8);
+}
+
 export default async function AuditLogsPage({
   searchParams,
 }: AuditLogsPageProps) {
@@ -102,6 +192,21 @@ export default async function AuditLogsPage({
     orderBy: getAuditOrderBy(selectedSort),
     take: 100,
   });
+  const users = await prisma.user.findMany({
+    where: {
+      id: {
+        in: Array.from(new Set(logs.map((log) => log.userId))),
+      },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+    },
+  });
+  const userNames = new Map(
+    users.map((user) => [user.id, `${user.name} (${user.email})`])
+  );
 
   return (
     <div className="space-y-6">
@@ -146,9 +251,9 @@ export default async function AuditLogsPage({
               <th className="p-3 font-medium">Date</th>
               <th className="p-3 font-medium">Action</th>
               <th className="p-3 font-medium">Entity</th>
-              <th className="p-3 font-medium">Entity ID</th>
-              <th className="p-3 font-medium">User ID</th>
-              <th className="p-3 font-medium">New Value</th>
+              <th className="p-3 font-medium">Record</th>
+              <th className="p-3 font-medium">User</th>
+              <th className="p-3 font-medium">Details</th>
             </tr>
           </thead>
           <tbody>
@@ -156,15 +261,42 @@ export default async function AuditLogsPage({
               <tr key={log.id} className="border-t align-top">
                 <td className="p-3 whitespace-nowrap">{formatDate(log.createdAt)}</td>
                 <td className="p-3">
-                  <Badge variant="outline">{log.action}</Badge>
+                  <Badge variant="outline">{humanizeAction(log.action)}</Badge>
                 </td>
                 <td className="p-3">{log.entity}</td>
-                <td className="p-3 font-mono text-xs">{log.entityId}</td>
-                <td className="p-3 font-mono text-xs">{log.userId}</td>
+                <td className="p-3">
+                  <p className="font-medium text-gray-900">
+                    {pickEntityLabel(log)}
+                  </p>
+                  <p className="mt-1 font-mono text-[0.68rem] text-gray-500">
+                    {log.entityId}
+                  </p>
+                </td>
+                <td className="p-3">
+                  <p className="font-medium text-gray-900">
+                    {userNames.get(log.userId) ?? "System user"}
+                  </p>
+                  <p className="mt-1 font-mono text-[0.68rem] text-gray-500">
+                    {log.userId}
+                  </p>
+                </td>
                 <td className="max-w-md p-3">
-                  <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-700">
-                    {previewJson(log.newValue)}
-                  </pre>
+                  {detailEntries(log.newValue)?.length ? (
+                    <dl className="grid gap-1 rounded bg-gray-50 p-3 text-xs text-gray-700">
+                      {detailEntries(log.newValue)?.map(([key, value]) => (
+                        <div key={key} className="grid gap-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
+                          <dt className="font-semibold text-gray-500">
+                            {humanizeKey(key)}
+                          </dt>
+                          <dd className="break-words">{formatValue(value)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : (
+                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded bg-gray-50 p-3 text-xs text-gray-700">
+                      {previewJson(log.newValue)}
+                    </pre>
+                  )}
                 </td>
               </tr>
             ))}

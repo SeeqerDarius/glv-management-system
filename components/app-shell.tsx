@@ -107,6 +107,73 @@ export function AppShell({ children, user, brand }: {
     };
   }, [dismissedAttention, isProtected, pathname, user]);
 
+  useEffect(() => {
+    if (!isProtected) {
+      return;
+    }
+
+    const cleanups: Array<() => void> = [];
+
+    function mountTopScrollbars() {
+      document
+        .querySelectorAll<HTMLElement>(".overflow-x-auto")
+        .forEach((scrollArea) => {
+          if (scrollArea.dataset.topScrollbarMounted === "true") {
+            return;
+          }
+
+          if (scrollArea.scrollWidth <= scrollArea.clientWidth) {
+            return;
+          }
+
+          const topScrollbar = document.createElement("div");
+          const topScrollbarInner = document.createElement("div");
+          topScrollbar.className = "glv-top-scrollbar overflow-x-auto";
+          topScrollbarInner.style.width = `${scrollArea.scrollWidth}px`;
+          topScrollbarInner.style.height = "1px";
+          topScrollbar.appendChild(topScrollbarInner);
+          scrollArea.before(topScrollbar);
+          scrollArea.dataset.topScrollbarMounted = "true";
+
+          let syncing = false;
+          const syncFromTop = () => {
+            if (syncing) return;
+            syncing = true;
+            scrollArea.scrollLeft = topScrollbar.scrollLeft;
+            syncing = false;
+          };
+          const syncFromBottom = () => {
+            if (syncing) return;
+            syncing = true;
+            topScrollbar.scrollLeft = scrollArea.scrollLeft;
+            syncing = false;
+          };
+          const resizeObserver = new ResizeObserver(() => {
+            topScrollbarInner.style.width = `${scrollArea.scrollWidth}px`;
+            topScrollbar.hidden = scrollArea.scrollWidth <= scrollArea.clientWidth;
+          });
+
+          topScrollbar.addEventListener("scroll", syncFromTop, { passive: true });
+          scrollArea.addEventListener("scroll", syncFromBottom, { passive: true });
+          resizeObserver.observe(scrollArea);
+
+          cleanups.push(() => {
+            topScrollbar.removeEventListener("scroll", syncFromTop);
+            scrollArea.removeEventListener("scroll", syncFromBottom);
+            resizeObserver.disconnect();
+            delete scrollArea.dataset.topScrollbarMounted;
+            topScrollbar.remove();
+          });
+        });
+    }
+
+    const frame = window.requestAnimationFrame(mountTopScrollbars);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      cleanups.forEach((cleanup) => cleanup());
+    };
+  }, [isProtected, pathname]);
+
   function dismissAttention(key: string, item?: AttentionMap[string]) {
     if (!item) {
       setMobileOpen(false);

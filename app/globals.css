@@ -239,6 +239,16 @@ textarea:focus {
   background: #7a9e8a;
 }
 
+.glv-top-scrollbar {
+  margin-bottom: 0.375rem;
+  min-height: 0.875rem;
+  scrollbar-width: thin;
+}
+
+.glv-top-scrollbar::-webkit-scrollbar {
+  height: 0.75rem;
+}
+
 /* ─── App Shell ─────────────────────────────────────────────────────────────── */
 
 .glv-app-shell {
