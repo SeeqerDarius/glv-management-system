@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Menu, X } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { UserPermission, UserRole } from "@prisma/client";
 import { AiSupportChat } from "@/components/ai-support-chat";
 import { DashboardNav } from "@/components/dashboard-nav";
@@ -18,6 +18,7 @@ type AttentionMap = Record<
 >;
 
 const dismissedAttentionStorageKey = "glv-dismissed-attention";
+const openedAttentionStorageKey = "glv-opened-attention";
 
 function attentionSignature(key: string, item: AttentionMap[string]) {
   return `${key}|${item.href ?? ""}|${item.count}|${item.label}`;
@@ -53,8 +54,14 @@ export function AppShell({ children, user, brand }: {
   };
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [attention, setAttention] = useState<AttentionMap>({});
+  const [openedAttention, setOpenedAttention] = useState<{
+    count: number;
+    label: string;
+    pathname: string;
+  } | null>(null);
   const [dismissedAttention, setDismissedAttention] = useState<Set<string>>(() => {
     if (typeof window === "undefined") {
       return new Set();
@@ -108,15 +115,46 @@ export function AppShell({ children, user, brand }: {
   }, [dismissedAttention, isProtected, pathname, user]);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      if (!isProtected) {
+        setOpenedAttention(null);
+        return;
+      }
+
+      try {
+        const stored = window.sessionStorage.getItem(openedAttentionStorageKey);
+        const parsed = stored ? JSON.parse(stored) : null;
+        if (
+          parsed &&
+          parsed.pathname === pathname &&
+          typeof parsed.label === "string" &&
+          typeof parsed.count === "number"
+        ) {
+          setOpenedAttention(parsed);
+          return;
+        }
+      } catch {
+        // Ignore malformed session attention state.
+      }
+
+      setOpenedAttention(null);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [isProtected, pathname, searchParams]);
+
+  useEffect(() => {
     if (!isProtected) {
       return;
     }
 
-    const cleanups: Array<() => void> = [];
+    const cleanups = new Map<HTMLElement, () => void>();
 
     function mountTopScrollbars() {
       document
-        .querySelectorAll<HTMLElement>(".overflow-x-auto")
+        .querySelectorAll<HTMLElement>(".overflow-x-auto:not(.glv-top-scrollbar)")
         .forEach((scrollArea) => {
           if (scrollArea.dataset.topScrollbarMounted === "true") {
             return;
@@ -128,7 +166,9 @@ export function AppShell({ children, user, brand }: {
 
           const topScrollbar = document.createElement("div");
           const topScrollbarInner = document.createElement("div");
-          topScrollbar.className = "glv-top-scrollbar overflow-x-auto";
+          topScrollbar.className = "glv-top-scrollbar";
+          topScrollbar.style.overflowX = "auto";
+          topScrollbar.style.overflowY = "hidden";
           topScrollbarInner.style.width = `${scrollArea.scrollWidth}px`;
           topScrollbarInner.style.height = "1px";
           topScrollbar.appendChild(topScrollbarInner);
@@ -157,7 +197,7 @@ export function AppShell({ children, user, brand }: {
           scrollArea.addEventListener("scroll", syncFromBottom, { passive: true });
           resizeObserver.observe(scrollArea);
 
-          cleanups.push(() => {
+          cleanups.set(scrollArea, () => {
             topScrollbar.removeEventListener("scroll", syncFromTop);
             scrollArea.removeEventListener("scroll", syncFromBottom);
             resizeObserver.disconnect();
@@ -167,9 +207,21 @@ export function AppShell({ children, user, brand }: {
         });
     }
 
-    const frame = window.requestAnimationFrame(mountTopScrollbars);
+    let frame = window.requestAnimationFrame(mountTopScrollbars);
+    const mutationObserver = new MutationObserver(() => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(mountTopScrollbars);
+    });
+    mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+    window.addEventListener("resize", mountTopScrollbars);
+
     return () => {
       window.cancelAnimationFrame(frame);
+      mutationObserver.disconnect();
+      window.removeEventListener("resize", mountTopScrollbars);
       cleanups.forEach((cleanup) => cleanup());
     };
   }, [isProtected, pathname]);
@@ -181,6 +233,19 @@ export function AppShell({ children, user, brand }: {
     }
 
     const signature = attentionSignature(key, item);
+    try {
+      const target = new URL(item.href ?? key, window.location.origin);
+      window.sessionStorage.setItem(
+        openedAttentionStorageKey,
+        JSON.stringify({
+          count: item.count,
+          label: item.label,
+          pathname: target.pathname,
+        })
+      );
+    } catch {
+      // The navigation itself should not fail if attention marking fails.
+    }
     setAttention((current) => {
       const remaining = { ...current };
       delete remaining[key];
@@ -200,6 +265,15 @@ export function AppShell({ children, user, brand }: {
       return next;
     });
     setMobileOpen(false);
+  }
+
+  function clearOpenedAttention() {
+    try {
+      window.sessionStorage.removeItem(openedAttentionStorageKey);
+    } catch {
+      // Best effort only.
+    }
+    setOpenedAttention(null);
   }
 
   if (!isProtected || !user) {
@@ -236,7 +310,31 @@ export function AppShell({ children, user, brand }: {
           </div>
           <div className="min-w-0 text-right"><p className="truncate text-sm font-semibold text-gray-900">{user.name || "GLV User"}</p><div className="flex items-center justify-end gap-2 text-xs text-gray-500">{user.staffCode ? <span className="font-semibold text-green-700">{user.staffCode}</span> : null}{user.staffCode ? <span aria-hidden="true">•</span> : null}<span>{roleLabel}</span></div></div>
         </header>
-        <main className="glv-main-content min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8"><div className="mx-auto max-w-[90rem]">{children}</div></main>
+        <main className="glv-main-content min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
+          <div className="mx-auto max-w-[90rem]">
+            {openedAttention ? (
+              <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 shadow-sm">
+                <div className="flex gap-3">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-amber-400 text-base font-black text-amber-950">
+                    !
+                  </span>
+                  <div>
+                    <p className="font-semibold">Attention needed here</p>
+                    <p className="mt-0.5 text-amber-900">{openedAttention.label}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearOpenedAttention}
+                  className="rounded-md px-2 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
+            {children}
+          </div>
+        </main>
         <Footer />
       </div>
       {isAdmin ? (
