@@ -3,11 +3,8 @@ const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const OFFLINE_URL = "/offline";
 const PRECACHE_URLS = [
   OFFLINE_URL,
-  "/manifest.json",
   "/manifest.webmanifest",
-  "/icons/icon-144.png",
   "/icons/icon-192.png",
-  "/icons/icon-384.png",
   "/icons/icon-512.png",
   "/icons/maskable-512.png",
   "/icons/apple-touch-icon.png"
@@ -61,7 +58,6 @@ self.addEventListener("fetch", (event) => {
 
   if (
     url.pathname.startsWith("/icons/") ||
-    url.pathname === "/manifest.json" ||
     url.pathname === "/manifest.webmanifest"
   ) {
     event.respondWith(
