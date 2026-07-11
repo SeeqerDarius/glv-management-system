@@ -49,12 +49,12 @@
   /* GLV Brand Tokens */
   --glv-ink: #0f1f14;
   --glv-sidebar: var(--glv-secondary, #0d2b18);
-  --glv-sidebar-hover: #143520;
+  --glv-sidebar-hover: color-mix(in srgb, var(--glv-sidebar) 86%, white);
   --glv-sidebar-active: var(--glv-primary, #b8ed4e);
   --glv-lime: var(--glv-primary, #b8ed4e);
-  --glv-lime-bright: #cdf470;
-  --glv-lime-soft: #edfbd0;
-  --glv-lime-muted: #d4f59a;
+  --glv-lime-bright: color-mix(in srgb, var(--glv-lime) 78%, white);
+  --glv-lime-soft: color-mix(in srgb, var(--glv-lime) 16%, white);
+  --glv-lime-muted: color-mix(in srgb, var(--glv-lime) 45%, white);
   --glv-emerald: #166534;
   --glv-gold: #d4a017;
 
@@ -109,7 +109,6 @@ html[data-theme="dark"] {
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
 
 html {
-  overflow-x: hidden;
   scroll-behavior: smooth;
 }
 
@@ -118,7 +117,6 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), "Inter", Arial, Helvetica, sans-serif;
   min-width: 320px;
-  overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -255,14 +253,12 @@ textarea:focus {
 
 .glv-app-shell {
   background-color: var(--background);
-  max-width: 100vw;
-  overflow-x: hidden;
 }
 
 /* ─── Sidebar ────────────────────────────────────────────────────────────────── */
 
 .glv-sidebar {
-  background: linear-gradient(180deg, var(--glv-sidebar) 0%, #091f11 60%, #071a0e 100%);
+  background: linear-gradient(180deg, var(--glv-sidebar) 0%, color-mix(in srgb, var(--glv-sidebar) 74%, black) 60%, color-mix(in srgb, var(--glv-sidebar) 58%, black) 100%);
   box-shadow: var(--glv-shadow-sidebar);
   border-right: 1px solid rgb(255 255 255 / 0.04);
 }
@@ -287,7 +283,7 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   border-radius: 0.625rem;
-  background: linear-gradient(135deg, var(--glv-lime) 0%, #9ee032 100%);
+  background: linear-gradient(135deg, var(--glv-lime) 0%, color-mix(in srgb, var(--glv-lime) 82%, black) 100%);
   color: #0a1f0e;
   font-size: 0.8rem;
   font-weight: 900;
@@ -320,7 +316,7 @@ textarea:focus {
 }
 
 .glv-nav-link-active {
-  background: linear-gradient(135deg, var(--glv-lime) 0%, #9ee032 100%);
+  background: linear-gradient(135deg, var(--glv-lime) 0%, color-mix(in srgb, var(--glv-lime) 82%, black) 100%);
   color: #0a1f0e !important;
   font-weight: 700;
   border-color: transparent;
@@ -368,11 +364,6 @@ textarea:focus {
   animation: glv-page-enter 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.glv-main-content {
-  max-width: 100vw;
-  overflow-x: hidden;
-}
-
 /* ─── Metric Cards ───────────────────────────────────────────────────────────── */
 
 .glv-metric-card {
@@ -402,7 +393,7 @@ textarea:focus {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--metric-accent, var(--glv-lime)), transparent);
+  background: linear-gradient(90deg, var(--metric-accent, var(--glv-lime)), color-mix(in srgb, var(--metric-accent, var(--glv-lime)) 60%, transparent));
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
@@ -453,7 +444,6 @@ main table {
 }
 
 main .overflow-x-auto {
-  max-width: 100%;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
 }
@@ -800,55 +790,6 @@ main form.rounded-md.border {
 }
 
 @media (max-width: 640px) {
-  button,
-  a,
-  input,
-  select,
-  textarea {
-    transition-duration: 80ms;
-  }
-
-  button:active:not(:disabled),
-  a:active {
-    transform: none;
-  }
-
-  .glv-top-scrollbar {
-    display: none;
-  }
-
-  .glv-main-content > div {
-    animation: none;
-  }
-
-  .glv-metric-card,
-  .glv-card,
-  main .rounded-lg.border.bg-white,
-  main .rounded-md.border.bg-white,
-  main form.rounded-lg.border,
-  main form.rounded-md.border {
-    border-radius: 0.5rem;
-    box-shadow: var(--glv-shadow-xs);
-  }
-
-  .glv-metric-card:hover,
-  .glv-card:hover,
-  .glv-btn-primary:hover,
-  .glv-btn-secondary:hover,
-  .glv-nav-link:hover {
-    transform: none;
-  }
-
-  main h1 {
-    font-size: 1.5rem;
-    line-height: 2rem;
-  }
-
-  main h2 {
-    font-size: 1.05rem;
-    line-height: 1.5rem;
-  }
-
   .glv-page-title {
     font-size: 1.25rem;
   }

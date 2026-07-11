@@ -150,13 +150,6 @@ export function AppShell({ children, user, brand }: {
       return;
     }
 
-    if (
-      window.matchMedia("(max-width: 767px)").matches ||
-      window.matchMedia("(pointer: coarse)").matches
-    ) {
-      return;
-    }
-
     const cleanups = new Map<HTMLElement, () => void>();
 
     function mountTopScrollbars() {
