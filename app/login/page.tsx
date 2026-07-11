@@ -18,6 +18,12 @@ export default function LoginPage() {
     const rootEl = rootRef.current;
     if (!canvasEl || !rootEl) return;
 
+    const shouldSkipCanvas = window.matchMedia("(max-width: 640px), (prefers-reduced-motion: reduce)").matches;
+    if (shouldSkipCanvas) {
+      canvasEl.hidden = true;
+      return;
+    }
+
     const canvas = canvasEl;
     const root = rootEl;
     const ctx = canvas.getContext("2d")!;
