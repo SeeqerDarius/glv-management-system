@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
+import { PwaRegister } from "@/components/pwa-register";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { touchUserPresence } from "@/lib/presence";
@@ -21,6 +22,30 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "GLV Management System",
   description: "God's Love Ventures installment and layaway management system.",
+  applicationName: "GLV",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "GLV",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0d2b18",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 function normalizeTheme(theme: string | null | undefined) {
@@ -90,6 +115,7 @@ export default async function RootLayout({
       style={themeStyle}
     >
       <body className="min-h-full">
+        <PwaRegister />
         <AppShell
           user={shellUser}
           brand={{
