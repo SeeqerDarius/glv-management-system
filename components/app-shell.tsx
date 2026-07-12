@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { UserPermission, UserRole } from "@prisma/client";
 import { AiSupportChat } from "@/components/ai-support-chat";
+import { CalculatorWidget } from "@/components/calculator-widget";
 import { DashboardNav } from "@/components/dashboard-nav";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -340,6 +341,7 @@ export function AppShell({ children, user, brand }: {
       {isAdmin ? (
         <AiSupportChat userName={user.name || "GLV User"} roleLabel={roleLabel} />
       ) : null}
+      <CalculatorWidget />
     </div>
   );
 }
