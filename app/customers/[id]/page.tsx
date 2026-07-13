@@ -117,6 +117,7 @@ export default async function CustomerProfilePage({
           id: true,
           name: true,
           category: true,
+          imageUrl: true,
           layawayPrice: true,
           dailyAmount: true,
           duration: true,

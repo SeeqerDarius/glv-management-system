@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { updateAccountProduct } from "@/actions/accounts";
 import { PasswordInput } from "@/components/password-input";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 
@@ -14,6 +15,7 @@ type ProductOption = {
   layawayPrice: number;
   dailyAmount: number;
   duration: number;
+  imageUrl?: string | null;
 };
 
 type AccountProductCorrectionFormProps = {
@@ -116,24 +118,41 @@ export function AccountProductCorrectionForm({
               </label>
 
               {selectedProduct ? (
-                <div className="grid gap-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950 sm:grid-cols-3">
-                  <div>
-                    <p className="text-blue-700">New target</p>
-                    <p className="font-semibold">
-                      {formatMoney(selectedProduct.layawayPrice)}
-                    </p>
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950">
+                  <div className="mb-3 flex items-center gap-3">
+                    <ProductImage
+                      src={selectedProduct.imageUrl}
+                      alt={selectedProduct.name}
+                      className="size-14 bg-white"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold">
+                        {selectedProduct.name}
+                      </p>
+                      <p className="text-xs text-blue-700">
+                        {selectedProduct.category}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-blue-700">Daily amount</p>
-                    <p className="font-semibold">
-                      {formatMoney(selectedProduct.dailyAmount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-blue-700">New balance</p>
-                    <p className="font-semibold">
-                      {formatMoney(nextBalance ?? 0)}
-                    </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <p className="text-blue-700">New target</p>
+                      <p className="font-semibold">
+                        {formatMoney(selectedProduct.layawayPrice)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-blue-700">Daily amount</p>
+                      <p className="font-semibold">
+                        {formatMoney(selectedProduct.dailyAmount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-blue-700">New balance</p>
+                      <p className="font-semibold">
+                        {formatMoney(nextBalance ?? 0)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ) : null}

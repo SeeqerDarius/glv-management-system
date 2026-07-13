@@ -4,6 +4,7 @@ import { AccountStatus } from "@prisma/client";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProductImage } from "@/components/product-image";
 import { formatMoney } from "@/lib/accounts";
 import { prisma } from "@/lib/prisma";
 
@@ -74,6 +75,12 @@ export default async function ProductDetailsPage({
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
+          <ProductImage
+            src={product.imageUrl}
+            alt={product.name}
+            className="size-20 rounded-lg"
+            iconClassName="size-8"
+          />
           <div>
             <h1 className="text-2xl font-semibold text-gray-950">
               {product.name}

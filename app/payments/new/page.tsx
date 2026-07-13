@@ -54,6 +54,7 @@ export default async function NewPaymentPage({
       product: {
         select: {
           name: true,
+          imageUrl: true,
         },
       },
     },

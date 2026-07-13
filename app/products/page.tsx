@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProductImage } from "@/components/product-image";
 import { formatMoney } from "@/lib/accounts";
 import { ProductCategoryBadge } from "@/lib/product-categories";
 import { getProcurementList } from "@/lib/procurement";
@@ -445,8 +446,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     key={product.id}
                     className="group transition-colors hover:bg-gray-50/70"
                   >
-                    <td className="px-3 py-3 text-left font-medium text-gray-900 truncate">
-                      {product.name}
+                    <td className="px-3 py-3 text-left font-medium text-gray-900">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <ProductImage
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="size-10"
+                        />
+                        <span className="truncate">{product.name}</span>
+                      </div>
                     </td>
 
                     <td className="px-3 py-3 text-left">

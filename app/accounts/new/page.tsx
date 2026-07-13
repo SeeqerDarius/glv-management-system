@@ -46,6 +46,7 @@ export default async function NewAccountPage({
       id: true,
       name: true,
       category: true,
+      imageUrl: true,
       layawayPrice: true,
       dailyAmount: true,
       duration: true,

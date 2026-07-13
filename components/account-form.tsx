@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createAccount, type AccountFormState } from "@/actions/accounts";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
@@ -24,6 +25,7 @@ type ProductOption = {
   layawayPrice: number;
   dailyAmount: number;
   duration: number;
+  imageUrl?: string | null;
 };
 
 type AccountFormProps = {
@@ -50,6 +52,7 @@ export function AccountForm({
     initialState
   );
   const [firstPaymentAmount, setFirstPaymentAmount] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
   const selectedCustomerExists = customers.some(
     (customer) => customer.id === selectedCustomerId
   );
@@ -57,6 +60,7 @@ export function AccountForm({
     selectedCustomerExists ? selectedCustomerId : ""
   );
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  const selectedProduct = products.find((product) => product.id === selectedProductId);
   const today = todayDateInputValue();
 
   return (
@@ -99,7 +103,13 @@ export function AccountForm({
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">Product</span>
-        <select name="productId" className="w-full rounded border p-3" required>
+        <select
+          name="productId"
+          value={selectedProductId}
+          onChange={(event) => setSelectedProductId(event.target.value)}
+          className="w-full rounded border p-3"
+          required
+        >
           <option value="">Select product</option>
           {products.map((product) => (
             <option key={product.id} value={product.id}>
@@ -109,6 +119,24 @@ export function AccountForm({
             </option>
           ))}
         </select>
+        {selectedProduct ? (
+          <div className="flex items-center gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm">
+            <ProductImage
+              src={selectedProduct.imageUrl}
+              alt={selectedProduct.name}
+              className="size-14 bg-white"
+            />
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-gray-950">
+                {selectedProduct.name}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-600">
+                {selectedProduct.category} | {formatMoney(selectedProduct.layawayPrice)} |{" "}
+                {formatMoney(selectedProduct.dailyAmount)}/day
+              </p>
+            </div>
+          </div>
+        ) : null}
         <FieldError message={state.errors?.productId} />
       </label>
 

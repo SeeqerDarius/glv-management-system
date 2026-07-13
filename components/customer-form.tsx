@@ -7,6 +7,7 @@ import { useActionState } from "react";
 import type { CustomerFormState } from "@/actions/customers";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
+import { ProductImage } from "@/components/product-image";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
 
@@ -18,6 +19,7 @@ type ProductOption = {
   layawayPrice: number;
   dailyAmount: number;
   duration: number;
+  imageUrl?: string | null;
 };
 type ExistingCustomerOption = {
   id: string;
@@ -129,24 +131,41 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
         </label>
 
         {selectedProduct ? (
-          <div className="grid gap-3 rounded-md border bg-white p-3 text-sm sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-gray-500">Daily Amount</p>
-              <p className="font-semibold text-gray-950">
-                {formatMoney(selectedProduct.dailyAmount)}
-              </p>
+          <div className="rounded-md border bg-white p-3 text-sm">
+            <div className="mb-3 flex items-center gap-3">
+              <ProductImage
+                src={selectedProduct.imageUrl}
+                alt={selectedProduct.name}
+                className="size-14"
+              />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-gray-950">
+                  {selectedProduct.name}
+                </p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {selectedProduct.category}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-500">Duration</p>
-              <p className="font-semibold text-gray-950">
-                {selectedProduct.duration} days
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Target</p>
-              <p className="font-semibold text-gray-950">
-                {formatMoney(selectedProduct.layawayPrice)}
-              </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-gray-500">Daily Amount</p>
+                <p className="font-semibold text-gray-950">
+                  {formatMoney(selectedProduct.dailyAmount)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Duration</p>
+                <p className="font-semibold text-gray-950">
+                  {selectedProduct.duration} days
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Target</p>
+                <p className="font-semibold text-gray-950">
+                  {formatMoney(selectedProduct.layawayPrice)}
+                </p>
+              </div>
             </div>
           </div>
         ) : null}

@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { recordPayment, type PaymentFormState } from "@/actions/payments";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
@@ -18,6 +19,7 @@ type AccountOption = {
   };
   product: {
     name: string;
+    imageUrl?: string | null;
   };
 };
 
@@ -158,6 +160,23 @@ export function PaymentForm({
             </option>
           ))}
         </select>
+        {selectedAccount ? (
+          <div className="flex items-center gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm">
+            <ProductImage
+              src={selectedAccount.product.imageUrl}
+              alt={selectedAccount.product.name}
+              className="size-14 bg-white"
+            />
+            <div className="min-w-0">
+              <p className="truncate font-semibold text-gray-950">
+                {selectedAccount.product.name}
+              </p>
+              <p className="mt-0.5 text-xs text-gray-600">
+                Balance: {formatMoney(selectedAccount.balance)}
+              </p>
+            </div>
+          </div>
+        ) : null}
         <FieldError message={state.errors?.accountId} />
       </label>
 
@@ -257,8 +276,14 @@ export function PaymentForm({
               </div>
               <div className="flex justify-between gap-4">
                 <span className="text-gray-500">Product/account</span>
-                <span className="text-right font-medium text-gray-950">
-                  {selectedAccount.product.name}
+                <span className="flex items-center justify-end gap-2 text-right font-medium text-gray-950">
+                  <ProductImage
+                    src={selectedAccount.product.imageUrl}
+                    alt={selectedAccount.product.name}
+                    className="size-8"
+                    iconClassName="size-4"
+                  />
+                  <span>{selectedAccount.product.name}</span>
                 </span>
               </div>
               <div className="flex justify-between gap-4">

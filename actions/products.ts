@@ -1,6 +1,7 @@
 "use server";
 
 import { UserPermission } from "@prisma/client";
+import { del, put } from "@vercel/blob";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -17,6 +18,7 @@ export type ProductFormState = {
     duration?: string;
     transportCost?: string;
     quantityOnSale?: string;
+    image?: string;
     form?: string;
   };
   duplicateWarning?: string;
@@ -33,6 +35,14 @@ type ProductInput = {
   transportCost: number;
   quantityOnSale: number;
 };
+
+const maxProductImageSize = 5 * 1024 * 1024;
+const allowedProductImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
 
 async function requireProductManager() {
   const session = await auth();
@@ -69,6 +79,75 @@ function cleanInput(value: FormDataEntryValue | null) {
 function parseNumber(formData: FormData, field: string) {
   const value = Number(cleanInput(formData.get(field)));
   return Number.isFinite(value) ? value : Number.NaN;
+}
+
+function getProductImageFile(formData: FormData) {
+  const image = formData.get("image");
+  return image instanceof File && image.size > 0 ? image : null;
+}
+
+function safeBlobName(name: string, file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const baseName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 48);
+
+  return `products/${baseName || "product"}-${Date.now()}.${extension}`;
+}
+
+async function resolveProductImageUrl({
+  formData,
+  productName,
+  existingImageUrl,
+}: {
+  formData: FormData;
+  productName: string;
+  existingImageUrl?: string | null;
+}): Promise<{ imageUrl?: string | null; error?: string }> {
+  const image = getProductImageFile(formData);
+  const removeImage = formData.get("removeImage") === "on";
+
+  if (!image) {
+    return { imageUrl: removeImage ? null : existingImageUrl ?? null };
+  }
+
+  if (!allowedProductImageTypes.has(image.type)) {
+    return {
+      error: "Use a JPG, PNG, WebP, or GIF image.",
+    };
+  }
+
+  if (image.size > maxProductImageSize) {
+    return {
+      error: "Product image must be 5MB or smaller.",
+    };
+  }
+
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    return {
+      error:
+        "Product image storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel, then try again.",
+    };
+  }
+
+  const blob = await put(safeBlobName(productName, image), image, {
+    access: "public",
+    addRandomSuffix: true,
+  }).catch(() => null);
+
+  if (!blob) {
+    return {
+      error: "Unable to upload product image. Please try again.",
+    };
+  }
+
+  if (existingImageUrl) {
+    await del(existingImageUrl).catch(() => undefined);
+  }
+
+  return { imageUrl: blob.url };
 }
 
 function validateProduct(formData: FormData): {
@@ -238,9 +317,23 @@ export async function createProduct(
     };
   }
 
+  const imageResult = await resolveProductImageUrl({
+    formData,
+    productName: validated.data.name,
+  });
+
+  if (imageResult.error) {
+    return {
+      errors: {
+        image: imageResult.error,
+      },
+    };
+  }
+
   const product = await prisma.product.create({
     data: {
       ...validated.data,
+      imageUrl: imageResult.imageUrl,
       quantityOnSale: 0,
       active: formData.get("active") === "on",
     },
@@ -254,6 +347,9 @@ export async function createProduct(
   });
 
   revalidatePath("/products");
+  revalidatePath("/accounts/new");
+  revalidatePath("/customers/new");
+  revalidatePath("/payments/new");
   redirect(`/products/${product.id}`);
 }
 
@@ -299,10 +395,29 @@ export async function updateProduct(
     };
   }
 
+  const imageResult = await resolveProductImageUrl({
+    formData,
+    productName: validated.data.name,
+    existingImageUrl: existingProduct.imageUrl,
+  });
+
+  if (imageResult.error) {
+    return {
+      errors: {
+        image: imageResult.error,
+      },
+    };
+  }
+
+  if (formData.get("removeImage") === "on" && existingProduct.imageUrl) {
+    await del(existingProduct.imageUrl).catch(() => undefined);
+  }
+
   const updatedProduct = await prisma.product.update({
     where: { id },
     data: {
       ...validated.data,
+      imageUrl: imageResult.imageUrl,
       quantityOnSale: existingProduct.quantityOnSale,
       active: formData.get("active") === "on",
     },
@@ -352,6 +467,9 @@ export async function updateProduct(
 
   revalidatePath("/products");
   revalidatePath(`/products/${id}`);
+  revalidatePath("/accounts/new");
+  revalidatePath("/customers/new");
+  revalidatePath("/payments/new");
   redirect(`/products/${id}`);
 }
 

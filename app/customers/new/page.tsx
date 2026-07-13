@@ -28,6 +28,7 @@ export default async function NewCustomerPage() {
       id: true,
       name: true,
       category: true,
+      imageUrl: true,
       layawayPrice: true,
       dailyAmount: true,
       duration: true,

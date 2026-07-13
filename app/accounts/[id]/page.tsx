@@ -136,6 +136,7 @@ export default async function AccountDetailsPage({
           id: true,
           name: true,
           category: true,
+          imageUrl: true,
           layawayPrice: true,
           dailyAmount: true,
           duration: true,

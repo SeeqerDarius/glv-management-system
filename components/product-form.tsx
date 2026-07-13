@@ -7,6 +7,7 @@ import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
+import { ProductImage } from "@/components/product-image";
 import { productCategories } from "@/lib/product-categories";
 
 type ProductFormProps = {
@@ -51,7 +52,11 @@ export function ProductForm({
   }, [dailyAmount, duration]);
 
   return (
-    <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
+    <form
+      action={formAction}
+      encType="multipart/form-data"
+      className="space-y-4 rounded-lg border bg-white p-5"
+    >
       {product ? <input type="hidden" name="id" value={product.id} /> : null}
       {state.duplicateWarning ? (
         <input type="hidden" name="confirmDuplicate" value="true" />
@@ -83,6 +88,38 @@ export function ProductForm({
         />
         <FieldError message={state.errors?.name} />
       </label>
+
+      <div className="space-y-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+        <div className="flex items-start gap-3">
+          <ProductImage
+            src={product?.imageUrl}
+            alt={product?.name ?? "Product image placeholder"}
+            className="size-16 bg-white"
+            iconClassName="size-7"
+          />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div>
+              <p className="text-sm font-medium text-gray-800">Product Picture</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                Upload a clear product image for staff to recognize it during selection.
+              </p>
+            </div>
+            <input
+              name="image"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="block w-full rounded border bg-white p-2 text-sm"
+            />
+            {product?.imageUrl ? (
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
+                <input type="checkbox" name="removeImage" className="size-4" />
+                Remove current picture
+              </label>
+            ) : null}
+            <FieldError message={state.errors?.image} />
+          </div>
+        </div>
+      </div>
 
       <label className="block space-y-1">
         <span className="text-sm font-medium text-gray-700">Description</span>
