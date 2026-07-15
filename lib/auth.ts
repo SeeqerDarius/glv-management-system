@@ -10,6 +10,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   session: {
     strategy: "jwt",
   },
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt(params) {
+      const token = await authConfig.callbacks.jwt(params);
+
+      if (!params.user && typeof token.id === "string") {
+        const freshUser = await prisma.user.findUnique({
+          where: {
+            id: token.id,
+          },
+          select: {
+            role: true,
+            permissions: true,
+            staffId: true,
+            mustChangePassword: true,
+          },
+        });
+
+        if (freshUser) {
+          token.role = freshUser.role;
+          token.permissions = freshUser.permissions;
+          token.staffId = freshUser.staffId;
+          token.mustChangePassword = freshUser.mustChangePassword;
+        }
+      }
+
+      return token;
+    },
+  },
 
   providers: [
     Credentials({
