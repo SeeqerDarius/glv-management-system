@@ -424,32 +424,30 @@ export default async function AccountDetailsPage({
           <h2 className="text-base font-semibold text-gray-950">
             Product Information
           </h2>
-          <dl className="mt-4 grid gap-3 text-sm">
-            <div>
-              <dt className="text-gray-500">Product</dt>
-              <dd className="mt-1 flex min-w-0 items-center gap-2 font-medium text-gray-950">
-                <ProductImagePreview
-                  src={account.product.imageUrl}
-                  alt={account.product.name}
-                  className="size-9 bg-white"
-                  previewTitle={account.product.name}
-                />
-                <span className="truncate">{account.product.name}</span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-gray-500">Category</dt>
-              <dd className="font-medium text-gray-950">
-                {account.product.category}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-gray-500">Layaway Price</dt>
-              <dd className="font-medium text-gray-950">
+          <div className="mt-4 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm">
+            <ProductImagePreview
+              src={account.product.imageUrl}
+              alt={account.product.name}
+              className="h-48 w-full rounded-lg bg-white sm:h-56"
+              iconClassName="size-12"
+              imageClassName="object-contain"
+              previewTitle={account.product.name}
+            />
+            <div className="mt-3">
+              <p className="text-lg font-semibold text-gray-950">
+                {account.product.name}
+              </p>
+              <p className="mt-1 text-sm text-gray-600">
+                {account.product.category} |{" "}
                 {formatMoney(account.product.layawayPrice)}
-              </dd>
+              </p>
+              {account.product.imageUrl ? (
+                <p className="mt-2 text-xs font-medium text-green-700">
+                  Click the picture to preview it full size.
+                </p>
+              ) : null}
             </div>
-          </dl>
+          </div>
         </div>
       </section>
 
