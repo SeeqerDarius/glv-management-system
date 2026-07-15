@@ -6,7 +6,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { isSuperAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
 import { generateStaffCode } from "@/actions/staff";
 import { getMonthStart } from "@/lib/salary-history";
@@ -40,7 +40,7 @@ function generateTemporaryPassword(minLength = 8) {
 async function requireApplicationReviewer() {
   const session = await auth();
 
-  if (!isAdminRole(session?.user?.role) || !session?.user?.id) {
+  if (!isSuperAdminRole(session?.user?.role) || !session?.user?.id) {
     throw new Error("Unauthorized");
   }
 

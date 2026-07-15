@@ -13,8 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
+import { auth } from "@/lib/auth";
 import { permissionLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { isSuperAdminRole } from "@/lib/roles";
 
 type StaffDetailsPageProps = {
   params: Promise<{
@@ -42,6 +44,8 @@ function formatDateTime(date: Date) {
 
 export default async function StaffDetailsPage({ params }: StaffDetailsPageProps) {
   const { id } = await params;
+  const session = await auth();
+  const canManageStaff = isSuperAdminRole(session?.user?.role);
   const staff = await prisma.staff.findUnique({
     where: {
       id,
@@ -118,6 +122,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           </div>
         </div>
 
+        {canManageStaff ? (
         <div className="flex flex-wrap items-center gap-0.5">
           <Link
             href={`/staff/${staff.id}/edit`}
@@ -128,6 +133,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
             <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
           </Link>
         </div>
+        ) : null}
       </div>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -154,12 +160,15 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
               : "Password is current"}
           </p>
         </div>
+        {canManageStaff ? (
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Monthly Salary</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
             {formatMoney(staff.monthlySalary)}
           </p>
         </div>
+        ) : null}
+        {canManageStaff ? (
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Recent Salary Paid</p>
           <p className="mt-2 text-2xl font-semibold text-gray-950">
@@ -170,6 +179,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
             {staff.salaryPayments.length === 1 ? "" : "s"}
           </p>
         </div>
+        ) : null}
       </section>
 
       <section className="grid gap-4 lg:grid-cols-2">
@@ -250,6 +260,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
         </div>
       </section>
 
+      {canManageStaff ? (
       <section className="rounded-lg border bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
           <div>
@@ -307,6 +318,7 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           ) : null}
         </div>
       </section>
+      ) : null}
 
       <section className="rounded-lg border bg-white">
         <div className="border-b p-5">

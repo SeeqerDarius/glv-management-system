@@ -6,7 +6,7 @@ export const assistantAdminPermissions = [
   UserPermission.MANAGE_PAYMENTS,
   UserPermission.VIEW_REPORTS,
   UserPermission.MANAGE_PRODUCTS,
-  UserPermission.MANAGE_STAFF,
+  UserPermission.VIEW_STAFF,
   UserPermission.VIEW_AUDIT_LOGS,
 ] as const;
 
@@ -16,7 +16,8 @@ export const permissionLabels: Record<UserPermission, string> = {
   [UserPermission.MANAGE_PAYMENTS]: "Manage Payments",
   [UserPermission.VIEW_REPORTS]: "View Reports",
   [UserPermission.MANAGE_PRODUCTS]: "Manage Products & Procurement",
-  [UserPermission.MANAGE_STAFF]: "Manage Staff",
+  [UserPermission.VIEW_STAFF]: "View Staff",
+  [UserPermission.MANAGE_STAFF]: "Legacy Staff Access",
   [UserPermission.VIEW_AUDIT_LOGS]: "View Audit Logs",
 };
 

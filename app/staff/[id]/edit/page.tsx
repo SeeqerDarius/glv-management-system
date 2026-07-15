@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { updateStaff } from "@/actions/staff";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -8,7 +8,7 @@ import {
   permissionLabels,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { isSuperAdminRole } from "@/lib/roles";
 
 type EditStaffPageProps = {
   params: Promise<{
@@ -19,8 +19,12 @@ type EditStaffPageProps = {
 export default async function EditStaffPage({ params }: EditStaffPageProps) {
   const { id } = await params;
   const session = await auth();
-  const canGrantPrivileges = isAdminRole(session?.user?.role);
-  const canManageSalary = isAdminRole(session?.user?.role);
+  const canManageStaff = isSuperAdminRole(session?.user?.role);
+
+  if (!canManageStaff) {
+    redirect(`/staff/${id}`);
+  }
+
   const staff = await prisma.staff.findUnique({
     where: {
       id,
@@ -108,7 +112,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
           Active
         </label>
 
-        {canManageSalary ? (
+        {canManageStaff ? (
           <label className="block space-y-1 rounded-md border border-lime-200 bg-lime-50 p-4">
             <span className="text-sm font-semibold text-gray-900">Monthly Salary</span>
             <input
@@ -123,7 +127,7 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
           </label>
         ) : null}
 
-        {canGrantPrivileges && staff.user ? (
+        {canManageStaff && staff.user ? (
           <fieldset className="space-y-3 rounded-md border border-lime-200 bg-lime-50 p-4">
             <div>
               <legend className="font-semibold text-gray-950">

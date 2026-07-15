@@ -10,7 +10,7 @@ import { auth } from "@/lib/auth";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/roles";
+import { hasPermission, isSuperAdminRole } from "@/lib/roles";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 
@@ -117,13 +117,7 @@ export async function GET() {
     }
   }
 
-  if (
-    hasPermission(
-      session.user.role,
-      session.user.permissions,
-      UserPermission.MANAGE_STAFF,
-    )
-  ) {
+  if (isSuperAdminRole(session.user.role)) {
     const pendingApplications = await prisma.staffApplication.count({
       where: { status: StaffApplicationStatus.PENDING },
     });

@@ -25,7 +25,7 @@ const navigation = [
   { href: "/accounts", label: "Accounts", icon: WalletCardsIcon },
   { href: "/payments", label: "Payments", icon: HandCoinsIcon },
   { href: "/products", label: "Products", icon: PackageIcon, permission: UserPermission.MANAGE_PRODUCTS, adminSection: true },
-  { href: "/staff", label: "Staff", icon: UsersIcon, permission: UserPermission.MANAGE_STAFF, adminSection: true },
+  { href: "/staff", label: "Staff", icon: UsersIcon, permission: UserPermission.VIEW_STAFF, adminSection: true },
   {
     href: "/credits",
     label: "Credits & Refunds",

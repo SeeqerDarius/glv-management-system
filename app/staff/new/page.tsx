@@ -1,6 +1,15 @@
+import { redirect } from "next/navigation";
 import { StaffForm } from "@/components/staff-form";
+import { auth } from "@/lib/auth";
+import { isSuperAdminRole } from "@/lib/roles";
 
-export default function NewStaffPage() {
+export default async function NewStaffPage() {
+  const session = await auth();
+
+  if (!isSuperAdminRole(session?.user?.role)) {
+    redirect("/staff");
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <div>

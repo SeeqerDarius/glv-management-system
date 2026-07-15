@@ -1,13 +1,13 @@
 "use server";
 
-import { UserPermission, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
-import { hasPermission, isAdminRole } from "@/lib/roles";
+import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { parsePermissions } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
@@ -47,15 +47,7 @@ const codeOverrides: Record<string, string> = {
 async function requireStaffManager() {
   const session = await auth();
 
-  if (
-    !session?.user?.id ||
-    !session.user.role ||
-    !hasPermission(
-      session.user.role,
-      session.user.permissions,
-      UserPermission.MANAGE_STAFF
-    )
-  ) {
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) {
     throw new Error("Unauthorized");
   }
 
@@ -69,7 +61,7 @@ async function requireStaffManager() {
 async function requireAdmin() {
   const session = await auth();
 
-  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) {
     throw new Error("Unauthorized");
   }
 

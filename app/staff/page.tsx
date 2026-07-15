@@ -6,7 +6,9 @@ import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
 import { formatMoney } from "@/lib/accounts";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isSuperAdminRole } from "@/lib/roles";
 
 const onlineWindowMs = 5 * 60 * 1000;
 
@@ -102,11 +104,15 @@ type StaffRow = StaffListItem & {
 
 export default async function StaffPage({ searchParams }: StaffPageProps) {
   const { q, sort, error, deleted } = await searchParams;
+  const session = await auth();
+  const canManageStaff = isSuperAdminRole(session?.user?.role);
   const query = q?.trim() ?? "";
   const sortParam = sort ?? "";
   const selectedSort: StaffSort = isStaffSort(sortParam)
     ? sortParam
     : "name-az";
+  const effectiveSort: StaffSort =
+    selectedSort === "salary-high" && !canManageStaff ? "name-az" : selectedSort;
   const now = new Date();
   let staff: StaffRow[];
 
@@ -188,7 +194,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       : staffWithResetRequests;
 
     staff = [...filteredStaff].sort((a, b) => {
-      switch (selectedSort) {
+      switch (effectiveSort) {
         case "oldest":
           return a.createdAt.getTime() - b.createdAt.getTime();
         case "name-az":
@@ -234,18 +240,20 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-950">
-            Staff Management
+            Staff Directory
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            Manage GLV staff profiles and assignment codes.
+            View GLV staff profiles and assignment codes.
           </p>
         </div>
-        <Link
-          href="/staff/new"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#123824] px-4 py-2 text-sm font-medium text-lime-400 transition hover:bg-[#1a4f33]"
-        >
-          <span className="text-lg leading-none">+</span> Add staff
-        </Link>
+        {canManageStaff ? (
+          <Link
+            href="/staff/new"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#123824] px-4 py-2 text-sm font-medium text-lime-400 transition hover:bg-[#1a4f33]"
+          >
+            <span className="text-lg leading-none">+</span> Add staff
+          </Link>
+        ) : null}
       </div>
 
       {/* Toasts */}
@@ -285,7 +293,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         </div>
         <select
           name="sort"
-          defaultValue={selectedSort}
+          defaultValue={effectiveSort}
           className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
         >
           <option value="name-az">Name A-Z</option>
@@ -293,7 +301,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           <option value="oldest">Oldest first</option>
           <option value="code-az">Code A-Z</option>
           <option value="customers-high">Most customers</option>
-          <option value="salary-high">Highest salary</option>
+          {canManageStaff ? (
+            <option value="salary-high">Highest salary</option>
+          ) : null}
           <option value="login-recent">Recent login</option>
         </select>
         <button
@@ -347,12 +357,14 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   {member._count.customers}
                 </p>
               </div>
+              {canManageStaff ? (
               <div>
                 <p className="text-xs text-gray-400">Salary</p>
                 <p className="font-medium text-gray-800">
                   {formatMoney(member.monthlySalary)}
                 </p>
               </div>
+              ) : null}
               <div>
                 <p className="text-xs text-gray-400">Login</p>
                 <p className="font-medium text-gray-800">{loginPresence.label}</p>
@@ -368,14 +380,16 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 View
               </Link>
 
-              <Link
-                href={`/staff/${member.id}/edit`}
-                className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                Edit
-              </Link>
+              {canManageStaff ? (
+                <Link
+                  href={`/staff/${member.id}/edit`}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Edit
+                </Link>
+              ) : null}
 
-              {member.active && (
+              {canManageStaff && member.active && (
                 <form action={deactivateStaff}>
                   <input type="hidden" name="id" value={member.id} />
                   <button
@@ -387,7 +401,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 </form>
               )}
 
-              {member.user && member.passwordResetRequestedAt ? (
+              {canManageStaff && member.user && member.passwordResetRequestedAt ? (
                 <StaffPasswordResetForm
                   staffId={member.id}
                   staffName={member.fullName}
@@ -395,16 +409,18 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 />
               ) : null}
 
-              <ConfirmDeleteForm
-                action={deleteStaff}
-                id={member.id}
-                title={`Delete ${member.fullName}?`}
-                hasLinkedHistory={member._count.customers > 0}
-                description="This permanently deletes the staff record. This cannot be undone."
-                triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
-              >
-                Delete
-              </ConfirmDeleteForm>
+              {canManageStaff ? (
+                <ConfirmDeleteForm
+                  action={deleteStaff}
+                  id={member.id}
+                  title={`Delete ${member.fullName}?`}
+                  hasLinkedHistory={member._count.customers > 0}
+                  description="This permanently deletes the staff record. This cannot be undone."
+                  triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
+                >
+                  Delete
+                </ConfirmDeleteForm>
+              ) : null}
             </div>
           </div>
           );
@@ -421,7 +437,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               <col style={{ width: "200px" }} />
               <col style={{ width: "120px" }} />
               <col style={{ width: "90px" }} />
-              <col style={{ width: "110px" }} />
+              {canManageStaff ? <col style={{ width: "110px" }} /> : null}
               <col style={{ width: "100px" }} />
               <col style={{ width: "140px" }} />
               <col style={{ width: "120px" }} />
@@ -446,9 +462,11 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                 <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Customers
                 </th>
+                {canManageStaff ? (
                 <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Monthly Salary
                 </th>
+                ) : null}
                 <th className="px-3 py-2.5 text-center text-[11px] font-medium uppercase tracking-wider text-gray-400">
                   Status
                 </th>
@@ -488,9 +506,11 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   <td className="px-3 py-3 text-right tabular-nums text-gray-700">
                     {member._count.customers}
                   </td>
+                  {canManageStaff ? (
                   <td className="px-3 py-3 text-right tabular-nums text-gray-700">
                     {formatMoney(member.monthlySalary)}
                   </td>
+                  ) : null}
                   <td className="px-3 py-3 text-center">
                     <span
                       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -532,17 +552,19 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       </Link>
 
                       {/* Edit */}
-                      <Link
-                        href={`/staff/${member.id}/edit`}
-                        aria-label={`Edit ${member.fullName}`}
-                        title="Edit"
-                        className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
-                      >
-                        <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
-                      </Link>
+                      {canManageStaff ? (
+                        <Link
+                          href={`/staff/${member.id}/edit`}
+                          aria-label={`Edit ${member.fullName}`}
+                          title="Edit"
+                          className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                        >
+                          <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
+                        </Link>
+                      ) : null}
 
                       {/* Deactivate (only if active) */}
-                      {member.active && (
+                      {canManageStaff && member.active && (
                         <form action={deactivateStaff}>
                           <input type="hidden" name="id" value={member.id} />
                           <button
@@ -557,7 +579,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       )}
 
                       {/* Password Reset */}
-                      {member.user && member.passwordResetRequestedAt ? (
+                      {canManageStaff && member.user && member.passwordResetRequestedAt ? (
                         <StaffPasswordResetForm
                           staffId={member.id}
                           staffName={member.fullName}
@@ -565,16 +587,18 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       ) : null}
 
                       {/* Delete */}
-                      <ConfirmDeleteForm
-                        action={deleteStaff}
-                        id={member.id}
-                        title={`Delete ${member.fullName}?`}
-                        hasLinkedHistory={member._count.customers > 0}
-                        description="This permanently deletes the staff record. This cannot be undone."
-                        triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
-                      >
-                        <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
-                      </ConfirmDeleteForm>
+                      {canManageStaff ? (
+                        <ConfirmDeleteForm
+                          action={deleteStaff}
+                          id={member.id}
+                          title={`Delete ${member.fullName}?`}
+                          hasLinkedHistory={member._count.customers > 0}
+                          description="This permanently deletes the staff record. This cannot be undone."
+                          triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                        </ConfirmDeleteForm>
+                      ) : null}
                     </div>
                   </td>
                   </tr>
