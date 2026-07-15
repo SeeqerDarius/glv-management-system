@@ -3,7 +3,7 @@ import { formatMoney } from "@/lib/accounts";
 import { getActivityReport } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -229,10 +229,11 @@ export default async function ActivityPage() {
                     <td className="p-3">{payment.account.customer.staff.code}</td>
                     <td className="p-3">
                       <div className="flex min-w-0 items-center gap-2">
-                        <ProductImage
+                        <ProductImagePreview
                           src={payment.account.product.imageUrl}
                           alt={payment.account.product.name}
                           className="size-9 bg-white"
+                          previewTitle={payment.account.product.name}
                         />
                         <span className="truncate">
                           {payment.account.product.name}

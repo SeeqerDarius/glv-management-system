@@ -22,7 +22,7 @@ import { AccountProductCorrectionForm } from "@/components/account-product-corre
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
@@ -305,10 +305,11 @@ export default async function CustomerProfilePage({
                 <td className="p-3">
                   {credit.account ? (
                     <div className="flex min-w-0 items-center gap-2">
-                      <ProductImage
+                      <ProductImagePreview
                         src={credit.account.product.imageUrl}
                         alt={credit.account.product.name}
                         className="size-9 bg-white"
+                        previewTitle={credit.account.product.name}
                       />
                       <span className="truncate">
                         {credit.account.product.name}
@@ -394,10 +395,11 @@ export default async function CustomerProfilePage({
                 <tr key={account.id} className="border-t">
                   <td className="p-3">
                     <div className="flex min-w-0 items-center gap-2">
-                      <ProductImage
+                      <ProductImagePreview
                         src={account.product.imageUrl}
                         alt={account.product.name}
                         className="size-9 bg-white"
+                        previewTitle={account.product.name}
                       />
                       <span className="truncate">{account.product.name}</span>
                     </div>

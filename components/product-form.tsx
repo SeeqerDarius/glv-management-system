@@ -13,7 +13,7 @@ import type { Product } from "@prisma/client";
 import type { ProductFormState } from "@/actions/products";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { productCategories } from "@/lib/product-categories";
 
 type ProductFormProps = {
@@ -116,11 +116,12 @@ export function ProductForm({
 
       <div className="space-y-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
         <div className="flex items-start gap-3">
-          <ProductImage
+          <ProductImagePreview
             src={previewUrl ?? product?.imageUrl}
             alt={product?.name ?? "Product image placeholder"}
             className="size-16 bg-white"
             iconClassName="size-7"
+            previewTitle={product?.name ?? "Selected product picture"}
           />
           <div className="min-w-0 flex-1 space-y-2">
             <div>

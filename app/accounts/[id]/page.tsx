@@ -26,7 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
   getDormantReactivationAmounts,
@@ -176,11 +176,12 @@ export default async function AccountDetailsPage({
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
-          <ProductImage
+          <ProductImagePreview
             src={account.product.imageUrl}
             alt={account.product.name}
             className="size-16 rounded-lg bg-white"
             iconClassName="size-7"
+            previewTitle={account.product.name}
           />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
@@ -427,10 +428,11 @@ export default async function AccountDetailsPage({
             <div>
               <dt className="text-gray-500">Product</dt>
               <dd className="mt-1 flex min-w-0 items-center gap-2 font-medium text-gray-950">
-                <ProductImage
+                <ProductImagePreview
                   src={account.product.imageUrl}
                   alt={account.product.name}
                   className="size-9 bg-white"
+                  previewTitle={account.product.name}
                 />
                 <span className="truncate">{account.product.name}</span>
               </dd>

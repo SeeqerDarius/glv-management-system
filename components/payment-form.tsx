@@ -3,7 +3,7 @@
 import { useActionState, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { recordPayment, type PaymentFormState } from "@/actions/payments";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
@@ -162,10 +162,11 @@ export function PaymentForm({
         </select>
         {selectedAccount ? (
           <div className="flex items-center gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm">
-            <ProductImage
+            <ProductImagePreview
               src={selectedAccount.product.imageUrl}
               alt={selectedAccount.product.name}
               className="size-14 bg-white"
+              previewTitle={selectedAccount.product.name}
             />
             <div className="min-w-0">
               <p className="truncate font-semibold text-gray-950">
@@ -277,11 +278,12 @@ export function PaymentForm({
               <div className="flex justify-between gap-4">
                 <span className="text-gray-500">Product/account</span>
                 <span className="flex items-center justify-end gap-2 text-right font-medium text-gray-950">
-                  <ProductImage
+                  <ProductImagePreview
                     src={selectedAccount.product.imageUrl}
                     alt={selectedAccount.product.name}
                     className="size-8"
                     iconClassName="size-4"
+                    previewTitle={selectedAccount.product.name}
                   />
                   <span>{selectedAccount.product.name}</span>
                 </span>

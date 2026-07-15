@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { UserPermission, UserRole } from "@prisma/client";
 import { PaymentEditForm } from "@/components/payment-edit-form";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/roles";
@@ -83,11 +83,12 @@ export default async function EditPaymentPage({ params }: EditPaymentPageProps) 
         >
           <ArrowLeft className="size-4" />
         </Link>
-        <ProductImage
+        <ProductImagePreview
           src={payment.account.product.imageUrl}
           alt={payment.account.product.name}
           className="size-14 rounded-lg bg-white"
           iconClassName="size-6"
+          previewTitle={payment.account.product.name}
         />
         <div>
           <h1 className="text-3xl font-bold text-gray-950">Edit Payment</h1>

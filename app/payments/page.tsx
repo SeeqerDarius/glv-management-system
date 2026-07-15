@@ -3,7 +3,7 @@ import { UserPermission, UserRole, type Prisma } from "@prisma/client";
 import { Eye, Pencil, SearchIcon, Trash2 } from "lucide-react";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -522,10 +522,11 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                             >
                               <div className="flex flex-col gap-3 border-b p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                                 <div className="flex min-w-0 items-center gap-3">
-                                  <ProductImage
+                                  <ProductImagePreview
                                     src={accountGroup.account.product.imageUrl}
                                     alt={accountGroup.account.product.name}
                                     className="size-10 bg-white"
+                                    previewTitle={accountGroup.account.product.name}
                                   />
                                   <div className="min-w-0">
                                     <div className="truncate font-medium text-gray-950">

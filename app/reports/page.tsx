@@ -3,7 +3,7 @@ import { DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
@@ -161,10 +161,11 @@ export default async function ReportsPage({
                 <tr key={product.id} className="border-t">
                   <td className="p-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <ProductImage
+                      <ProductImagePreview
                         src={product.imageUrl}
                         alt={product.name}
                         className="size-10 bg-white"
+                        previewTitle={product.name}
                       />
                       <div className="min-w-0">
                         <p className="truncate font-semibold">

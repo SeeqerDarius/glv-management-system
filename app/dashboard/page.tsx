@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { getAdminReportSummary, getStaffDashboardSummary } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
@@ -309,10 +309,11 @@ export default async function DashboardPage() {
                       <td className="p-3">{payment.account.customer.fullName}</td>
                       <td className="p-3">
                         <div className="flex min-w-0 items-center gap-2">
-                          <ProductImage
+                          <ProductImagePreview
                             src={payment.account.product.imageUrl}
                             alt={payment.account.product.name}
                             className="size-9 bg-white"
+                            previewTitle={payment.account.product.name}
                           />
                           <span className="truncate">
                             {payment.account.product.name}

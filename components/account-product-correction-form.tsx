@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { updateAccountProduct } from "@/actions/accounts";
 import { PasswordInput } from "@/components/password-input";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 
@@ -120,10 +120,11 @@ export function AccountProductCorrectionForm({
               {selectedProduct ? (
                 <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm text-blue-950">
                   <div className="mb-3 flex items-center gap-3">
-                    <ProductImage
+                    <ProductImagePreview
                       src={selectedProduct.imageUrl}
                       alt={selectedProduct.name}
                       className="size-14 bg-white"
+                      previewTitle={selectedProduct.name}
                     />
                     <div className="min-w-0">
                       <p className="truncate font-semibold">

@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { ProductCategoryBadge } from "@/lib/product-categories";
 import { getProcurementList } from "@/lib/procurement";
@@ -448,10 +448,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   >
                     <td className="px-3 py-3 text-left font-medium text-gray-900">
                       <div className="flex min-w-0 items-center gap-3">
-                        <ProductImage
+                        <ProductImagePreview
                           src={product.imageUrl}
                           alt={product.name}
                           className="size-10"
+                          previewTitle={product.name}
                         />
                         <span className="truncate">{product.name}</span>
                       </div>

@@ -7,7 +7,7 @@ import { useActionState } from "react";
 import type { CustomerFormState } from "@/actions/customers";
 import { Button } from "@/components/ui/button";
 import { GlvLoading } from "@/components/glv-loading";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
 
@@ -132,19 +132,26 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
 
         {selectedProduct ? (
           <div className="rounded-md border bg-white p-3 text-sm">
-            <div className="mb-3 flex items-center gap-3">
-              <ProductImage
+            <div className="mb-3 grid gap-3 sm:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)]">
+              <ProductImagePreview
                 src={selectedProduct.imageUrl}
                 alt={selectedProduct.name}
-                className="size-14"
+                className="h-48 w-full rounded-lg bg-white sm:h-56"
+                iconClassName="size-12"
+                previewTitle={selectedProduct.name}
               />
-              <div className="min-w-0">
+              <div className="min-w-0 self-center">
                 <p className="truncate font-semibold text-gray-950">
                   {selectedProduct.name}
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500">
                   {selectedProduct.category}
                 </p>
+                {selectedProduct.imageUrl ? (
+                  <p className="mt-2 text-xs font-medium text-green-700">
+                    Click the picture to preview it full size.
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">

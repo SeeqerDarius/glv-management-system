@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createAccount, type AccountFormState } from "@/actions/accounts";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
@@ -120,13 +120,15 @@ export function AccountForm({
           ))}
         </select>
         {selectedProduct ? (
-          <div className="flex items-center gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm">
-            <ProductImage
+          <div className="grid gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm sm:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)]">
+            <ProductImagePreview
               src={selectedProduct.imageUrl}
               alt={selectedProduct.name}
-              className="size-14 bg-white"
+              className="h-48 w-full rounded-lg bg-white sm:h-56"
+              iconClassName="size-12"
+              previewTitle={selectedProduct.name}
             />
-            <div className="min-w-0">
+            <div className="min-w-0 self-center">
               <p className="truncate font-semibold text-gray-950">
                 {selectedProduct.name}
               </p>
@@ -134,6 +136,11 @@ export function AccountForm({
                 {selectedProduct.category} | {formatMoney(selectedProduct.layawayPrice)} |{" "}
                 {formatMoney(selectedProduct.dailyAmount)}/day
               </p>
+              {selectedProduct.imageUrl ? (
+                <p className="mt-2 text-xs font-medium text-green-700">
+                  Click the picture to preview it full size.
+                </p>
+              ) : null}
             </div>
           </div>
         ) : null}

@@ -11,7 +11,7 @@ import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
-import { ProductImage } from "@/components/product-image";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -457,10 +457,11 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">{account.customer.staff.code}</td>
                   <td className="p-3">
                     <div className="flex min-w-0 items-center gap-2">
-                      <ProductImage
+                      <ProductImagePreview
                         src={account.product.imageUrl}
                         alt={account.product.name}
                         className="size-9 bg-white"
+                        previewTitle={account.product.name}
                       />
                       <span className="truncate">{account.product.name}</span>
                     </div>
