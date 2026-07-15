@@ -2,29 +2,6 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-Create a local `.env` or `.env.local` with the server-side secrets required by
-the app. Product image uploads use Vercel Blob, so the app must have:
-
-```bash
-BLOB_READ_WRITE_TOKEN=your-vercel-blob-read-write-token
-```
-
-On Vercel, create or connect a Blob store for this project, then make sure
-`BLOB_READ_WRITE_TOKEN` is present for the environments you deploy to
-(`Production`, `Preview`, and/or `Development`). You can add it in the Vercel
-dashboard under the `glv-management-system` project settings, or with:
-
-```bash
-vercel env add BLOB_READ_WRITE_TOKEN production preview development
-```
-
-After adding the token, redeploy the app. For local testing, pull the updated
-Vercel environment variables or add the same key locally:
-
-```bash
-vercel env pull .env.local --yes
-```
-
 First, run the development server:
 
 ```bash
