@@ -10,14 +10,18 @@ const globalForPrisma = globalThis as unknown as {
 neonConfig.webSocketConstructor = ws;
 
 function getDatabaseUrl() {
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.DATABASE_URL?.replace(/^"|"$/g, "").trim();
+  const unpooledUrl = process.env.DATABASE_URL_UNPOOLED
+    ?.replace(/^"|"$/g, "")
+    .trim();
+  const connectionString = databaseUrl || unpooledUrl;
 
-  if (!databaseUrl) {
+  if (!connectionString) {
     throw new Error("DATABASE_URL is not configured.");
   }
 
   try {
-    const url = new URL(databaseUrl);
+    const url = new URL(connectionString);
     // Only set connect_timeout — do NOT set pool_timeout on Neon serverless,
     // it conflicts with the pooler and causes connection exhaustion errors.
     if (!url.searchParams.has("connect_timeout")) {
@@ -27,7 +31,7 @@ function getDatabaseUrl() {
     url.searchParams.delete("pool_timeout");
     return url.toString();
   } catch {
-    return databaseUrl;
+    return connectionString;
   }
 }
 

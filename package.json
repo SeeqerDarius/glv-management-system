@@ -4,11 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy && prisma generate && next build",
-    "db:deploy": "prisma migrate deploy",
-    "deploy:check": "prisma migrate status",
+    "build": "node scripts/with-database-url.cjs prisma migrate deploy && node scripts/with-database-url.cjs prisma generate && node scripts/with-database-url.cjs next build",
+    "db:deploy": "node scripts/with-database-url.cjs prisma migrate deploy",
+    "deploy:check": "node scripts/with-database-url.cjs prisma migrate status",
     "postinstall": "prisma generate",
-    "start": "prisma migrate deploy && next start",
+    "start": "node scripts/with-database-url.cjs prisma migrate deploy && node scripts/with-database-url.cjs next start",
     "lint": "eslint .",
     "seed": "tsx prisma/seed.ts"
   },
