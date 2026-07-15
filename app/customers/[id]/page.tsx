@@ -22,6 +22,7 @@ import { AccountProductCorrectionForm } from "@/components/account-product-corre
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
+import { ProductImage } from "@/components/product-image";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
@@ -87,6 +88,7 @@ export default async function CustomerProfilePage({
               product: {
                 select: {
                   name: true,
+                  imageUrl: true,
                 },
               },
             },
@@ -300,7 +302,22 @@ export default async function CustomerProfilePage({
             {customer.credits.map((credit) => (
               <tr key={credit.id} className="border-t">
                 <td className="p-3">{credit.createdAt.toLocaleDateString("en-GB")}</td>
-                <td className="p-3">{credit.account?.product.name ?? "-"}</td>
+                <td className="p-3">
+                  {credit.account ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ProductImage
+                        src={credit.account.product.imageUrl}
+                        alt={credit.account.product.name}
+                        className="size-9 bg-white"
+                      />
+                      <span className="truncate">
+                        {credit.account.product.name}
+                      </span>
+                    </div>
+                  ) : (
+                    "-"
+                  )}
+                </td>
                 <td className="p-3 font-mono text-xs">
                   {credit.payment?.receiptNo ?? "-"}
                 </td>
@@ -375,7 +392,16 @@ export default async function CustomerProfilePage({
 
               return (
                 <tr key={account.id} className="border-t">
-                  <td className="p-3">{account.product.name}</td>
+                  <td className="p-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ProductImage
+                        src={account.product.imageUrl}
+                        alt={account.product.name}
+                        className="size-9 bg-white"
+                      />
+                      <span className="truncate">{account.product.name}</span>
+                    </div>
+                  </td>
                   <td className="p-3">{formatMoney(account.targetAmount)}</td>
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>

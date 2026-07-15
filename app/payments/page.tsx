@@ -3,6 +3,7 @@ import { UserPermission, UserRole, type Prisma } from "@prisma/client";
 import { Eye, Pencil, SearchIcon, Trash2 } from "lucide-react";
 import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -204,7 +205,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     account: {
       id: string;
       balance: number;
-      product: { name: string };
+      product: { name: string; imageUrl: string | null };
       customer: {
         id: string;
         fullName: string;
@@ -244,7 +245,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           select: {
             id: true,
             balance: true,
-            product: { select: { name: true } },
+            product: { select: { name: true, imageUrl: true } },
             customer: {
               select: {
                 id: true,
@@ -520,13 +521,20 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                               className="rounded border"
                             >
                               <div className="flex flex-col gap-3 border-b p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                                <div>
-                                  <div className="font-medium text-gray-950">
-                                    {accountGroup.account.product.name}
-                                  </div>
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <ProductImage
+                                    src={accountGroup.account.product.imageUrl}
+                                    alt={accountGroup.account.product.name}
+                                    className="size-10 bg-white"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium text-gray-950">
+                                      {accountGroup.account.product.name}
+                                    </div>
                                   <div className="text-xs text-gray-500">
                                     Balance{" "}
                                     {formatMoney(accountGroup.account.balance)}
+                                  </div>
                                   </div>
                                 </div>
                                 <Link

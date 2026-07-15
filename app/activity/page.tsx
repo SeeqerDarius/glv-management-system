@@ -3,6 +3,7 @@ import { formatMoney } from "@/lib/accounts";
 import { getActivityReport } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
+import { ProductImage } from "@/components/product-image";
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -226,7 +227,18 @@ export default async function ActivityPage() {
                     <td className="p-3 font-mono text-xs">{payment.receiptNo}</td>
                     <td className="p-3">{payment.account.customer.fullName}</td>
                     <td className="p-3">{payment.account.customer.staff.code}</td>
-                    <td className="p-3">{payment.account.product.name}</td>
+                    <td className="p-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ProductImage
+                          src={payment.account.product.imageUrl}
+                          alt={payment.account.product.name}
+                          className="size-9 bg-white"
+                        />
+                        <span className="truncate">
+                          {payment.account.product.name}
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-3 text-right font-semibold">
                       {formatMoney(payment.amount)}
                     </td>

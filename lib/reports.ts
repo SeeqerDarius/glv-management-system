@@ -625,6 +625,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
             product: {
               select: {
                 name: true,
+                imageUrl: true,
               },
             },
             customer: {

@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+} from "react";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import type { Product } from "@prisma/client";
@@ -46,10 +52,29 @@ export function ProductForm({
     product?.dailyAmount ?? defaultDailyAmount
   );
   const [duration, setDuration] = useState(product?.duration ?? defaultDuration);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const calculatedLayawayPrice = useMemo(() => {
     return dailyAmount * duration;
   }, [dailyAmount, duration]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
+
+  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+
+    setPreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
 
   return (
     <form
@@ -92,7 +117,7 @@ export function ProductForm({
       <div className="space-y-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
         <div className="flex items-start gap-3">
           <ProductImage
-            src={product?.imageUrl}
+            src={previewUrl ?? product?.imageUrl}
             alt={product?.name ?? "Product image placeholder"}
             className="size-16 bg-white"
             iconClassName="size-7"
@@ -108,8 +133,14 @@ export function ProductForm({
               name="image"
               type="file"
               accept="image/png,image/jpeg,image/webp,image/gif"
+              onChange={handleImageChange}
               className="block w-full rounded border bg-white p-2 text-sm"
             />
+            {previewUrl ? (
+              <p className="text-xs font-medium text-green-700">
+                Preview ready. Save changes to upload this picture.
+              </p>
+            ) : null}
             {product?.imageUrl ? (
               <label className="flex items-center gap-2 text-xs font-medium text-gray-600">
                 <input type="checkbox" name="removeImage" className="size-4" />

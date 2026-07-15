@@ -3,6 +3,7 @@ import { DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
+import { ProductImage } from "@/components/product-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
@@ -159,8 +160,21 @@ export default async function ReportsPage({
               {report.products.map((product) => (
                 <tr key={product.id} className="border-t">
                   <td className="p-3">
-                    <p className="font-semibold">{product.name}</p>
-                    <p className="text-xs text-gray-500">{product.category}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <ProductImage
+                        src={product.imageUrl}
+                        alt={product.name}
+                        className="size-10 bg-white"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">
+                          {product.name}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {product.category}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className="p-3">{formatMoney(product.costPrice)}</td>
                   <td className="p-3">{formatMoney(product.transportCost)}</td>

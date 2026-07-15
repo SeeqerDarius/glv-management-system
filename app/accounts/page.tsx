@@ -11,6 +11,7 @@ import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -182,7 +183,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       customerId: string;
       staff: { code: string };
     };
-    product: { name: string; duration: number };
+    product: { name: string; duration: number; imageUrl: string | null };
   }> = [];
   let totalAccounts = 0;
   let staff: Array<{ id: string; code: string; fullName: string }> = [];
@@ -221,7 +222,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
             staff: { select: { code: true } },
           },
         },
-        product: { select: { name: true, duration: true } },
+        product: { select: { name: true, duration: true, imageUrl: true } },
       },
     });
 
@@ -454,7 +455,16 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                     </div>
                   </td>
                   <td className="p-3">{account.customer.staff.code}</td>
-                  <td className="p-3">{account.product.name}</td>
+                  <td className="p-3">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ProductImage
+                        src={account.product.imageUrl}
+                        alt={account.product.name}
+                        className="size-9 bg-white"
+                      />
+                      <span className="truncate">{account.product.name}</span>
+                    </div>
+                  </td>
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileSpreadsheet } from "lucide-react";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { ProductCategoryBadge } from "@/lib/product-categories";
@@ -30,6 +31,7 @@ export default async function ProcurementProductPage({
         id: true,
         name: true,
         category: true,
+        imageUrl: true,
       },
     }),
     getProcurementAccounts(productId),
@@ -56,6 +58,12 @@ export default async function ProcurementProductPage({
           >
             <ArrowLeft className="size-4" />
           </Link>
+          <ProductImage
+            src={product.imageUrl}
+            alt={product.name}
+            className="size-16 rounded-lg bg-white"
+            iconClassName="size-7"
+          />
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
               {product.name}

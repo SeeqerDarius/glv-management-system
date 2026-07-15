@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 import { Eye, SearchIcon } from "lucide-react";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
+import { ProductImage } from "@/components/product-image";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -300,7 +301,20 @@ export default async function CreditsPage({
                 </td>
                 <td className="p-3">{credit.customer.staff.code}</td>
                 <td className="p-3">
-                  {credit.account ? credit.account.product.name : "-"}
+                  {credit.account ? (
+                    <div className="flex min-w-0 items-center gap-2">
+                      <ProductImage
+                        src={credit.account.product.imageUrl}
+                        alt={credit.account.product.name}
+                        className="size-9 bg-white"
+                      />
+                      <span className="truncate">
+                        {credit.account.product.name}
+                      </span>
+                    </div>
+                  ) : (
+                    "-"
+                  )}
                 </td>
                 <td className="p-3 font-mono text-xs">
                   {credit.payment?.receiptNo ?? "-"}
