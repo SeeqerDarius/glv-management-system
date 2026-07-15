@@ -97,6 +97,14 @@ function safeBlobName(name: string, file: File) {
   return `products/${baseName || "product"}-${Date.now()}.${extension}`;
 }
 
+function hasProductImageStorageConfig() {
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+      (process.env.BLOB_STORE_ID &&
+        (process.env.VERCEL || process.env.VERCEL_OIDC_TOKEN))
+  );
+}
+
 async function resolveProductImageUrl({
   formData,
   productName,
@@ -125,10 +133,10 @@ async function resolveProductImageUrl({
     };
   }
 
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+  if (!hasProductImageStorageConfig()) {
     return {
       error:
-        "Product image storage is not configured. Add BLOB_READ_WRITE_TOKEN in Vercel, then try again.",
+        "Product image storage is not configured. Connect Vercel Blob to this project, then try again.",
     };
   }
 
