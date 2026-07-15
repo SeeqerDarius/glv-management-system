@@ -130,64 +130,79 @@ export default async function ProductDetailsPage({
         </div>
       </div>
 
-      <div className="rounded-lg border bg-white p-4">
-        <h2 className="mb-3 text-sm font-semibold text-gray-950">
-          Product Picture
-        </h2>
-        <ProductImagePreview
-          src={product.imageUrl}
-          alt={product.name}
-          className="h-72 w-full rounded-lg bg-white sm:h-96"
-          iconClassName="size-16"
-          previewTitle={product.name}
-        />
-      </div>
-
       {/* Product Details Stats */}
       <div>
         <h2 className="mb-3 text-sm font-semibold text-gray-950">
           Product Details
         </h2>
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">
-              Cost Price
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {formatMoney(product.costPrice)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">
-              Transport Cost
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {formatMoney(product.transportCost)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">
-              Daily Amount
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {formatMoney(product.dailyAmount)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">
-              Duration
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {product.duration} days
-            </p>
-          </div>
-          <div className="rounded-lg bg-gray-50 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-widest text-gray-400">
-              Layaway Price
-            </p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
-              {formatMoney(product.layawayPrice)}
-            </p>
+        <div className="grid gap-4 rounded-lg border bg-white p-4 lg:grid-cols-[minmax(18rem,28rem)_minmax(0,1fr)]">
+          <ProductImagePreview
+            src={product.imageUrl}
+            alt={product.name}
+            className="h-72 w-full rounded-lg border-gray-100 bg-white sm:h-96 lg:h-full lg:min-h-96"
+            iconClassName="size-16"
+            imageClassName="object-contain"
+            previewTitle={product.name}
+          />
+          <div className="grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Category
+              </p>
+              <p className="mt-1 text-lg font-semibold text-gray-950">
+                {product.category}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Cost Price
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                {formatMoney(product.costPrice)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Transport Cost
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                {formatMoney(product.transportCost)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Daily Amount
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                {formatMoney(product.dailyAmount)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Duration
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                {product.duration} days
+              </p>
+            </div>
+            <div className="rounded-lg bg-gray-50 px-4 py-3">
+              <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                Layaway Price
+              </p>
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-950">
+                {formatMoney(product.layawayPrice)}
+              </p>
+            </div>
+            {product.description ? (
+              <div className="rounded-lg bg-gray-50 px-4 py-3 sm:col-span-2 xl:col-span-3">
+                <p className="text-[11px] uppercase tracking-widest text-gray-400">
+                  Description
+                </p>
+                <p className="mt-1 text-sm font-medium text-gray-700">
+                  {product.description}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

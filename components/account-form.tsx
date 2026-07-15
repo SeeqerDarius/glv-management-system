@@ -126,6 +126,7 @@ export function AccountForm({
               alt={selectedProduct.name}
               className="h-48 w-full rounded-lg bg-white sm:h-56"
               iconClassName="size-12"
+              imageClassName="object-contain"
               previewTitle={selectedProduct.name}
             />
             <div className="min-w-0 self-center">

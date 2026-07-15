@@ -7,6 +7,7 @@ type ProductImageProps = {
   alt: string;
   className?: string;
   iconClassName?: string;
+  imageClassName?: string;
 };
 
 export function ProductImage({
@@ -14,6 +15,7 @@ export function ProductImage({
   alt,
   className,
   iconClassName,
+  imageClassName,
 }: ProductImageProps) {
   return (
     <span
@@ -26,7 +28,7 @@ export function ProductImage({
         <img
           src={src}
           alt={alt}
-          className="h-full w-full object-cover"
+          className={cn("h-full w-full object-cover", imageClassName)}
           loading="lazy"
         />
       ) : (

@@ -10,6 +10,7 @@ type ProductImagePreviewProps = {
   alt: string;
   className?: string;
   iconClassName?: string;
+  imageClassName?: string;
   previewTitle?: string;
 };
 
@@ -18,6 +19,7 @@ export function ProductImagePreview({
   alt,
   className,
   iconClassName,
+  imageClassName,
   previewTitle,
 }: ProductImagePreviewProps) {
   const [open, setOpen] = useState(false);
@@ -29,6 +31,7 @@ export function ProductImagePreview({
         alt={alt}
         className={className}
         iconClassName={iconClassName}
+        imageClassName={imageClassName}
       />
     );
   }
@@ -50,6 +53,7 @@ export function ProductImagePreview({
             className
           )}
           iconClassName={iconClassName}
+          imageClassName={imageClassName}
         />
       </button>
 
