@@ -36,7 +36,7 @@ type ProductInput = {
   quantityOnSale: number;
 };
 
-const maxProductImageSize = 5 * 1024 * 1024;
+const maxProductImageSize = 4 * 1024 * 1024;
 const allowedProductImageTypes = new Set([
   "image/jpeg",
   "image/png",
@@ -121,7 +121,7 @@ async function resolveProductImageUrl({
 
   if (image.size > maxProductImageSize) {
     return {
-      error: "Product image must be 5MB or smaller.",
+      error: "Product image must be 4MB or smaller.",
     };
   }
 

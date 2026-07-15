@@ -101,7 +101,7 @@ export function ProductForm({
             <div>
               <p className="text-sm font-medium text-gray-800">Product Picture</p>
               <p className="mt-0.5 text-xs text-gray-500">
-                Upload a clear product image for staff to recognize it during selection.
+                Upload a clear product image up to 4MB for staff to recognize it during selection.
               </p>
             </div>
             <input
