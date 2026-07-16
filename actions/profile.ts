@@ -2,6 +2,7 @@
 
 import { ProfileChangeStatus } from "@prisma/client";
 import { del, put } from "@vercel/blob";
+import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -9,6 +10,10 @@ import { prisma } from "@/lib/prisma";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 
 export type ProfileFormState = {
+  error?: string;
+};
+
+export type ProfilePasswordState = {
   error?: string;
 };
 
@@ -26,6 +31,10 @@ function clean(value: FormDataEntryValue | null) {
 
 function lowerEmail(value: FormDataEntryValue | null) {
   return clean(value).toLowerCase();
+}
+
+function passwordError(error: string): ProfilePasswordState {
+  return { error };
 }
 
 function getProfileImageFile(formData: FormData) {
@@ -197,6 +206,86 @@ export async function updateMyProfile(
   revalidatePath("/staff");
   revalidatePath("/", "layout");
   redirect("/profile?saved=1");
+}
+
+export async function updateMyPassword(
+  _state: ProfilePasswordState,
+  formData: FormData
+): Promise<ProfilePasswordState> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  const currentPassword = String(formData.get("currentPassword") ?? "");
+  const newPassword = String(formData.get("newPassword") ?? "");
+  const confirmPassword = String(formData.get("confirmPassword") ?? "");
+
+  if (!currentPassword || !newPassword || !confirmPassword) {
+    return passwordError("missing-fields");
+  }
+
+  if (newPassword !== confirmPassword) {
+    return passwordError("password-mismatch");
+  }
+
+  if (newPassword.length < 8) {
+    return passwordError("password-too-short");
+  }
+
+  if (newPassword === currentPassword) {
+    return passwordError("password-unchanged");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      password: true,
+      mustChangePassword: true,
+    },
+  });
+
+  if (!user) {
+    return passwordError("profile-not-found");
+  }
+
+  const validPassword = await bcrypt.compare(currentPassword, user.password);
+
+  if (!validPassword) {
+    return passwordError("invalid-current-password");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        mustChangePassword: false,
+      },
+    });
+
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "CHANGE_OWN_PASSWORD",
+        entity: "User",
+        entityId: user.id,
+        oldValue: JSON.stringify({
+          mustChangePassword: user.mustChangePassword,
+        }),
+        newValue: JSON.stringify({
+          mustChangePassword: false,
+        }),
+      },
+    });
+  });
+
+  revalidatePath("/profile");
+  revalidatePath("/", "layout");
+  redirect("/profile?passwordChanged=1");
 }
 
 async function requireSuperAdmin() {

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ProfileChangeStatus } from "@prisma/client";
 import { updateMyProfile } from "@/actions/profile";
 import { ProfileForm } from "@/components/profile-form";
+import { ProfilePasswordForm } from "@/components/profile-password-form";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,6 +12,7 @@ import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 type ProfilePageProps = {
   searchParams: Promise<{
     saved?: string;
+    passwordChanged?: string;
   }>;
 };
 
@@ -30,7 +32,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     redirect("/login");
   }
 
-  const { saved } = await searchParams;
+  const { saved, passwordChanged } = await searchParams;
   const [user, pendingCount] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
@@ -80,11 +82,19 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
       ) : null}
 
+      {passwordChanged ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Password changed successfully.
+        </div>
+      ) : null}
+
       <ProfileForm
         action={updateMyProfile}
         user={user}
         canEditPosition={isAdminRole(session.user.role)}
       />
+
+      <ProfilePasswordForm />
 
       <section className="rounded-lg border bg-white p-5">
         <h2 className="text-lg font-semibold text-gray-950">
