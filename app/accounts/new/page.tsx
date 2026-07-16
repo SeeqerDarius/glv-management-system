@@ -3,6 +3,7 @@ import { AccountForm } from "@/components/account-form";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/roles";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export default async function NewAccountPage({
   searchParams,
@@ -15,6 +16,7 @@ export default async function NewAccountPage({
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_ACCOUNTS);
+  await ensureStaffInventorySchema();
 
   const customers = await prisma.customer.findMany({
     where:

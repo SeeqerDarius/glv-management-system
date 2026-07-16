@@ -1,6 +1,7 @@
 import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 const procurementStatuses = [
   AccountStatus.ACTIVE,
@@ -45,6 +46,8 @@ export type ProcurementAccountItem = {
 };
 
 export async function getProcurementAccounts(productId?: string) {
+  await ensureStaffInventorySchema();
+
   const settings = await getSettings();
   const configuredThreshold = Number(
     settings.procurementThresholdPercent ?? 70

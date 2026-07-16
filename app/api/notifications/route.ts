@@ -15,6 +15,7 @@ import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 import { getSettings } from "@/lib/settings";
+import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 export const dynamic = "force-dynamic";
 
@@ -64,63 +65,66 @@ export async function GET() {
   }
 
   const attention: Record<string, AttentionItem> = {};
-  const staffScope = session.user.staffId
-    ? { customer: { staffId: session.user.staffId } }
-    : {};
-  const customerScope = session.user.staffId
-    ? { staffId: session.user.staffId }
-    : {};
-  const todayStart = startOfToday();
+  try {
+    await ensureStaffInventorySchemaForRead("NOTIFICATIONS");
 
-  await refreshAccountLifecycleStatuses();
+    const staffScope = session.user.staffId
+      ? { customer: { staffId: session.user.staffId } }
+      : {};
+    const customerScope = session.user.staffId
+      ? { staffId: session.user.staffId }
+      : {};
+    const todayStart = startOfToday();
 
-  const [
-    accountAttentionCount,
-    customersWithoutAccountsCount,
-    newCustomersToday,
-    newAccountsToday,
-    newPaymentsToday,
-  ] =
-    await Promise.all([
-      prisma.customerAccount.count({
-        where: {
-          ...staffScope,
-          OR: [
-            { status: { in: [AccountStatus.OVERDUE, AccountStatus.SUSPENDED] } },
-            {
-              status: AccountStatus.COMPLETED,
-              deliveryStatus: DeliveryStatus.PENDING,
-            },
-          ],
-        },
-      }),
-      prisma.customer.count({
-        where: {
-          ...customerScope,
-          accounts: { none: {} },
-        },
-      }),
-      prisma.customer.count({
-        where: {
-          ...customerScope,
-          createdAt: { gte: todayStart },
-        },
-      }),
-      prisma.customerAccount.count({
-        where: {
-          ...staffScope,
-          createdAt: { gte: todayStart },
-        },
-      }),
-      prisma.payment.count({
-        where: {
-          ...(session.user.staffId
-            ? { account: { customer: { staffId: session.user.staffId } } }
-            : {}),
-          createdAt: { gte: todayStart },
-        },
-      }),
-    ]);
+    await refreshAccountLifecycleStatuses();
+
+    const [
+      accountAttentionCount,
+      customersWithoutAccountsCount,
+      newCustomersToday,
+      newAccountsToday,
+      newPaymentsToday,
+    ] =
+      await Promise.all([
+        prisma.customerAccount.count({
+          where: {
+            ...staffScope,
+            OR: [
+              { status: { in: [AccountStatus.OVERDUE, AccountStatus.SUSPENDED] } },
+              {
+                status: AccountStatus.COMPLETED,
+                deliveryStatus: DeliveryStatus.PENDING,
+              },
+            ],
+          },
+        }),
+        prisma.customer.count({
+          where: {
+            ...customerScope,
+            accounts: { none: {} },
+          },
+        }),
+        prisma.customer.count({
+          where: {
+            ...customerScope,
+            createdAt: { gte: todayStart },
+          },
+        }),
+        prisma.customerAccount.count({
+          where: {
+            ...staffScope,
+            createdAt: { gte: todayStart },
+          },
+        }),
+        prisma.payment.count({
+          where: {
+            ...(session.user.staffId
+              ? { account: { customer: { staffId: session.user.staffId } } }
+              : {}),
+            createdAt: { gte: todayStart },
+          },
+        }),
+      ]);
 
   if (accountAttentionCount > 0) {
     addAttention(attention, "/accounts", {
@@ -372,5 +376,9 @@ export async function GET() {
     }
   }
 
-  return NextResponse.json({ attention });
+    return NextResponse.json({ attention });
+  } catch (error) {
+    console.error("NOTIFICATIONS_LOAD_ERROR", error);
+    return NextResponse.json({ attention, degraded: true });
+  }
 }

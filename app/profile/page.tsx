@@ -8,12 +8,22 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
+import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 type ProfilePageProps = {
   searchParams: Promise<{
     saved?: string;
     passwordChanged?: string;
   }>;
+};
+
+type ProfileInventoryItem = {
+  id: string;
+  quantity: number;
+  product: {
+    name: string;
+    category: string;
+  };
 };
 
 function formatDate(date: Date) {
@@ -33,24 +43,27 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   }
 
   const { saved, passwordChanged } = await searchParams;
+  const inventorySchemaReady = await ensureStaffInventorySchemaForRead("PROFILE");
   const [user, pendingCount] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       include: {
-        staff: {
-          include: {
-            inventory: {
+        staff: inventorySchemaReady
+          ? {
               include: {
-                product: true,
-              },
-              orderBy: {
-                product: {
-                  name: "asc",
+                inventory: {
+                  include: {
+                    product: true,
+                  },
+                  orderBy: {
+                    product: {
+                      name: "asc",
+                    },
+                  },
                 },
               },
-            },
-          },
-        },
+            }
+          : true,
         profileRequests: {
           orderBy: { createdAt: "desc" },
           take: 8,
@@ -67,6 +80,11 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   if (!user) {
     redirect("/dashboard");
   }
+
+  const staffInventory: ProfileInventoryItem[] | null =
+    user.staff && "inventory" in user.staff && Array.isArray(user.staff.inventory)
+      ? (user.staff.inventory as ProfileInventoryItem[])
+      : null;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -126,7 +144,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {user.staff.inventory.map((item) => (
+                {staffInventory?.map((item) => (
                   <tr key={item.id}>
                     <td className="p-3 font-semibold text-gray-950">
                       {item.product.name}
@@ -147,9 +165,14 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
                 ))}
               </tbody>
             </table>
-            {user.staff.inventory.length === 0 ? (
+            {staffInventory?.length === 0 ? (
               <p className="border-t py-8 text-center text-sm text-gray-600">
                 No products have been allocated to your inventory yet.
+              </p>
+            ) : null}
+            {!staffInventory ? (
+              <p className="border-t py-8 text-center text-sm text-gray-600">
+                Inventory is temporarily unavailable. Please refresh shortly.
               </p>
             ) : null}
           </div>

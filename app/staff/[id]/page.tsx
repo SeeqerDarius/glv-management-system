@@ -20,6 +20,7 @@ import { auth } from "@/lib/auth";
 import { permissionLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 type StaffDetailsPageProps = {
   params: Promise<{
@@ -55,6 +56,8 @@ export default async function StaffDetailsPage({
   const { id } = await params;
   const { inventory } = await searchParams;
   const session = await auth();
+  await ensureStaffInventorySchema();
+
   const canManageStaff = isSuperAdminRole(session?.user?.role);
   const canManageInventory = isAdminRole(session?.user?.role);
   const staff = await prisma.staff.findUnique({

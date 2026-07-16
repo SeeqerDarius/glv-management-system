@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 export const backupTableOrder = [
   "settings",
@@ -47,6 +48,9 @@ const dateFields: Record<string, string[]> = {
 };
 
 export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
+  const inventorySchemaReady =
+    await ensureStaffInventorySchemaForRead("DATABASE_BACKUP");
+
   const [
     settings,
     productCategories,
@@ -72,7 +76,7 @@ export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
     prisma.staffApplication.findMany(),
     prisma.staff.findMany(),
     prisma.user.findMany(),
-    prisma.staffInventory.findMany(),
+    inventorySchemaReady ? prisma.staffInventory.findMany() : Promise.resolve([]),
     prisma.userAppearancePreference.findMany(),
     prisma.profileChangeRequest.findMany(),
     prisma.customer.findMany(),

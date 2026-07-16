@@ -1,5 +1,6 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
 import { consumeStaffInventory } from "@/lib/staff-inventory";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export function parseAccountStartDate(value: string) {
   if (!value) return null;
@@ -47,6 +48,8 @@ export async function createCustomerAccountForProduct({
   startDate: Date;
   inventoryStaffId: string;
 }) {
+  await ensureStaffInventorySchema();
+
   const targetAmount = product.layawayPrice;
   const dailyAmount = product.dailyAmount;
   const expectedEndDate = addDays(startDate, product.duration);

@@ -3,6 +3,7 @@ import { PaymentForm } from "@/components/payment-form";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/roles";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export default async function NewPaymentPage({
   searchParams,
@@ -17,6 +18,7 @@ export default async function NewPaymentPage({
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const canManageAll = hasPermission(session?.user?.role, session?.user?.permissions, UserPermission.MANAGE_PAYMENTS);
+  await ensureStaffInventorySchema();
 
   const accounts = await prisma.customerAccount.findMany({
     where: {

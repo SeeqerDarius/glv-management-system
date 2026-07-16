@@ -19,6 +19,7 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
 import { restoreStaffInventory } from "@/lib/staff-inventory";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type CustomerFormState = {
   errors?: {
@@ -139,6 +140,8 @@ export async function createCustomer(
   formData: FormData
 ): Promise<CustomerFormState> {
   const user = await requireUser();
+  await ensureStaffInventorySchema();
+
   const fullName = cleanInput(formData.get("fullName"));
   const phone = cleanInput(formData.get("phone"));
   const productId = cleanInput(formData.get("productId"));
@@ -532,6 +535,8 @@ export async function bulkReassignCustomers(formData: FormData): Promise<void> {
 
 export async function deleteCustomer(formData: FormData): Promise<void> {
   const user = await requireUser();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
 
   if (!isAdminRole(user.role)) {

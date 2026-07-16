@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export class StaffInventoryError extends Error {
   constructor(message: string) {
@@ -20,6 +21,8 @@ export async function consumeStaffInventory({
   productId: string;
   accountId: string;
 }) {
+  await ensureStaffInventorySchema();
+
   const result = await tx.staffInventory.updateMany({
     where: {
       staffId,
@@ -70,6 +73,8 @@ export async function restoreStaffInventory({
   productId: string;
   accountId: string;
 }) {
+  await ensureStaffInventorySchema();
+
   const inventory = await tx.staffInventory.upsert({
     where: {
       staffId_productId: {

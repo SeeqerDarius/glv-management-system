@@ -32,6 +32,7 @@ import {
   consumeStaffInventory,
   restoreStaffInventory,
 } from "@/lib/staff-inventory";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type AccountFormState = {
   errors?: {
@@ -107,6 +108,8 @@ export async function createAccount(
   formData: FormData
 ): Promise<AccountFormState> {
   const user = await requireUser();
+  await ensureStaffInventorySchema();
+
   const customerId = cleanInput(formData.get("customerId"));
   const productId = cleanInput(formData.get("productId"));
   const startDateValue = cleanInput(formData.get("startDate"));
@@ -272,6 +275,8 @@ export async function createAccount(
 
 export async function deleteAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
   const requestedReturnTo = cleanInput(formData.get("returnTo"));
   const returnTo = safeReturnTo(requestedReturnTo, `/accounts/${id}`);
@@ -348,6 +353,8 @@ export async function deleteAccount(formData: FormData): Promise<void> {
 
 export async function updateAccountPrice(formData: FormData): Promise<void> {
   const user = await requireAdmin();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
   const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
   const nextTargetAmount = parseMoney(cleanInput(formData.get("targetAmount")));
@@ -443,6 +450,8 @@ export async function updateAccountPrice(formData: FormData): Promise<void> {
 
 export async function updateAccountProduct(formData: FormData): Promise<void> {
   const user = await requireAdmin();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
   const productId = cleanInput(formData.get("productId"));
   const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
@@ -639,6 +648,8 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
 
 export async function updateAccountDeliveryStatus(formData: FormData): Promise<void> {
   const user = await requireUser();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
   const nextStatusValue = cleanInput(formData.get("deliveryStatus"));
   const nextStatus =
@@ -735,6 +746,8 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
 
 export async function reactivateDormantAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
+  await ensureStaffInventorySchema();
+
   const id = cleanInput(formData.get("id"));
   const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
   const adminPassword = cleanInput(formData.get("adminPassword"));

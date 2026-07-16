@@ -18,6 +18,7 @@ import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 // ============================================================================
 // SECTION: Type Definitions
@@ -195,6 +196,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   // Fetches accounts (paginated), total count, staff list (admin only), and products
   // ==========================================================================
   try {
+    await ensureStaffInventorySchema();
     await refreshAccountLifecycleStatuses();
 
     // Fetch accounts first (most important), then supporting data sequentially

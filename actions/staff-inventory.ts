@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -25,6 +26,8 @@ async function requireAdminUser() {
 
 export async function updateStaffInventory(formData: FormData): Promise<void> {
   const user = await requireAdminUser();
+  await ensureStaffInventorySchema();
+
   const staffId = cleanInput(formData.get("staffId"));
   const productId = cleanInput(formData.get("productId"));
   const quantityValue = cleanInput(formData.get("quantity"));

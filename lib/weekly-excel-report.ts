@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 const palette = {
   ink: "17351F",
@@ -145,6 +146,7 @@ function finishSheet(
 }
 
 export async function buildWeeklyReportWorkbook(now = new Date()) {
+  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses(now);
 
   const { start, end } = getCurrentWeekRange(now);

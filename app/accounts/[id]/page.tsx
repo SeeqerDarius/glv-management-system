@@ -38,6 +38,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 type AccountDetailsPageProps = {
   params: Promise<{
@@ -81,6 +82,7 @@ export default async function AccountDetailsPage({
   const settings = await getSettings();
   const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
 
+  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses();
 
   const account = await prisma.customerAccount.findFirst({
