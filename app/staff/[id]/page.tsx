@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { permissionLabels } from "@/lib/permissions";
@@ -102,6 +103,11 @@ export default async function StaffDetailsPage({ params }: StaffDetailsPageProps
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
           </Link>
+          <ProfileAvatar
+            name={staff.fullName}
+            src={staff.user?.profileImageUrl}
+            className="size-16 text-xl sm:size-18"
+          />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">

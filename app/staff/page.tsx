@@ -4,6 +4,7 @@ import { SearchIcon, Eye, Pencil, Trash2, UserX } from "lucide-react";
 import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -325,19 +326,26 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
             >
             <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase text-gray-400">
-                  {member.code}
-                </p>
-                <h2 className="truncate text-base font-semibold text-gray-950">
-                  {member.fullName}
-                </h2>
-                <p className="truncate text-sm text-gray-600">{member.email}</p>
-                {member.position ? (
-                  <p className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                    {member.position}
+              <div className="flex min-w-0 items-start gap-3">
+                <ProfileAvatar
+                  name={member.fullName}
+                  src={member.user?.profileImageUrl}
+                  className="size-11"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase text-gray-400">
+                    {member.code}
                   </p>
-                ) : null}
+                  <h2 className="truncate text-base font-semibold text-gray-950">
+                    {member.fullName}
+                  </h2>
+                  <p className="truncate text-sm text-gray-600">{member.email}</p>
+                  {member.position ? (
+                    <p className="mt-1 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                      {member.position}
+                    </p>
+                  ) : null}
+                </div>
               </div>
               {member.passwordResetRequestedAt ? (
                 <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -491,8 +499,17 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   <td className="px-3 py-3 font-semibold text-gray-900 tabular-nums">
                     {member.code}
                   </td>
-                  <td className="truncate px-3 py-3 text-gray-900">
-                    {member.fullName}
+                  <td className="px-3 py-3 text-gray-900">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <ProfileAvatar
+                        name={member.fullName}
+                        src={member.user?.profileImageUrl}
+                        className="size-8 text-xs"
+                      />
+                      <span className="truncate font-medium">
+                        {member.fullName}
+                      </span>
+                    </div>
                   </td>
                   <td className="truncate px-3 py-3 text-gray-700">
                     {member.position || "-"}
