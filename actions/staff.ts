@@ -3,6 +3,7 @@
 import { UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { put } from "@vercel/blob";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
@@ -18,6 +19,7 @@ export type StaffFormState = {
     fullName?: string;
     email?: string;
     code?: string;
+    profileImage?: string;
     form?: string;
   };
   credentials?: {
@@ -43,6 +45,14 @@ const codeOverrides: Record<string, string> = {
   philomena: "PHIL",
   victoria: "VIC",
 };
+
+const maxProfileImageSize = 5 * 1024 * 1024;
+const allowedProfileImageTypes = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
 
 async function requireStaffManager() {
   const session = await auth();
@@ -73,6 +83,62 @@ async function requireAdmin() {
 
 function cleanInput(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
+}
+
+function hasBlobStorageConfig() {
+  return Boolean(
+    process.env.BLOB_READ_WRITE_TOKEN ||
+      (process.env.BLOB_STORE_ID &&
+        (process.env.VERCEL || process.env.VERCEL_OIDC_TOKEN))
+  );
+}
+
+function getProfileImageFile(formData: FormData) {
+  const image = formData.get("profileImage");
+  return image instanceof File && image.size > 0 ? image : null;
+}
+
+function safeStaffProfileBlobName(staffKey: string, file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  return `staff-profiles/${staffKey}-${Date.now()}.${extension}`;
+}
+
+async function uploadStaffProfileImage({
+  staffKey,
+  formData,
+}: {
+  staffKey: string;
+  formData: FormData;
+}) {
+  const image = getProfileImageFile(formData);
+
+  if (!image) return { imageUrl: null };
+
+  if (!allowedProfileImageTypes.has(image.type)) {
+    return { error: "Use a JPG, PNG, WebP, or GIF profile picture." };
+  }
+
+  if (image.size > maxProfileImageSize) {
+    return { error: "Profile picture must be 5MB or smaller." };
+  }
+
+  if (!hasBlobStorageConfig()) {
+    return {
+      error:
+        "Profile picture storage is not configured. Connect Vercel Blob to this project, then try again.",
+    };
+  }
+
+  const blob = await put(safeStaffProfileBlobName(staffKey, image), image, {
+    access: "public",
+    addRandomSuffix: true,
+  }).catch(() => null);
+
+  if (!blob) {
+    return { error: "Unable to upload profile picture. Please try again." };
+  }
+
+  return { imageUrl: blob.url };
 }
 
 function baseStaffCode(fullName: string, codeLength = 3) {
@@ -217,6 +283,18 @@ export async function createStaff(
   const settings = await getSettings();
   const temporaryPassword = generateTemporaryPassword(settings.passwordLength);
   const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+  const imageResult = await uploadStaffProfileImage({
+    staffKey: code.toLowerCase(),
+    formData,
+  });
+
+  if (imageResult.error) {
+    return {
+      errors: {
+        profileImage: imageResult.error,
+      },
+    };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -248,6 +326,7 @@ export async function createStaff(
           role: UserRole.STAFF,
           mustChangePassword: true,
           staffId: createdStaff.id,
+          profileImageUrl: imageResult.imageUrl,
         },
       });
 
@@ -322,6 +401,14 @@ export async function updateStaff(formData: FormData): Promise<void> {
   const requestedPermissions = canGrantPrivileges
     ? parsePermissions(formData.getAll("permissions"))
     : existingStaff.user?.permissions ?? [];
+  const imageResult = await uploadStaffProfileImage({
+    staffKey: existingStaff.user?.id ?? existingStaff.id,
+    formData,
+  });
+
+  if (imageResult.error) {
+    redirect(`/staff/${id}/edit?error=profile-image`);
+  }
 
   const staff = await prisma.$transaction(async (tx) => {
     const updatedStaff = await tx.staff.update({
@@ -368,6 +455,11 @@ export async function updateStaff(formData: FormData): Promise<void> {
         data: {
           name: updatedStaff.fullName,
           email: updatedStaff.email,
+          ...(imageResult.imageUrl
+            ? {
+                profileImageUrl: imageResult.imageUrl,
+              }
+            : {}),
           ...(canGrantPrivileges
             ? {
                 permissions: requestedPermissions,
@@ -411,6 +503,8 @@ export async function updateStaff(formData: FormData): Promise<void> {
   });
 
   revalidatePath("/staff");
+  revalidatePath(`/staff/${staff.id}`);
+  revalidatePath("/", "layout");
   redirect("/staff");
 }
 

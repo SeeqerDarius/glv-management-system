@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { updateStaff } from "@/actions/staff";
+import { StaffProfileImageField } from "@/components/staff-profile-image-field";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import {
@@ -14,10 +15,17 @@ type EditStaffPageProps = {
   params: Promise<{
     id: string;
   }>;
+  searchParams: Promise<{
+    error?: string;
+  }>;
 };
 
-export default async function EditStaffPage({ params }: EditStaffPageProps) {
+export default async function EditStaffPage({
+  params,
+  searchParams,
+}: EditStaffPageProps) {
   const { id } = await params;
+  const { error } = await searchParams;
   const session = await auth();
   const canManageStaff = isSuperAdminRole(session?.user?.role);
 
@@ -47,8 +55,24 @@ export default async function EditStaffPage({ params }: EditStaffPageProps) {
         </p>
       </div>
 
-      <form action={updateStaff} className="space-y-4 rounded-lg border bg-white p-5">
+      <form
+        action={updateStaff}
+        encType="multipart/form-data"
+        className="space-y-4 rounded-lg border bg-white p-5"
+      >
         <input type="hidden" name="id" value={staff.id} />
+
+        {error === "profile-image" ? (
+          <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Unable to upload that profile picture. Use a JPG, PNG, WebP, or GIF
+            up to 5MB and make sure Blob storage is configured.
+          </p>
+        ) : null}
+
+        <StaffProfileImageField
+          name={staff.fullName}
+          currentImageUrl={staff.user?.profileImageUrl}
+        />
 
         <label className="block space-y-1">
           <span className="text-sm font-medium text-gray-700">Full Name</span>

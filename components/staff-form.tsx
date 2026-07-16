@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { createStaff, type StaffFormState } from "@/actions/staff";
+import { StaffProfileImageField } from "@/components/staff-profile-image-field";
 import { Button } from "@/components/ui/button";
 
 const initialState: StaffFormState = {};
@@ -51,7 +52,11 @@ export function StaffForm() {
         </div>
       ) : null}
 
-      <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
+      <form
+        action={formAction}
+        encType="multipart/form-data"
+        className="space-y-4 rounded-lg border bg-white p-5"
+      >
         {state.errors?.form ? (
           <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {state.errors.form}
@@ -106,6 +111,11 @@ export function StaffForm() {
           />
           <FieldError message={state.errors?.code} />
         </label>
+
+        <div className="space-y-1">
+          <StaffProfileImageField name="Staff" />
+          <FieldError message={state.errors?.profileImage} />
+        </div>
 
         <div className="flex gap-3">
           <Button type="submit" disabled={pending}>
