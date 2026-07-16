@@ -27,6 +27,8 @@ const initialState: ProfileFormState = {};
 export function ProfileForm({ action, canEditPosition, user }: ProfileFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const shouldShowForm = isEditing || Boolean(state.error);
 
   useEffect(() => {
     return () => {
@@ -44,6 +46,54 @@ export function ProfileForm({ action, canEditPosition, user }: ProfileFormProps)
     }
 
     setPreviewUrl(file ? URL.createObjectURL(file) : null);
+  }
+
+  if (!shouldShowForm) {
+    return (
+      <section className="rounded-lg border bg-white p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-lime-50 text-2xl font-bold text-green-900">
+              {user.profileImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.profileImageUrl}
+                  alt={user.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                user.name.slice(0, 1).toUpperCase()
+              )}
+            </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-semibold text-gray-950">
+                {user.name}
+              </h2>
+              <p className="truncate text-sm text-gray-600">{user.email}</p>
+              <div className="mt-3 grid gap-2 text-sm text-gray-700 sm:grid-cols-2">
+                <div>
+                  <span className="block text-xs font-medium uppercase text-gray-400">
+                    Phone
+                  </span>
+                  <span>{user.staff?.phone || "-"}</span>
+                </div>
+                {canEditPosition ? (
+                  <div>
+                    <span className="block text-xs font-medium uppercase text-gray-400">
+                      Position
+                    </span>
+                    <span>{user.staff?.position || "-"}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
+            Edit Profile
+          </Button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -130,9 +180,19 @@ export function ProfileForm({ action, canEditPosition, user }: ProfileFormProps)
         ) : null}
       </div>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? <GlvLoading compact label="Saving" /> : "Save Profile"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? <GlvLoading compact label="Saving" /> : "Save Profile"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() => setIsEditing(false)}
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }

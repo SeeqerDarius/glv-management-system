@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   updateMyPassword,
   type ProfilePasswordState,
@@ -25,6 +25,26 @@ export function ProfilePasswordForm() {
     updateMyPassword,
     initialState
   );
+  const [isEditing, setIsEditing] = useState(false);
+  const shouldShowForm = isEditing || Boolean(state.error);
+
+  if (!shouldShowForm) {
+    return (
+      <section className="rounded-lg border bg-white p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-950">Password</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Change your password when you need to update account access.
+            </p>
+          </div>
+          <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
+            Change Password
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
@@ -76,9 +96,19 @@ export function ProfilePasswordForm() {
         </label>
       </div>
 
-      <Button type="submit" disabled={pending}>
-        {pending ? <GlvLoading compact label="Changing" /> : "Change Password"}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" disabled={pending}>
+          {pending ? <GlvLoading compact label="Changing" /> : "Change Password"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() => setIsEditing(false)}
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }
