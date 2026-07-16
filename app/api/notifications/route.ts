@@ -5,6 +5,7 @@ import {
   DeliveryStatus,
   StaffApplicationStatus,
   UserPermission,
+  ProfileChangeStatus,
 } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -118,9 +119,14 @@ export async function GET() {
   }
 
   if (isSuperAdminRole(session.user.role)) {
-    const pendingApplications = await prisma.staffApplication.count({
-      where: { status: StaffApplicationStatus.PENDING },
-    });
+    const [pendingApplications, pendingProfileRequests] = await Promise.all([
+      prisma.staffApplication.count({
+        where: { status: StaffApplicationStatus.PENDING },
+      }),
+      prisma.profileChangeRequest.count({
+        where: { status: ProfileChangeStatus.PENDING },
+      }),
+    ]);
 
     if (pendingApplications > 0) {
       attention["/staff"] = {
@@ -129,6 +135,16 @@ export async function GET() {
           pendingApplications === 1 ? "" : "s"
         } pending approval`,
         href: "/staff/applications",
+      };
+    }
+
+    if (pendingProfileRequests > 0) {
+      attention["/profile"] = {
+        count: pendingProfileRequests,
+        label: `${pendingProfileRequests} profile change request${
+          pendingProfileRequests === 1 ? "" : "s"
+        } pending approval`,
+        href: "/profile/approvals",
       };
     }
   }

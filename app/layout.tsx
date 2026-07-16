@@ -106,8 +106,14 @@ export default async function RootLayout({
     "--primary": primaryColor,
     "--ring": primaryColor,
   } as CSSProperties;
+  const profileUser = session?.user?.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { profileImageUrl: true },
+      })
+    : null;
   const shellUser = session?.user?.role
-    ? { name: session.user.name, role: session.user.role, permissions: session.user.permissions ?? [], staffCode: staff?.code ?? null }
+    ? { name: session.user.name, role: session.user.role, permissions: session.user.permissions ?? [], staffCode: staff?.code ?? null, profileImageUrl: profileUser?.profileImageUrl ?? null }
     : null;
 
   return (

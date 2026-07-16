@@ -27,13 +27,14 @@ function attentionSignature(key: string, item: AttentionMap[string]) {
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
-  "/staff", "/credits", "/reports", "/audit-logs", "/settings",
+  "/staff", "/credits", "/reports", "/audit-logs", "/settings", "/profile",
 ];
 
 const pageTitles: Array<[string, string]> = [
   ["/credits", "Credits & Refunds"], ["/staff/applications", "Credits & Refunds"], ["/customers/new", "Create Customer"],
   ["/accounts/new", "Create Account"], ["/payments/new", "Record Payment"],
   ["/products/new", "Create Product"], ["/staff/new", "Add Staff"],
+  ["/profile/approvals", "Profile Approvals"], ["/profile", "My Profile"],
   ["/audit-logs", "Audit Logs"], ["/dashboard", "Dashboard"],
   ["/activity", "Activity"],
   ["/customers", "Customers"], ["/accounts", "Accounts"],
@@ -47,7 +48,7 @@ function Footer() {
 
 export function AppShell({ children, user, brand }: {
   children: ReactNode;
-  user: { name?: string | null; role?: UserRole; permissions: UserPermission[]; staffCode?: string | null } | null;
+  user: { name?: string | null; role?: UserRole; permissions: UserPermission[]; staffCode?: string | null; profileImageUrl?: string | null } | null;
   brand?: {
     companyName: string;
     tradingName: string;
@@ -309,7 +310,20 @@ export function AppShell({ children, user, brand }: {
             <button type="button" onClick={() => setMobileOpen(true)} className="inline-flex size-10 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 lg:hidden" aria-label="Open menu"><Menu className="size-5" /></button>
             <div className="min-w-0"><p className="truncate text-lg font-bold text-gray-950">{pageTitle}</p><p className="hidden text-xs text-gray-500 sm:block">GLV Management System</p></div>
           </div>
-          <div className="min-w-0 text-right"><p className="truncate text-sm font-semibold text-gray-900">{user.name || "GLV User"}</p><div className="flex items-center justify-end gap-2 text-xs text-gray-500">{user.staffCode ? <span className="font-semibold text-green-700">{user.staffCode}</span> : null}{user.staffCode ? <span aria-hidden="true">•</span> : null}<span>{roleLabel}</span></div></div>
+          <a href="/profile" className="flex min-w-0 items-center gap-3 rounded-md px-2 py-1 text-right hover:bg-gray-50">
+            <span className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-lime-50 text-sm font-bold text-green-900">
+              {user.profileImageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.profileImageUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                (user.name || "G").slice(0, 1).toUpperCase()
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-gray-900">{user.name || "GLV User"}</span>
+              <span className="flex items-center justify-end gap-2 text-xs text-gray-500">{user.staffCode ? <span className="font-semibold text-green-700">{user.staffCode}</span> : null}{user.staffCode ? <span aria-hidden="true">•</span> : null}<span>{roleLabel}</span></span>
+            </span>
+          </a>
         </header>
         <main className="glv-main-content min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
           <div className="mx-auto max-w-[90rem]">

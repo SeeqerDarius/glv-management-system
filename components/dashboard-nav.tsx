@@ -24,6 +24,7 @@ const navigation = [
   { href: "/customers", label: "Customers", icon: UserRoundIcon },
   { href: "/accounts", label: "Accounts", icon: WalletCardsIcon },
   { href: "/payments", label: "Payments", icon: HandCoinsIcon },
+  { href: "/profile", label: "My Profile", icon: UserRoundIcon },
   { href: "/products", label: "Products", icon: PackageIcon, permission: UserPermission.MANAGE_PRODUCTS, adminSection: true },
   { href: "/staff", label: "Staff", icon: UsersIcon, permission: UserPermission.VIEW_STAFF, adminSection: true },
   {

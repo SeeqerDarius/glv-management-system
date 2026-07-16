@@ -13,6 +13,8 @@ const staffAllowedRoutes = [
   "/accounts",
   "/customers",
   "/payments",
+  "/profile",
+  "/settings",
   "/change-password",
 ];
 

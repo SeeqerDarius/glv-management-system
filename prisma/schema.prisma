@@ -14,6 +14,7 @@ model User {
   password           String
   role               UserRole
   mustChangePassword Boolean          @default(true)
+  profileImageUrl    String?
   staffId            String?          @unique
   createdAt          DateTime         @default(now())
   lastSeenAt         DateTime?
@@ -21,6 +22,7 @@ model User {
   permissions        UserPermission[] @default([])
   staff              Staff?           @relation(fields: [staffId], references: [id])
   appearance         UserAppearancePreference?
+  profileRequests    ProfileChangeRequest[]
 }
 
 model Staff {
@@ -101,6 +103,23 @@ model UserAppearancePreference {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProfileChangeRequest {
+  id                       String              @id @default(cuid())
+  userId                   String
+  requestedEmail           String?
+  requestedProfileImageUrl String?
+  status                   ProfileChangeStatus @default(PENDING)
+  reviewedBy               String?
+  reviewedAt               DateTime?
+  rejectionReason          String?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  user                     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, status])
 }
 
 model StaffSalaryPayment {
@@ -304,4 +323,10 @@ enum CreditSource {
   PAYMENT_OVERPAYMENT
   ACCOUNT_CLOSURE_REFUND
   MANUAL_ADJUSTMENT
+}
+
+enum ProfileChangeStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
