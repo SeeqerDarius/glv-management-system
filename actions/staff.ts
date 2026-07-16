@@ -633,6 +633,7 @@ export async function deleteStaff(formData: FormData): Promise<void> {
       _count: {
         select: {
           customers: true,
+          salaryPayments: true,
         },
       },
     },
@@ -646,11 +647,15 @@ export async function deleteStaff(formData: FormData): Promise<void> {
     formData,
     adminUserId: user.id,
     redirectPath: "/staff",
-    requiresStrongConfirmation: staff._count.customers > 0,
+    requiresStrongConfirmation:
+      staff._count.customers > 0 || staff._count.salaryPayments > 0,
   });
 
   if (staff._count.customers > 0) {
     redirect("/staff?error=staff-has-history");
+  }
+  if (staff._count.salaryPayments > 0) {
+    redirect("/staff?error=staff-has-payroll-history");
   }
 
   await prisma.$transaction(async (tx) => {

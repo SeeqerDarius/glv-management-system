@@ -94,6 +94,7 @@ type StaffListItem = Prisma.StaffGetPayload<{
     _count: {
       select: {
         customers: true;
+        salaryPayments: true;
       };
     };
   };
@@ -127,6 +128,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         _count: {
           select: {
             customers: true,
+            salaryPayments: true,
           },
         },
       },
@@ -262,6 +264,12 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
           Staff with assigned customers cannot be deleted. Deactivate the staff
           member instead.
+        </div>
+      )}
+      {error === "staff-has-payroll-history" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          Staff with salary payment history cannot be deleted. Deactivate the
+          staff member instead so payroll reports stay intact.
         </div>
       )}
       {error === "delete-confirmation-required" && (
@@ -422,8 +430,16 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                   action={deleteStaff}
                   id={member.id}
                   title={`Delete ${member.fullName}?`}
-                  hasLinkedHistory={member._count.customers > 0}
-                  description="This permanently deletes the staff record. This cannot be undone."
+                  hasLinkedHistory={
+                    member._count.customers > 0 ||
+                    member._count.salaryPayments > 0
+                  }
+                  description={
+                    member._count.customers > 0 ||
+                    member._count.salaryPayments > 0
+                      ? "This staff member has operational history and should be deactivated instead."
+                      : "This permanently deletes the staff record. This cannot be undone."
+                  }
                   triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
                 >
                   Delete
@@ -609,8 +625,16 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                           action={deleteStaff}
                           id={member.id}
                           title={`Delete ${member.fullName}?`}
-                          hasLinkedHistory={member._count.customers > 0}
-                          description="This permanently deletes the staff record. This cannot be undone."
+                          hasLinkedHistory={
+                            member._count.customers > 0 ||
+                            member._count.salaryPayments > 0
+                          }
+                          description={
+                            member._count.customers > 0 ||
+                            member._count.salaryPayments > 0
+                              ? "This staff member has operational history and should be deactivated instead."
+                              : "This permanently deletes the staff record. This cannot be undone."
+                          }
                           triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
                         >
                           <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
