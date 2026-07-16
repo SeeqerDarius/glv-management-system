@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureSecuritySchema } from "@/lib/security-schema";
 
 const maxLoginAttempts = 5;
 const lockoutMinutes = 15;
@@ -18,9 +19,13 @@ export async function assertLoginAllowed(email: string) {
   const identifier = normalizeIdentifier(email);
   if (!identifier) return;
 
-  const record = await prisma.loginRateLimit.findUnique({
-    where: { identifier },
-  });
+  const record = await withRateLimitSchema(() =>
+    prisma.loginRateLimit.findUnique({
+      where: { identifier },
+    })
+  );
+
+  if (!record) return;
 
   if (!record?.lockedUntil) return;
 
@@ -28,14 +33,16 @@ export async function assertLoginAllowed(email: string) {
     throw new LoginRateLimitError(record.lockedUntil);
   }
 
-  await prisma.loginRateLimit.update({
-    where: { identifier },
-    data: {
-      attempts: 0,
-      lockedUntil: null,
-      lastAttemptAt: new Date(),
-    },
-  });
+  await withRateLimitSchema(() =>
+    prisma.loginRateLimit.update({
+      where: { identifier },
+      data: {
+        attempts: 0,
+        lockedUntil: null,
+        lastAttemptAt: new Date(),
+      },
+    })
+  );
 }
 
 export async function recordFailedLogin(email: string) {
@@ -44,9 +51,11 @@ export async function recordFailedLogin(email: string) {
 
   const now = new Date();
   const staleBefore = new Date(now.getTime() - staleAttemptMinutes * 60_000);
-  const existing = await prisma.loginRateLimit.findUnique({
-    where: { identifier },
-  });
+  const existing = await withRateLimitSchema(() =>
+    prisma.loginRateLimit.findUnique({
+      where: { identifier },
+    })
+  );
   const attempts =
     existing && existing.lastAttemptAt > staleBefore ? existing.attempts + 1 : 1;
   const lockedUntil =
@@ -54,20 +63,22 @@ export async function recordFailedLogin(email: string) {
       ? new Date(now.getTime() + lockoutMinutes * 60_000)
       : null;
 
-  await prisma.loginRateLimit.upsert({
-    where: { identifier },
-    update: {
-      attempts,
-      lockedUntil,
-      lastAttemptAt: now,
-    },
-    create: {
-      identifier,
-      attempts,
-      lockedUntil,
-      lastAttemptAt: now,
-    },
-  });
+  await withRateLimitSchema(() =>
+    prisma.loginRateLimit.upsert({
+      where: { identifier },
+      update: {
+        attempts,
+        lockedUntil,
+        lastAttemptAt: now,
+      },
+      create: {
+        identifier,
+        attempts,
+        lockedUntil,
+        lastAttemptAt: now,
+      },
+    })
+  );
 }
 
 export async function clearLoginRateLimit(email: string) {
@@ -79,4 +90,14 @@ export async function clearLoginRateLimit(email: string) {
       where: { identifier },
     })
     .catch(() => undefined);
+}
+
+async function withRateLimitSchema<T>(operation: () => Promise<T>) {
+  try {
+    await ensureSecuritySchema();
+    return await operation();
+  } catch (error) {
+    console.error("LOGIN_RATE_LIMIT_UNAVAILABLE", error);
+    return null;
+  }
 }

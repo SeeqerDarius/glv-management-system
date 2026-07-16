@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { ensureSecuritySchema, getTwoFactorState } from "@/lib/security-schema";
 import { generateTotpSecret, verifyTotpCode } from "@/lib/totp";
 
 function clean(value: FormDataEntryValue | null) {
@@ -27,6 +28,7 @@ export async function generateTwoFactorSecret() {
   const user = await requireAdminUser();
   const secret = generateTotpSecret();
 
+  await ensureSecuritySchema();
   await prisma.user.update({
     where: { id: user.id },
     data: {
@@ -53,20 +55,21 @@ export async function generateTwoFactorSecret() {
 export async function enableTwoFactor(formData: FormData) {
   const sessionUser = await requireAdminUser();
   const code = clean(formData.get("code"));
+  await ensureSecuritySchema();
 
   const user = await prisma.user.findUnique({
     where: { id: sessionUser.id },
     select: {
       id: true,
-      twoFactorSecret: true,
     },
   });
+  const twoFactor = await getTwoFactorState(sessionUser.id);
 
-  if (!user?.twoFactorSecret) {
+  if (!user || !twoFactor.secret) {
     redirect("/security/2fa?error=missing-secret");
   }
 
-  if (!verifyTotpCode(user.twoFactorSecret, code)) {
+  if (!verifyTotpCode(twoFactor.secret, code)) {
     redirect("/security/2fa?error=invalid-code");
   }
 

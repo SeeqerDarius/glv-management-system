@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { ensureSecuritySchema, getTwoFactorState } from "@/lib/security-schema";
 import { getTotpUri } from "@/lib/totp";
 
 type TwoFactorPageProps = {
@@ -29,12 +30,11 @@ export default async function TwoFactorPage({
   }
 
   const { error } = await searchParams;
+  await ensureSecuritySchema();
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
     select: {
       email: true,
-      twoFactorEnabled: true,
-      twoFactorSecret: true,
     },
   });
 
@@ -42,10 +42,11 @@ export default async function TwoFactorPage({
     redirect("/login");
   }
 
-  const setupUri = user.twoFactorSecret
+  const twoFactor = await getTwoFactorState(session.user.id);
+  const setupUri = twoFactor.secret
     ? getTotpUri({
         accountName: user.email,
-        secret: user.twoFactorSecret,
+        secret: twoFactor.secret,
       })
     : null;
 
@@ -65,7 +66,7 @@ export default async function TwoFactorPage({
           </p>
         </div>
 
-        {user.twoFactorEnabled ? (
+        {twoFactor.enabled ? (
           <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
             2FA is enabled for this account.
           </div>
@@ -79,7 +80,7 @@ export default async function TwoFactorPage({
           </div>
         ) : null}
 
-        {!user.twoFactorSecret ? (
+        {!twoFactor.secret ? (
           <form action={generateTwoFactorSecret}>
             <Button type="submit">Generate 2FA Setup Key</Button>
           </form>
@@ -88,7 +89,7 @@ export default async function TwoFactorPage({
             <div className="rounded-lg border bg-gray-50 p-4">
               <p className="text-sm font-semibold text-gray-900">Setup key</p>
               <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-sm text-gray-950">
-                {user.twoFactorSecret}
+                {twoFactor.secret}
               </p>
               <p className="mt-3 text-xs leading-5 text-gray-600">
                 In Google Authenticator, Microsoft Authenticator, 1Password, or
