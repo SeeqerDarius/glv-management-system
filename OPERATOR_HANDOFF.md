@@ -68,7 +68,7 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   when product accounts cross the configured payment threshold and are not paid
   off yet.
 - `/staff`: staff records, detail view, applications, salary support, password
-  reset flow.
+  reset flow, and per-staff product inventory allocation/restock.
 - `/credits`: overpayment credits and refunds.
 - `/reports`: admin financial intelligence and salary tracking.
 - `/activity`: collection/activity charts.
@@ -85,7 +85,8 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   It groups module badges for account/customer follow-up, today's customer,
   account, and payment activity, procurement readiness, product image hygiene,
   open credits/refunds, staff applications, profile approvals, inactive staff
-  assignment risk, salary balances, and database-backup review.
+  assignment risk, staff inventory at zero, salary balances, and
+  database-backup review.
 - Sidebar badges are locally dismissed when opened and the destination page
   shows an "Attention needed here" callout for the opened notification.
 - Wide list/detail tables were hardened for mobile with scroll wrappers in:
@@ -135,3 +136,17 @@ claim it has changed records.
 - Add support actions only after strict permission checks and confirmation UI.
 - Continue wiring Settings fields downstream only when the owner asks for those
   business rules to take effect.
+
+## Staff Inventory Rules
+
+- `StaffInventory` is the per-staff allocation layer for products.
+- Admin and Super Admin users restock or adjust staff stock from the staff detail
+  page.
+- Creating a customer account consumes one unit from the assigned staff member's
+  inventory in the same database transaction as account creation.
+- Account product correction restores the old product stock for the original
+  inventory staff, then consumes the replacement product from that staff.
+- Account/customer deletion restores consumed inventory where the account has an
+  `inventoryStaffId`.
+- Existing historical accounts can have `inventoryStaffId = null`; do not assume
+  every older account consumed inventory.

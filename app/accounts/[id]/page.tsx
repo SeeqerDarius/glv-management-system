@@ -363,6 +363,13 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
+      {error === "staff-inventory-empty" ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          The assigned staff member has no stock for the replacement product.
+          Restock the staff inventory first.
+        </div>
+      ) : null}
+
       {error === "credit-not-found" || error === "credit-not-open" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           This credit could not be refunded. It may already be closed.

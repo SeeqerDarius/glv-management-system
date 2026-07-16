@@ -11,7 +11,7 @@ import { auth } from "@/lib/auth";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
-import { hasPermission, isSuperAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 import { getSettings } from "@/lib/settings";
@@ -301,6 +301,33 @@ export async function GET() {
           href: "/settings#system",
         });
       }
+    }
+  }
+
+  if (isAdminRole(session.user.role)) {
+    const staffInventoryAtZero = await prisma.staffInventory.count({
+      where: {
+        quantity: {
+          lte: 0,
+        },
+        staff: {
+          active: true,
+        },
+        product: {
+          active: true,
+        },
+      },
+    });
+
+    if (staffInventoryAtZero > 0) {
+      addAttention(attention, "/staff", {
+        count: staffInventoryAtZero,
+        label: `${plural(
+          staffInventoryAtZero,
+          "staff inventory item",
+        )} at zero and need restock`,
+        href: "/staff",
+      });
     }
   }
 

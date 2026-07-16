@@ -29,6 +29,7 @@ export default async function NewAccountPage({
     include: {
       staff: {
         select: {
+          id: true,
           code: true,
           fullName: true,
         },
@@ -50,6 +51,12 @@ export default async function NewAccountPage({
       layawayPrice: true,
       dailyAmount: true,
       duration: true,
+      staffInventory: {
+        select: {
+          staffId: true,
+          quantity: true,
+        },
+      },
     },
   });
 

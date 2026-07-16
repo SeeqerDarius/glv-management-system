@@ -28,6 +28,10 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
+import {
+  consumeStaffInventory,
+  restoreStaffInventory,
+} from "@/lib/staff-inventory";
 
 export type AccountFormState = {
   errors?: {
@@ -216,6 +220,7 @@ export async function createAccount(
         customerId: customer.id,
         product,
         startDate,
+        inventoryStaffId: customer.staffId,
       });
 
       if (wantsFirstPayment && firstPaymentDate) {
@@ -242,6 +247,14 @@ export async function createAccount(
     });
   } catch (error) {
     console.error("CREATE_ACCOUNT_ERROR", error);
+    if (error instanceof Error && error.name === "StaffInventoryError") {
+      return {
+        errors: {
+          productId: error.message,
+        },
+      };
+    }
+
     return {
       errors: {
         form: "Unable to create account. Please check the details and try again.",
@@ -301,6 +314,16 @@ export async function deleteAccount(formData: FormData): Promise<void> {
           oldValue: JSON.stringify(account),
         },
       });
+
+      if (account.inventoryStaffId) {
+        await restoreStaffInventory({
+          tx,
+          userId: user.id,
+          staffId: account.inventoryStaffId,
+          productId: account.productId,
+          accountId: account.id,
+        });
+      }
 
       await tx.payment.deleteMany({
         where: {
@@ -446,6 +469,11 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
       },
       include: {
         product: true,
+        customer: {
+          select: {
+            staffId: true,
+          },
+        },
       },
     }),
     prisma.product.findUnique({
@@ -481,78 +509,26 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
         ? AccountStatus.ACTIVE
         : account.status;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.customerAccount.update({
-      where: {
-        id: account.id,
-      },
-      data: {
-        productId: product.id,
-        targetAmount: nextTargetAmount,
-        dailyAmount: nextDailyAmount,
-        expectedEndDate,
-        balance: nextBalance,
-        status: nextStatus,
-        deliveryStatus: DeliveryStatus.PENDING,
-        deliveredAt: null,
-        deliveredBy: null,
-      },
-    });
-
-    const existingCredits = await tx.customerCredit.aggregate({
-      where: {
-        accountId: account.id,
-        status: {
-          not: CreditStatus.VOID,
-        },
-      },
-      _sum: {
-        amount: true,
-      },
-    });
-    const existingCreditAmount = existingCredits._sum.amount ?? 0;
-    const additionalCreditAmount = Math.max(
-      creditAmount - existingCreditAmount,
-      0
-    );
-
-    const createdCredit =
-      additionalCreditAmount > 0
-        ? await tx.customerCredit.create({
-            data: {
-              customerId: account.customerId,
-              accountId: account.id,
-              amount: additionalCreditAmount,
-              remainingAmount: additionalCreditAmount,
-              status: CreditStatus.OPEN,
-              source: CreditSource.MANUAL_ADJUSTMENT,
-              notes: `Credit from product correction: ${account.product.name} to ${product.name}`,
-              createdBy: user.id,
-            },
-          })
-        : null;
-
-    await tx.auditLog.create({
-      data: {
-        userId: user.id,
-        action: "UPDATE_ACCOUNT_PRODUCT",
-        entity: "CustomerAccount",
-        entityId: account.id,
-        oldValue: JSON.stringify({
+  try {
+    await prisma.$transaction(async (tx) => {
+      const inventoryStaffId = account.inventoryStaffId ?? account.customer.staffId;
+      if (account.inventoryStaffId) {
+        await restoreStaffInventory({
+          tx,
+          userId: user.id,
+          staffId: account.inventoryStaffId,
           productId: account.productId,
-          productName: account.product.name,
-          targetAmount: account.targetAmount,
-          dailyAmount: account.dailyAmount,
-          expectedEndDate: account.expectedEndDate,
-          balance: account.balance,
-          status: account.status,
-          deliveryStatus: account.deliveryStatus,
-          deliveredAt: account.deliveredAt,
-          deliveredBy: account.deliveredBy,
-        }),
-        newValue: JSON.stringify({
+          accountId: account.id,
+        });
+      }
+
+      await tx.customerAccount.update({
+        where: {
+          id: account.id,
+        },
+        data: {
           productId: product.id,
-          productName: product.name,
+          inventoryStaffId,
           targetAmount: nextTargetAmount,
           dailyAmount: nextDailyAmount,
           expectedEndDate,
@@ -561,14 +537,97 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
           deliveryStatus: DeliveryStatus.PENDING,
           deliveredAt: null,
           deliveredBy: null,
-          retainedTotalPaid: account.totalPaid,
-          creditAmount,
-          additionalCreditId: createdCredit?.id ?? null,
-          additionalCreditAmount,
-        }),
-      },
+        },
+      });
+
+      await consumeStaffInventory({
+        tx,
+        userId: user.id,
+        staffId: inventoryStaffId,
+        productId: product.id,
+        accountId: account.id,
+      });
+
+      const existingCredits = await tx.customerCredit.aggregate({
+        where: {
+          accountId: account.id,
+          status: {
+            not: CreditStatus.VOID,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+      });
+      const existingCreditAmount = existingCredits._sum.amount ?? 0;
+      const additionalCreditAmount = Math.max(
+        creditAmount - existingCreditAmount,
+        0
+      );
+
+      const createdCredit =
+        additionalCreditAmount > 0
+          ? await tx.customerCredit.create({
+              data: {
+                customerId: account.customerId,
+                accountId: account.id,
+                amount: additionalCreditAmount,
+                remainingAmount: additionalCreditAmount,
+                status: CreditStatus.OPEN,
+                source: CreditSource.MANUAL_ADJUSTMENT,
+                notes: `Credit from product correction: ${account.product.name} to ${product.name}`,
+                createdBy: user.id,
+              },
+            })
+          : null;
+
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "UPDATE_ACCOUNT_PRODUCT",
+          entity: "CustomerAccount",
+          entityId: account.id,
+          oldValue: JSON.stringify({
+            productId: account.productId,
+            productName: account.product.name,
+            inventoryStaffId: account.inventoryStaffId,
+            targetAmount: account.targetAmount,
+            dailyAmount: account.dailyAmount,
+            expectedEndDate: account.expectedEndDate,
+            balance: account.balance,
+            status: account.status,
+            deliveryStatus: account.deliveryStatus,
+            deliveredAt: account.deliveredAt,
+            deliveredBy: account.deliveredBy,
+          }),
+          newValue: JSON.stringify({
+            productId: product.id,
+            productName: product.name,
+            inventoryStaffId,
+            targetAmount: nextTargetAmount,
+            dailyAmount: nextDailyAmount,
+            expectedEndDate,
+            balance: nextBalance,
+            status: nextStatus,
+            deliveryStatus: DeliveryStatus.PENDING,
+            deliveredAt: null,
+            deliveredBy: null,
+            retainedTotalPaid: account.totalPaid,
+            creditAmount,
+            additionalCreditId: createdCredit?.id ?? null,
+            additionalCreditAmount,
+          }),
+        },
+      });
     });
-  });
+  } catch (error) {
+    console.error("UPDATE_ACCOUNT_PRODUCT_ERROR", error);
+    if (error instanceof Error && error.name === "StaffInventoryError") {
+      redirect(`${returnTo}?error=staff-inventory-empty`);
+    }
+
+    redirect(`${returnTo}?error=invalid-account-product`);
+  }
 
   revalidatePath("/accounts");
   revalidatePath(`/accounts/${account.id}`);

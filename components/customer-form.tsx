@@ -20,6 +20,10 @@ type ProductOption = {
   dailyAmount: number;
   duration: number;
   imageUrl?: string | null;
+  staffInventory: Array<{
+    staffId: string;
+    quantity: number;
+  }>;
 };
 type ExistingCustomerOption = {
   id: string;
@@ -31,18 +35,32 @@ function normalizeName(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-export function CustomerForm({ action, staff, products, existingCustomers, canAssignStaff }: {
+export function CustomerForm({ action, staff, products, existingCustomers, canAssignStaff, currentStaffId }: {
   action: (state: CustomerFormState, formData: FormData) => Promise<CustomerFormState>;
   staff: StaffOption[];
   products: ProductOption[];
   existingCustomers: ExistingCustomerOption[];
   canAssignStaff: boolean;
+  currentStaffId?: string | null;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
   const [fullName, setFullName] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [selectedStaffId, setSelectedStaffId] = useState("");
   const [firstPaymentAmount, setFirstPaymentAmount] = useState("");
-  const selectedProduct = products.find(
+  const inventoryStaffId = canAssignStaff ? selectedStaffId : currentStaffId;
+  const availableProducts = inventoryStaffId
+    ? products
+        .map((product) => ({
+          ...product,
+          staffQuantity:
+            product.staffInventory.find(
+              (inventory) => inventory.staffId === inventoryStaffId
+            )?.quantity ?? 0,
+        }))
+        .filter((product) => product.staffQuantity > 0)
+    : [];
+  const selectedProduct = availableProducts.find(
     (product) => product.id === selectedProductId
   );
   const today = todayDateInputValue();
@@ -95,7 +113,7 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">National ID <span className="font-normal text-gray-400">(optional)</span></span><input name="nationalId" className="w-full rounded border p-3" /></label>
 
       {canAssignStaff ? (
-        <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Assigned Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.fullName} ({member.code})</option>)}</select></label>
+        <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Assigned Staff</span><select name="staffId" value={selectedStaffId} onChange={(event) => { setSelectedStaffId(event.target.value); setSelectedProductId(""); }} className="w-full rounded border p-3" required><option value="">Select staff</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.fullName} ({member.code})</option>)}</select></label>
       ) : null}
 
       <div className="space-y-4 rounded-lg border border-lime-200 bg-lime-50 p-4">
@@ -116,15 +134,27 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
             value={selectedProductId}
             onChange={(event) => setSelectedProductId(event.target.value)}
             className="w-full rounded border bg-white p-3"
+            disabled={!inventoryStaffId}
           >
-            <option value="">No product account yet</option>
-            {products.map((product) => (
+            <option value="">
+              {inventoryStaffId
+                ? "No product account yet"
+                : "Select staff before product"}
+            </option>
+            {availableProducts.map((product) => (
               <option key={product.id} value={product.id}>
                 {product.name} - {product.category} |{" "}
-                {formatMoney(product.layawayPrice)}
+                {formatMoney(product.layawayPrice)} ({product.staffQuantity} in
+                staff inventory)
               </option>
             ))}
           </select>
+          {inventoryStaffId && availableProducts.length === 0 ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              This staff member has no product stock available. Admin or Super
+              Admin must restock their inventory first.
+            </p>
+          ) : null}
           {state.errors?.productId ? (
             <p className="text-sm text-red-700">{state.errors.productId}</p>
           ) : null}
@@ -153,6 +183,9 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
                     Click the picture to preview it full size.
                   </p>
                 ) : null}
+                <p className="mt-2 text-xs font-semibold text-green-800">
+                  Staff inventory: {selectedProduct.staffQuantity}
+                </p>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">

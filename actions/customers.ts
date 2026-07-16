@@ -18,6 +18,7 @@ import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
+import { restoreStaffInventory } from "@/lib/staff-inventory";
 
 export type CustomerFormState = {
   errors?: {
@@ -280,6 +281,7 @@ export async function createCustomer(
               customerId: createdCustomer.id,
               product,
               startDate,
+              inventoryStaffId: staffId,
             })
           : null;
 
@@ -313,6 +315,14 @@ export async function createCustomer(
     accountId = result.accountId;
   } catch (error) {
     console.error("CREATE_CUSTOMER_ERROR", error);
+    if (error instanceof Error && error.name === "StaffInventoryError") {
+      return {
+        errors: {
+          productId: error.message,
+        },
+      };
+    }
+
     return {
       errors: {
         form: "Unable to create customer. Please check the details and try again.",
@@ -567,6 +577,18 @@ export async function deleteCustomer(formData: FormData): Promise<void> {
       });
 
       if (accountIds.length > 0) {
+        for (const account of customer.accounts) {
+          if (account.inventoryStaffId) {
+            await restoreStaffInventory({
+              tx,
+              userId: user.id,
+              staffId: account.inventoryStaffId,
+              productId: account.productId,
+              accountId: account.id,
+            });
+          }
+        }
+
         await tx.payment.deleteMany({
           where: {
             accountId: {

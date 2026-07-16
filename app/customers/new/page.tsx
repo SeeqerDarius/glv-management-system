@@ -32,6 +32,12 @@ export default async function NewCustomerPage() {
       layawayPrice: true,
       dailyAmount: true,
       duration: true,
+      staffInventory: {
+        select: {
+          staffId: true,
+          quantity: true,
+        },
+      },
     },
   });
   const existingCustomers = await prisma.customer.findMany({
@@ -60,6 +66,7 @@ export default async function NewCustomerPage() {
         products={products}
         existingCustomers={existingCustomers}
         canAssignStaff={canAssignStaff}
+        currentStaffId={session?.user?.staffId ?? null}
       />
     </div>
   );

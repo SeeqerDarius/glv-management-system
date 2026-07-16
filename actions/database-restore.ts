@@ -87,6 +87,7 @@ export async function restoreDatabaseBackup(formData: FormData) {
       await tx.profileChangeRequest.deleteMany();
       await tx.userAppearancePreference.deleteMany();
       await tx.user.deleteMany();
+      await tx.staffInventory.deleteMany();
       await tx.staff.deleteMany();
       await tx.staffApplication.deleteMany();
       await tx.product.deleteMany();
@@ -140,6 +141,14 @@ export async function restoreDatabaseBackup(formData: FormData) {
           data: reviveBackupRows<Prisma.UserCreateManyInput>(
             "users",
             tables.users
+          ),
+        });
+      }
+      if (tables.staffInventory?.length) {
+        await tx.staffInventory.createMany({
+          data: reviveBackupRows<Prisma.StaffInventoryCreateManyInput>(
+            "staffInventory",
+            tables.staffInventory
           ),
         });
       }
