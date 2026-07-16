@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isSuperAdminRole } from "@/lib/roles";
+import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 
 export type ProfileFormState = {
   error?: string;
@@ -96,7 +96,7 @@ export async function updateMyProfile(
   const userId = session.user.id;
   const fullName = clean(formData.get("fullName"));
   const phone = clean(formData.get("phone"));
-  const position = clean(formData.get("position"));
+  const submittedPosition = clean(formData.get("position"));
   const requestedEmail = lowerEmail(formData.get("email"));
 
   if (!fullName) {
@@ -111,6 +111,11 @@ export async function updateMyProfile(
   if (!user) {
     return { error: "Profile was not found." };
   }
+
+  const canUpdatePosition = isAdminRole(session.user.role);
+  const position = canUpdatePosition
+    ? submittedPosition
+    : (user.staff?.position ?? "");
 
   const emailChanged = requestedEmail && requestedEmail !== user.email.toLowerCase();
   if (emailChanged) {
@@ -144,7 +149,7 @@ export async function updateMyProfile(
         data: {
           fullName,
           phone: phone || null,
-          position: position || null,
+          ...(canUpdatePosition ? { position: position || null } : {}),
         },
       });
     }

@@ -10,6 +10,7 @@ type ProfileFormProps = {
     state: ProfileFormState,
     formData: FormData
   ) => Promise<ProfileFormState>;
+  canEditPosition: boolean;
   user: {
     name: string;
     email: string;
@@ -23,7 +24,7 @@ type ProfileFormProps = {
 
 const initialState: ProfileFormState = {};
 
-export function ProfileForm({ action, user }: ProfileFormProps) {
+export function ProfileForm({ action, canEditPosition, user }: ProfileFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -117,14 +118,16 @@ export function ProfileForm({ action, user }: ProfileFormProps) {
             className="w-full rounded border p-3"
           />
         </label>
-        <label className="space-y-1.5">
-          <span className="text-sm font-medium text-gray-700">Position</span>
-          <input
-            name="position"
-            defaultValue={user.staff?.position ?? ""}
-            className="w-full rounded border p-3"
-          />
-        </label>
+        {canEditPosition ? (
+          <label className="space-y-1.5">
+            <span className="text-sm font-medium text-gray-700">Position</span>
+            <input
+              name="position"
+              defaultValue={user.staff?.position ?? ""}
+              className="w-full rounded border p-3"
+            />
+          </label>
+        ) : null}
       </div>
 
       <Button type="submit" disabled={pending}>

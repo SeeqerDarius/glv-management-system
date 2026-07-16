@@ -6,7 +6,7 @@ import { ProfileForm } from "@/components/profile-form";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isSuperAdminRole } from "@/lib/roles";
+import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 
 type ProfilePageProps = {
   searchParams: Promise<{
@@ -80,7 +80,11 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         </div>
       ) : null}
 
-      <ProfileForm action={updateMyProfile} user={user} />
+      <ProfileForm
+        action={updateMyProfile}
+        user={user}
+        canEditPosition={isAdminRole(session.user.role)}
+      />
 
       <section className="rounded-lg border bg-white p-5">
         <h2 className="text-lg font-semibold text-gray-950">
