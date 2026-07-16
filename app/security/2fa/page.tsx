@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import Image from "next/image";
+import QRCode from "qrcode";
 import {
   enableTwoFactor,
   generateTwoFactorSecret,
@@ -49,6 +51,14 @@ export default async function TwoFactorPage({
         secret: twoFactor.secret,
       })
     : null;
+  const qrCodeDataUrl = setupUri
+    ? await QRCode.toDataURL(setupUri, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        scale: 7,
+        type: "image/png",
+      })
+    : null;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-10">
@@ -87,7 +97,29 @@ export default async function TwoFactorPage({
         ) : (
           <div className="space-y-5">
             <div className="rounded-lg border bg-gray-50 p-4">
-              <p className="text-sm font-semibold text-gray-900">Setup key</p>
+              <p className="text-sm font-semibold text-gray-900">
+                Scan QR code
+              </p>
+              <p className="mt-1 text-xs leading-5 text-gray-600">
+                Open your authenticator app, choose add account, then scan this
+                code.
+              </p>
+              {qrCodeDataUrl ? (
+                <div className="mt-4 flex justify-center rounded-lg bg-white p-4">
+                  <Image
+                    src={qrCodeDataUrl}
+                    alt="Authenticator app QR code"
+                    width={224}
+                    height={224}
+                    unoptimized
+                    className="h-56 w-56 max-w-full rounded-md"
+                  />
+                </div>
+              ) : null}
+
+              <p className="mt-5 text-sm font-semibold text-gray-900">
+                Manual setup key
+              </p>
               <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-sm text-gray-950">
                 {twoFactor.secret}
               </p>
