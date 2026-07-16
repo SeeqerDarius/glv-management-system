@@ -19,7 +19,7 @@ import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { getAdminReportSummary, getStaffDashboardSummary } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
-import { fallbackSettings, getSettings } from "@/lib/settings";
+import { fallbackSettings, getAppearanceSettings } from "@/lib/settings";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -86,8 +86,10 @@ function MetricCard({
 export default async function DashboardPage() {
   const session = await auth();
   const isAdmin = isAdminRole(session?.user?.role);
-  const settings = await getSettings().catch(() => fallbackSettings);
-  const dashboardCards = normalizeDashboardCards(settings.dashboardCards);
+  const appearance = await getAppearanceSettings(session?.user?.id).catch(
+    () => fallbackSettings
+  );
+  const dashboardCards = normalizeDashboardCards(appearance.dashboardCards);
   const greeting = greetingFor();
   let report: Awaited<ReturnType<typeof getAdminReportSummary>> | null = null;
   let staffReport: Awaited<ReturnType<typeof getStaffDashboardSummary>> | null = null;
@@ -138,14 +140,14 @@ export default async function DashboardPage() {
               label="Total Customers"
               value={report.totalCustomers}
               icon={UserRoundIcon}
-              accent={settings.primaryColor}
+              accent={appearance.primaryColor}
               mode={dashboardCards}
             />
             <MetricCard
               label="Total Staff"
               value={report.totalStaff}
               icon={UsersIcon}
-              accent={settings.secondaryColor}
+              accent={appearance.secondaryColor}
               mode={dashboardCards}
             />
             <MetricCard
@@ -194,7 +196,7 @@ export default async function DashboardPage() {
               label="Profit Estimate"
               value={formatMoney(report.profitEstimate)}
               icon={TrendingUpIcon}
-              accent={settings.primaryColor}
+              accent={appearance.primaryColor}
               mode={dashboardCards}
             />
           </section>
@@ -205,15 +207,15 @@ export default async function DashboardPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <MetricCard mode={dashboardCards} label="Product Cost Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
-              <MetricCard mode={dashboardCards} label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent={settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent={appearance.primaryColor} />
               <MetricCard mode={dashboardCards} label="Salary Paid for Due Month" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
-              <MetricCard mode={dashboardCards} label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent={settings.secondaryColor} />
+              <MetricCard mode={dashboardCards} label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent={appearance.secondaryColor} />
               <MetricCard mode={dashboardCards} label="Outstanding Salaries" value={formatMoney(report.outstandingSalaries)} icon={UsersIcon} accent="#d18b35" />
               <MetricCard mode={dashboardCards} label="Payroll vs Income" value={formatMoney(report.payrollVsIncome)} icon={BadgeDollarSignIcon} accent={report.payrollVsIncome < 0 ? "#c93636" : "#3b8d62"} />
               <MetricCard mode={dashboardCards} label="Net Profit So Far" value={formatMoney(report.netProfitSoFar)} icon={BadgeDollarSignIcon} accent={report.netProfitSoFar < 0 ? "#c93636" : "#3b8d62"} />
-              <MetricCard mode={dashboardCards} label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : appearance.primaryColor} />
               <MetricCard mode={dashboardCards} label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />
-              <MetricCard mode={dashboardCards} label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : settings.primaryColor} />
+              <MetricCard mode={dashboardCards} label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : appearance.primaryColor} />
               <MetricCard mode={dashboardCards} label="Refund Items" value={report.openCreditCount} icon={CircleDollarSignIcon} accent="#c93636" />
               <MetricCard mode={dashboardCards} label="Closure Refunds" value={report.closureRefundCount} icon={ClockAlertIcon} accent="#d18b35" />
             </div>
@@ -224,12 +226,12 @@ export default async function DashboardPage() {
       ) : staffReport ? (
         <div className="space-y-6">
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard mode={dashboardCards} label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent={settings.primaryColor} />
-            <MetricCard mode={dashboardCards} label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent={settings.secondaryColor} />
+            <MetricCard mode={dashboardCards} label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent={appearance.primaryColor} />
+            <MetricCard mode={dashboardCards} label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent={appearance.secondaryColor} />
             <MetricCard mode={dashboardCards} label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
             <MetricCard mode={dashboardCards} label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
             <MetricCard mode={dashboardCards} label="Collected Today" value={formatMoney(staffReport.totalCollectedToday)} icon={BadgeDollarSignIcon} accent="#317f9d" />
-            <MetricCard mode={dashboardCards} label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent={settings.primaryColor} />
+            <MetricCard mode={dashboardCards} label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent={appearance.primaryColor} />
           </section>
 
           <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">

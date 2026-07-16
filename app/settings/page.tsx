@@ -5,6 +5,7 @@ import {
   deleteProductCategory,
   updateProductCategory,
 } from "@/actions/product-categories";
+import { updateGlobalAppearance, updateMyAppearance } from "@/actions/appearance";
 import { updateSettings } from "@/actions/settings";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
@@ -12,11 +13,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { isSuperAdminRole } from "@/lib/roles";
+import {
+  getAppearanceSettings,
+  normalizeAppearanceSettings,
+} from "@/lib/settings";
 import { Plus, Trash2 } from "lucide-react";
 
 type SettingsPageProps = {
   searchParams: Promise<{
+    appearance?: string;
     category?: string;
     error?: string;
     saved?: string;
@@ -94,6 +100,11 @@ const categoryMessages: Record<string, string> = {
   restored: "Existing category restored successfully.",
   updated: "Category updated and matching products were updated.",
   deleted: "Category deleted. Matching products were moved to Other.",
+};
+
+const appearanceMessages: Record<string, string> = {
+  personal: "Your appearance preference was saved.",
+  global: "Global appearance default was saved for other users.",
 };
 
 function Field({
@@ -205,14 +216,107 @@ function SettingsSection({
   );
 }
 
+function AppearanceFields({
+  values,
+}: {
+  values: {
+    theme: string;
+    primaryColor: string;
+    secondaryColor: string;
+    dashboardCards: string;
+    loadingAnimation: string;
+  };
+}) {
+  return (
+    <>
+      <SelectField
+        label="Theme"
+        name="theme"
+        defaultValue={values.theme}
+        options={[
+          { label: "Light", value: "light" },
+          { label: "Dark", value: "dark" },
+          { label: "System", value: "system" },
+        ]}
+      />
+      <Field
+        label="Primary Color"
+        name="primaryColor"
+        type="color"
+        defaultValue={values.primaryColor}
+      />
+      <Field
+        label="Secondary Color"
+        name="secondaryColor"
+        type="color"
+        defaultValue={values.secondaryColor}
+      />
+      <SelectField
+        label="Dashboard Cards"
+        name="dashboardCards"
+        defaultValue={values.dashboardCards}
+        options={[
+          { label: "Standard", value: "standard" },
+          { label: "Compact", value: "compact" },
+          { label: "Detailed", value: "detailed" },
+        ]}
+      />
+      <SelectField
+        label="Loading Animation"
+        name="loadingAnimation"
+        defaultValue={values.loadingAnimation}
+        options={[
+          { label: "GLV", value: "glv" },
+          { label: "Minimal", value: "minimal" },
+          { label: "None", value: "none" },
+        ]}
+      />
+    </>
+  );
+}
+
+function AppearanceSection({
+  action,
+  title,
+  description,
+  submitLabel,
+  values,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  title: string;
+  description: string;
+  submitLabel: string;
+  values: {
+    theme: string;
+    primaryColor: string;
+    secondaryColor: string;
+    dashboardCards: string;
+    loadingAnimation: string;
+  };
+}) {
+  return (
+    <form action={action}>
+      <SettingsSection title={title} description={description}>
+        <AppearanceFields values={values} />
+        <div className="flex items-end">
+          <Button type="submit" className="w-full">
+            {submitLabel}
+          </Button>
+        </div>
+      </SettingsSection>
+    </form>
+  );
+}
+
 export default async function SettingsPage({ searchParams }: SettingsPageProps) {
   const session = await auth();
-  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+  if (!session?.user?.id) {
     redirect("/dashboard");
   }
 
-  const { category, error, saved } = await searchParams;
-  const [setting, categories, categoryCounts] = await Promise.all([
+  const isSuperAdmin = isSuperAdminRole(session.user.role);
+  const { appearance, category, error, saved } = await searchParams;
+  const [setting, categories, categoryCounts, myAppearance] = await Promise.all([
     prisma.setting.findFirst({ orderBy: { createdAt: "asc" } }),
     prisma.productCategory.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -221,8 +325,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       by: ["category"],
       _count: { _all: true },
     }),
+    getAppearanceSettings(session.user.id),
   ]);
   const values = { ...defaults, ...setting };
+  const globalAppearance = normalizeAppearanceSettings(values);
   const categoryUsage = new Map(
     categoryCounts.map((item) => [item.category, item._count._all])
   );
@@ -233,11 +339,13 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         <div>
           <h1 className="text-3xl font-bold text-gray-950">Settings</h1>
           <p className="mt-1 max-w-3xl text-sm text-gray-600">
-            Admin control panel for GLV company information, layaway rules, salary defaults, receipts, security, notifications, appearance, and system status.
+            {isSuperAdmin
+              ? "Super Admin control panel for company settings plus personal and global appearance preferences."
+              : "Your personal appearance settings for the GLV workspace."}
           </p>
         </div>
         <div className="rounded-full border border-lime-200 bg-lime-50 px-4 py-2 text-xs font-semibold text-lime-800">
-          Admin only
+          {isSuperAdmin ? "Super Admin" : "Personal settings"}
         </div>
       </div>
 
@@ -253,12 +361,37 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </div>
       ) : null}
 
+      {appearance ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          {appearanceMessages[appearance] ?? "Appearance saved successfully."}
+        </div>
+      ) : null}
+
       {error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           {errorMessages[error] ?? "Unable to save settings. Please review the form and try again."}
         </div>
       ) : null}
 
+      <AppearanceSection
+        action={updateMyAppearance}
+        title={isSuperAdmin ? "My Appearance" : "Appearance"}
+        description="These controls affect only your own GLV workspace."
+        submitLabel="Save My Appearance"
+        values={myAppearance}
+      />
+
+      {isSuperAdmin ? (
+        <AppearanceSection
+          action={updateGlobalAppearance}
+          title="Global Appearance for Other Users"
+          description="Default appearance used by users who have not saved their own preference."
+          submitLabel="Save Global Appearance"
+          values={globalAppearance}
+        />
+      ) : null}
+
+      {isSuperAdmin ? (
       <form action={updateSettings} className="space-y-5">
         <SettingsSection title="Company Information" description="Public company identity used across receipts, exports, and operational documents.">
           <Field label="Company Name" name="companyName" defaultValue={values.companyName} required />
@@ -315,41 +448,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <ToggleField label="WhatsApp Reminders (planned)" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} description="Saved only. No WhatsApp provider is connected yet." />
         </SettingsSection>
 
-        <SettingsSection title="Appearance" description="Branding controls used by the GLV interface and loading states.">
-          <SelectField
-            label="Theme"
-            name="theme"
-            defaultValue={values.theme}
-            options={[
-              { label: "Light", value: "light" },
-              { label: "Dark", value: "dark" },
-              { label: "System", value: "system" },
-            ]}
-          />
-          <Field label="Primary Color" name="primaryColor" type="color" defaultValue={values.primaryColor} />
-          <Field label="Secondary Color" name="secondaryColor" type="color" defaultValue={values.secondaryColor} />
-          <SelectField
-            label="Dashboard Cards"
-            name="dashboardCards"
-            defaultValue={values.dashboardCards}
-            options={[
-              { label: "Standard", value: "standard" },
-              { label: "Compact", value: "compact" },
-              { label: "Detailed", value: "detailed" },
-            ]}
-          />
-          <SelectField
-            label="Loading Animation"
-            name="loadingAnimation"
-            defaultValue={values.loadingAnimation}
-            options={[
-              { label: "GLV", value: "glv" },
-              { label: "Minimal", value: "minimal" },
-              { label: "None", value: "none" },
-            ]}
-          />
-        </SettingsSection>
-
         <SettingsSection title="System" description="Operational metadata for database, Neon, storage, backup, and restore visibility.">
           <Field label="Current Version" name="currentVersion" defaultValue={values.currentVersion} />
           <Field label="Database Status" name="databaseStatus" defaultValue={values.databaseStatus} />
@@ -364,7 +462,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </Button>
         </div>
       </form>
+      ) : null}
 
+      {isSuperAdmin ? (
       <Card className="border-gray-200 bg-white shadow-sm">
         <CardHeader>
           <CardTitle>Product Categories Management</CardTitle>
@@ -456,6 +556,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </div>
         </CardContent>
       </Card>
+      ) : null}
     </div>
   );
 }

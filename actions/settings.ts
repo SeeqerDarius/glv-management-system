@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { isSuperAdminRole } from "@/lib/roles";
 
-async function requireAdmin() {
+async function requireSuperAdmin() {
   const session = await auth();
-  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) {
     throw new Error("Unauthorized");
   }
   return { id: session.user.id };
@@ -37,16 +37,8 @@ function enabled(formData: FormData, key: string) {
   return formData.get(key) === "on";
 }
 
-function optionValue(value: string, allowed: string[], fallback: string) {
-  return allowed.includes(value) ? value : fallback;
-}
-
-function colorValue(value: string, fallback: string) {
-  return /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
-}
-
 export async function updateSettings(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireSuperAdmin();
 
   const companyName = text(formData, "companyName");
   const phone = text(formData, "phone");
@@ -64,15 +56,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
   const staffCodeLength = integerValue(formData, "staffCodeLength");
   const passwordLength = integerValue(formData, "passwordLength");
   const sessionTimeoutMinutes = integerValue(formData, "sessionTimeoutMinutes");
-  const theme = optionValue(text(formData, "theme"), ["light", "dark", "system"], "light");
-  const primaryColor = colorValue(text(formData, "primaryColor"), "#84cc16");
-  const secondaryColor = colorValue(text(formData, "secondaryColor"), "#111827");
-  const dashboardCards = optionValue(
-    text(formData, "dashboardCards"),
-    ["standard", "compact", "detailed"],
-    "standard"
-  );
-
   if (!companyName || !phone) redirect("/settings?error=missing-company");
   if (installmentDurationDays <= 0 || Number.isNaN(installmentDurationDays)) {
     redirect("/settings?error=invalid-duration");
@@ -145,11 +128,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
     emailNotificationsEnabled: enabled(formData, "emailNotificationsEnabled"),
     smsNotificationsEnabled: enabled(formData, "smsNotificationsEnabled"),
     whatsappRemindersEnabled: enabled(formData, "whatsappRemindersEnabled"),
-    theme,
-    primaryColor,
-    secondaryColor,
-    dashboardCards,
-    loadingAnimation: text(formData, "loadingAnimation") || "glv",
     currentVersion: text(formData, "currentVersion") || "0.1.0",
     databaseStatus: text(formData, "databaseStatus") || "Configured",
     neonStatus: text(formData, "neonStatus") || "Configured",

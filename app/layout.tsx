@@ -6,7 +6,7 @@ import { PwaRegister } from "@/components/pwa-register";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { touchUserPresence } from "@/lib/presence";
-import { fallbackSettings, getSettings } from "@/lib/settings";
+import { fallbackSettings, getAppearanceSettings, getSettings } from "@/lib/settings";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -85,16 +85,19 @@ export default async function RootLayout({
     await touchUserPresence(staff.user.id, staff.user.lastSeenAt);
   }
 
-  const settings = session?.user
-    ? await getSettings().catch(() => fallbackSettings)
-    : fallbackSettings;
-  const theme = normalizeTheme(settings.theme);
+  const [settings, appearance] = session?.user
+    ? await Promise.all([
+        getSettings().catch(() => fallbackSettings),
+        getAppearanceSettings(session.user.id).catch(() => fallbackSettings),
+      ])
+    : [fallbackSettings, fallbackSettings];
+  const theme = normalizeTheme(appearance.theme);
   const primaryColor = normalizeColor(
-    settings.primaryColor,
+    appearance.primaryColor,
     fallbackSettings.primaryColor
   );
   const secondaryColor = normalizeColor(
-    settings.secondaryColor,
+    appearance.secondaryColor,
     fallbackSettings.secondaryColor
   );
   const themeStyle = {

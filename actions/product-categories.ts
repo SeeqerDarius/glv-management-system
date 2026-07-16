@@ -4,11 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAdminRole } from "@/lib/roles";
+import { isSuperAdminRole } from "@/lib/roles";
 
-async function requireAdmin() {
+async function requireSuperAdmin() {
   const session = await auth();
-  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) {
     throw new Error("Unauthorized");
   }
   return { id: session.user.id };
@@ -27,7 +27,7 @@ function revalidateProductCategoryPaths() {
 }
 
 export async function createProductCategory(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireSuperAdmin();
   const name = clean(formData.get("name"));
 
   if (!name) {
@@ -73,7 +73,7 @@ export async function createProductCategory(formData: FormData): Promise<void> {
 }
 
 export async function updateProductCategory(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireSuperAdmin();
   const id = clean(formData.get("id"));
   const name = clean(formData.get("name"));
 
@@ -127,7 +127,7 @@ export async function updateProductCategory(formData: FormData): Promise<void> {
 }
 
 export async function deleteProductCategory(formData: FormData): Promise<void> {
-  const user = await requireAdmin();
+  const user = await requireSuperAdmin();
   const id = clean(formData.get("id"));
 
   const existing = await prisma.productCategory.findUnique({ where: { id } });

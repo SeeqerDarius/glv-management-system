@@ -35,7 +35,7 @@ const navigation = [
   },
   { href: "/reports", label: "Reports", icon: ChartNoAxesCombinedIcon, permission: UserPermission.VIEW_REPORTS, adminSection: true },
   { href: "/audit-logs", label: "Audit Logs", icon: ScrollTextIcon, permission: UserPermission.VIEW_AUDIT_LOGS, adminSection: true },
-  { href: "/settings", label: "Settings", icon: SettingsIcon, adminOnly: true, adminSection: true },
+  { href: "/settings", label: "Settings", icon: SettingsIcon },
 ] satisfies Array<{
   href: string;
   label: string;
@@ -72,9 +72,15 @@ export function DashboardNav({
 }) {
   const pathname = usePathname();
   const visibleNavigation = navigation.filter(
-    (item) =>
-      (!item.adminOnly || isAdmin) &&
-      (!item.permission || isAdmin || permissions.includes(item.permission))
+    (item) => {
+      const adminOnly = "adminOnly" in item && item.adminOnly;
+      const permission = "permission" in item ? item.permission : undefined;
+
+      return (
+        (!adminOnly || isAdmin) &&
+        (!permission || isAdmin || permissions.includes(permission))
+      );
+    }
   );
   const firstAdminHref = visibleNavigation.find((item) => item.adminSection)?.href;
 

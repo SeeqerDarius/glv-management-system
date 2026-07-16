@@ -20,6 +20,7 @@ model User {
   online             Boolean          @default(false)
   permissions        UserPermission[] @default([])
   staff              Staff?           @relation(fields: [staffId], references: [id])
+  appearance         UserAppearancePreference?
 }
 
 model Staff {
@@ -87,6 +88,19 @@ model ProductCategory {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model UserAppearancePreference {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  theme            String   @default("light")
+  primaryColor     String   @default("#84cc16")
+  secondaryColor   String   @default("#111827")
+  dashboardCards   String   @default("standard")
+  loadingAnimation String   @default("glv")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model StaffSalaryPayment {
