@@ -5,19 +5,15 @@ import {
   deleteProductCategory,
   updateProductCategory,
 } from "@/actions/product-categories";
-import { deleteProduct } from "@/actions/products";
 import { updateSettings } from "@/actions/settings";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
-import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
-import Link from "next/link";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 
 type SettingsPageProps = {
   searchParams: Promise<{
@@ -216,7 +212,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   }
 
   const { category, error, saved } = await searchParams;
-  const [setting, categories, categoryCounts, products] = await Promise.all([
+  const [setting, categories, categoryCounts] = await Promise.all([
     prisma.setting.findFirst({ orderBy: { createdAt: "asc" } }),
     prisma.productCategory.findMany({
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -224,10 +220,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     prisma.product.groupBy({
       by: ["category"],
       _count: { _all: true },
-    }),
-    prisma.product.findMany({
-      orderBy: { name: "asc" },
-      include: { _count: { select: { accounts: true } } },
     }),
   ]);
   const values = { ...defaults, ...setting };
@@ -375,10 +367,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
       <Card className="border-gray-200 bg-white shadow-sm">
         <CardHeader>
-          <CardTitle>Products & Categories</CardTitle>
+          <CardTitle>Product Categories Management</CardTitle>
           <CardDescription>
-            Manage the live product list and the categories staff select from
-            when creating or editing products.
+            Manage the categories staff select from when creating or editing
+            products.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -458,86 +450,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                       </tr>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-            <div>
-              <h2 className="text-base font-semibold text-gray-950">Products</h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Add, edit, or delete products from Settings. These are the same live products used in accounts, payments, reports, and procurement.
-              </p>
-            </div>
-            <Button asChild className="gap-2">
-              <Link href="/products/new">
-                <Plus className="size-4" />
-                Add Product
-              </Link>
-            </Button>
-          </div>
-
-          <div className="overflow-hidden rounded-lg border border-gray-200">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                    <th className="px-3 py-2.5">Product</th>
-                    <th className="px-3 py-2.5">Category</th>
-                    <th className="px-3 py-2.5 text-right">Daily</th>
-                    <th className="px-3 py-2.5 text-right">Layaway</th>
-                    <th className="px-3 py-2.5 text-right">Accounts</th>
-                    <th className="px-3 py-2.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {products.map((product) => (
-                    <tr key={product.id}>
-                      <td className="px-3 py-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <ProductImagePreview
-                            src={product.imageUrl}
-                            alt={product.name}
-                            className="size-10"
-                            previewTitle={product.name}
-                          />
-                          <span className="font-medium text-gray-900">{product.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 text-gray-700">{product.category}</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                        {formatMoney(product.dailyAmount)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                        {formatMoney(product.layawayPrice)}
-                      </td>
-                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
-                        {product._count.accounts}
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button asChild variant="outline" size="sm" className="gap-1">
-                            <Link href={`/products/${product.id}/edit`}>
-                              <Pencil className="size-4" />
-                              Edit
-                            </Link>
-                          </Button>
-                          <ConfirmDeleteForm
-                            action={deleteProduct}
-                            id={product.id}
-                            title={`Delete ${product.name}?`}
-                            hasLinkedHistory={product._count.accounts > 0}
-                            description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
-                            buttonVariant="outline"
-                          >
-                            <Trash2 className="size-4" />
-                            Delete
-                          </ConfirmDeleteForm>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
                 </tbody>
               </table>
             </div>
