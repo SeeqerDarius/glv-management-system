@@ -81,9 +81,13 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 
 ## Recent Endpoint And UI Work
 
-- `app/api/notifications/route.ts` exposes protected attention counts.
-- Sidebar Products tab shows a procurement attention badge when procurement
-  items exist.
+- `app/api/notifications/route.ts` exposes protected computed attention counts.
+  It groups module badges for account/customer follow-up, today's customer,
+  account, and payment activity, procurement readiness, product image hygiene,
+  open credits/refunds, staff applications, profile approvals, inactive staff
+  assignment risk, salary balances, and database-backup review.
+- Sidebar badges are locally dismissed when opened and the destination page
+  shows an "Attention needed here" callout for the opened notification.
 - Wide list/detail tables were hardened for mobile with scroll wrappers in:
   Accounts, Customers, Customer detail, Account detail, Staff detail,
   Staff Applications, Audit Logs, Reports salary tracking.
@@ -123,8 +127,9 @@ claim it has changed records.
 
 ## Good Next Tasks
 
-- Add a real admin-controlled notification settings consumer if notification
-  toggles should affect live behavior.
+- Add outbound notification providers only after choosing email/SMS/WhatsApp
+  vendors. Current notifications are in-app attention badges; settings toggles
+  for external channels are stored but do not send messages yet.
 - Decide whether AI Support conversations should be stored in the database for
   auditability.
 - Add support actions only after strict permission checks and confirmation UI.
