@@ -9,6 +9,7 @@ import {
   UserIcon,
   XIcon,
 } from "lucide-react";
+import { DraggableFloating } from "@/components/draggable-floating";
 import { Button } from "@/components/ui/button";
 
 type SupportMessage = {
@@ -96,11 +97,20 @@ export function AiSupportChat({ userName, roleLabel }: AiSupportChatProps) {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 sm:bottom-6 sm:right-6">
+    <DraggableFloating
+      storageKey="glv-ai-support-position"
+      defaultPlacement="bottom-right"
+      className="fixed z-50 touch-none"
+    >
+      {({ dragHandleProps, isDragging }) => (
+      <>
       {open ? (
         <section className="mb-3 flex h-[min(38rem,calc(100vh-7rem))] w-[calc(100vw-2rem)] max-w-md flex-col overflow-hidden rounded-lg border bg-white shadow-2xl ring-1 ring-gray-950/5">
           <div className="flex items-center justify-between gap-3 border-b bg-green-950 px-4 py-3 text-white">
-            <div className="flex min-w-0 items-center gap-3">
+            <div
+              {...dragHandleProps}
+              className="flex min-w-0 cursor-move touch-none select-none items-center gap-3"
+            >
               <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-lime-400 text-green-950">
                 <BotIcon className="size-5" />
               </span>
@@ -213,13 +223,18 @@ export function AiSupportChat({ userName, roleLabel }: AiSupportChatProps) {
 
       <button
         type="button"
+        {...dragHandleProps}
         onClick={() => setOpen((current) => !current)}
-        className="group/support ml-auto flex size-14 items-center justify-center rounded-full bg-green-950 text-lime-300 shadow-xl ring-1 ring-green-900/20 transition hover:-translate-y-0.5 hover:bg-green-900 focus:outline-none focus:ring-4 focus:ring-lime-300/40"
+        className={`group/support ml-auto flex size-14 touch-none items-center justify-center rounded-full bg-green-950 text-lime-300 shadow-xl ring-1 ring-green-900/20 transition hover:-translate-y-0.5 hover:bg-green-900 focus:outline-none focus:ring-4 focus:ring-lime-300/40 ${
+          isDragging ? "cursor-grabbing" : ""
+        }`}
         aria-label="Open AI Support"
         title="AI Support"
       >
         <MessageCircleIcon className="size-6 transition-transform group-hover/support:scale-110" />
       </button>
-    </div>
+      </>
+      )}
+    </DraggableFloating>
   );
 }

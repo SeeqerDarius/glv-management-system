@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CalculatorIcon, DeleteIcon, XIcon } from "lucide-react";
+import { DraggableFloating } from "@/components/draggable-floating";
 import { cn } from "@/lib/utils";
 
 type Operator = "+" | "-" | "x" | "/";
@@ -255,11 +256,20 @@ export function CalculatorWidget() {
   }, [open]);
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 sm:bottom-6 sm:left-6">
+    <DraggableFloating
+      storageKey="glv-calculator-position"
+      defaultPlacement="bottom-left"
+      className="fixed z-50 touch-none"
+    >
+      {({ dragHandleProps, isDragging }) => (
+      <>
       {open ? (
         <section className="mb-3 w-[calc(100vw-2rem)] max-w-xs overflow-hidden rounded-lg border bg-white shadow-2xl ring-1 ring-gray-950/5">
           <div className="flex items-center justify-between gap-3 border-b bg-green-950 px-4 py-3 text-white">
-            <div className="flex min-w-0 items-center gap-3">
+            <div
+              {...dragHandleProps}
+              className="flex min-w-0 cursor-move touch-none select-none items-center gap-3"
+            >
               <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-lime-400 text-green-950">
                 <CalculatorIcon className="size-5" />
               </span>
@@ -317,13 +327,19 @@ export function CalculatorWidget() {
 
       <button
         type="button"
+        {...dragHandleProps}
         onClick={() => setOpen((current) => !current)}
-        className="group/calculator flex size-14 items-center justify-center rounded-full bg-lime-400 text-green-950 shadow-xl ring-1 ring-green-900/20 transition hover:-translate-y-0.5 hover:bg-lime-300 focus:outline-none focus:ring-4 focus:ring-lime-300/40"
+        className={cn(
+          "group/calculator flex size-14 touch-none items-center justify-center rounded-full bg-lime-400 text-green-950 shadow-xl ring-1 ring-green-900/20 transition hover:-translate-y-0.5 hover:bg-lime-300 focus:outline-none focus:ring-4 focus:ring-lime-300/40",
+          isDragging && "cursor-grabbing"
+        )}
         aria-label="Open calculator"
         title="Calculator"
       >
         <CalculatorIcon className="size-6 transition-transform group-hover/calculator:scale-110" />
       </button>
-    </div>
+      </>
+      )}
+    </DraggableFloating>
   );
 }
