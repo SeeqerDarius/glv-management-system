@@ -212,6 +212,19 @@ export default function LoginPage() {
 
             <label className="block space-y-1.5">
               <span className="block text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/38">
+                2FA code
+              </span>
+              <input
+                name="twoFactorCode"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="Required for admin accounts"
+                className="w-full rounded-lg border border-white/12 bg-white/[0.05] px-3.5 py-2.5 text-[13.5px] text-white outline-none transition placeholder:text-white/20 focus:border-lime-400 focus:bg-lime-400/[0.04] focus:ring-2 focus:ring-lime-400/20"
+              />
+            </label>
+
+            <label className="block space-y-1.5">
+              <span className="block text-[10.5px] font-semibold uppercase tracking-[0.12em] text-white/38">
                 Password
               </span>
               <PasswordInput

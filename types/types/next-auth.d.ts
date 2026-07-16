@@ -7,6 +7,7 @@ declare module "next-auth" {
     permissions?: UserPermission[];
     staffId?: string | null;
     mustChangePassword?: boolean;
+    twoFactorEnabled?: boolean;
   }
 
   interface Session {
@@ -16,6 +17,7 @@ declare module "next-auth" {
       permissions?: UserPermission[];
       staffId?: string | null;
       mustChangePassword?: boolean;
+      twoFactorEnabled?: boolean;
     } & DefaultSession["user"];
   }
 }
@@ -27,5 +29,6 @@ declare module "next-auth/jwt" {
     permissions?: UserPermission[];
     staffId?: string | null;
     mustChangePassword?: boolean;
+    twoFactorEnabled?: boolean;
   }
 }

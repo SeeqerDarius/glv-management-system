@@ -20,9 +20,25 @@ model User {
   lastSeenAt         DateTime?
   online             Boolean          @default(false)
   permissions        UserPermission[] @default([])
+  twoFactorEnabled   Boolean          @default(false)
+  twoFactorSecret    String?
+  twoFactorConfirmedAt DateTime?
   staff              Staff?           @relation(fields: [staffId], references: [id])
   appearance         UserAppearancePreference?
   profileRequests    ProfileChangeRequest[]
+}
+
+model LoginRateLimit {
+  id             String    @id @default(cuid())
+  identifier     String    @unique
+  attempts       Int       @default(0)
+  lockedUntil    DateTime?
+  lastAttemptAt  DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([lockedUntil])
+  @@index([lastAttemptAt])
 }
 
 model Staff {

@@ -6,6 +6,7 @@ import {
   updateProductCategory,
 } from "@/actions/product-categories";
 import { updateGlobalAppearance, updateMyAppearance } from "@/actions/appearance";
+import { restoreDatabaseBackup } from "@/actions/database-restore";
 import { updateSettings } from "@/actions/settings";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ type SettingsPageProps = {
     category?: string;
     error?: string;
     saved?: string;
+    restored?: string;
   }>;
 };
 
@@ -89,6 +91,11 @@ const errorMessages: Record<string, string> = {
   "invalid-staff-code-length": "Staff code length must be between 2 and 8 characters.",
   "invalid-password-length": "Password length must be at least 6 characters.",
   "invalid-session-timeout": "Session timeout must be at least 5 minutes.",
+  "admin-password-required": "Enter your Super Admin password.",
+  "invalid-admin-password": "The Super Admin password was not correct.",
+  "restore-confirmation-required": "Type RESTORE GLV DATABASE before restoring a backup.",
+  "missing-backup-file": "Choose a GLV backup JSON file.",
+  "invalid-backup-file": "That file is not a valid GLV database backup.",
   "missing-category": "Category name is required.",
   "duplicate-category": "A category with that name already exists.",
   "category-not-found": "Category was not found.",
@@ -315,7 +322,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
   }
 
   const isSuperAdmin = isSuperAdminRole(session.user.role);
-  const { appearance, category, error, saved } = await searchParams;
+  const { appearance, category, error, saved, restored } = await searchParams;
   const [setting, categories, categoryCounts, myAppearance] = await Promise.all([
     prisma.setting.findFirst({ orderBy: { createdAt: "asc" } }),
     prisma.productCategory.findMany({
@@ -364,6 +371,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       {appearance ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
           {appearanceMessages[appearance] ?? "Appearance saved successfully."}
+        </div>
+      ) : null}
+
+      {restored === "database" ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          Database backup restored successfully.
         </div>
       ) : null}
 
@@ -433,13 +446,13 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <Field label="Staff Code Length" name="staffCodeLength" type="number" min={2} max={8} defaultValue={values.staffCodeLength} />
         </SettingsSection>
 
-        <SettingsSection title="Security" description="Password settings plus planned security operations. Items marked as planned are saved for configuration but do not run an automated job yet.">
+        <SettingsSection title="Security" description="Password, 2FA, and sensitive operation preferences.">
           <Field label="Password Length" name="passwordLength" type="number" min={6} defaultValue={values.passwordLength} />
           <Field label="Session Timeout Minutes" name="sessionTimeoutMinutes" type="number" min={5} defaultValue={values.sessionTimeoutMinutes} />
           <ToggleField label="Require Password Change" name="requirePasswordChange" defaultChecked={values.requirePasswordChange} description="Stores the company policy for password reset flows." />
-          <ToggleField label="Two-Factor Authentication (planned)" name="twoFactorEnabled" defaultChecked={values.twoFactorEnabled} description="Saved only. No 2FA provider is connected yet." />
-          <ToggleField label="Backup Database (planned)" name="backupDatabaseEnabled" defaultChecked={values.backupDatabaseEnabled} description="Saved only. It does not create or schedule database backups yet." />
-          <ToggleField label="Export Database (planned)" name="exportDatabaseEnabled" defaultChecked={values.exportDatabaseEnabled} description="Saved only. It does not expose a full database export job yet." />
+          <ToggleField label="Two-Factor Authentication" name="twoFactorEnabled" defaultChecked={values.twoFactorEnabled} description="Admin and Super Admin users are forced to enable authenticator-app 2FA." />
+          <ToggleField label="Backup Database" name="backupDatabaseEnabled" defaultChecked={values.backupDatabaseEnabled} description="Enables the Super Admin backup controls below." />
+          <ToggleField label="Export Database" name="exportDatabaseEnabled" defaultChecked={values.exportDatabaseEnabled} description="Allows Super Admin database backup downloads." />
         </SettingsSection>
 
         <SettingsSection title="Notifications" description="Outbound channel preferences. These are separate from the in-app sidebar attention badges and need provider setup before messages can be sent.">
@@ -462,6 +475,69 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </Button>
         </div>
       </form>
+      ) : null}
+
+      {isSuperAdmin ? (
+        <Card className="border-gray-200 bg-white shadow-sm">
+          <CardHeader>
+            <CardTitle>Database Backup & Restore</CardTitle>
+            <CardDescription>
+              Download a JSON backup or restore from a GLV backup file. Restore
+              replaces operational data and requires your Super Admin password.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-2">
+            <div className="rounded-lg border bg-gray-50 p-4">
+              <h2 className="font-semibold text-gray-950">Backup</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Export the current database data as a JSON backup file.
+              </p>
+              <Button asChild className="mt-4">
+                <a href="/api/admin/database-backup" download>
+                  Download Backup
+                </a>
+              </Button>
+            </div>
+
+            <form
+              action={restoreDatabaseBackup}
+              encType="multipart/form-data"
+              className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-4"
+            >
+              <div>
+                <h2 className="font-semibold text-red-950">Restore</h2>
+                <p className="mt-1 text-sm leading-6 text-red-800">
+                  This replaces the current operational data with the uploaded
+                  backup. Use only when you are sure.
+                </p>
+              </div>
+              <Input
+                name="backupFile"
+                type="file"
+                accept="application/json,.json"
+                className="bg-white"
+                required
+              />
+              <Input
+                name="confirmationText"
+                placeholder="Type RESTORE GLV DATABASE"
+                className="bg-white"
+                required
+              />
+              <Input
+                name="adminPassword"
+                type="password"
+                placeholder="Super Admin password"
+                autoComplete="current-password"
+                className="bg-white"
+                required
+              />
+              <Button type="submit" variant="destructive">
+                Restore Backup
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       ) : null}
 
       {isSuperAdmin ? (

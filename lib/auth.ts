@@ -3,8 +3,14 @@ import Credentials from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/lib/auth.config";
+import {
+  assertLoginAllowed,
+  clearLoginRateLimit,
+  recordFailedLogin,
+} from "@/lib/login-rate-limit";
 import { normalizeOwnerRole } from "@/lib/owner";
 import { touchUserPresence } from "@/lib/presence";
+import { verifyTotpCode } from "@/lib/totp";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -36,6 +42,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             permissions: true,
             staffId: true,
             mustChangePassword: true,
+            twoFactorEnabled: true,
           },
         });
 
@@ -46,6 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.permissions = user.permissions;
           token.staffId = user.staffId;
           token.mustChangePassword = user.mustChangePassword;
+          token.twoFactorEnabled = user.twoFactorEnabled;
         }
       }
 
@@ -60,6 +68,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             permissions: true,
             staffId: true,
             mustChangePassword: true,
+            twoFactorEnabled: true,
           },
         });
 
@@ -69,6 +78,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.permissions = freshUser.permissions;
           token.staffId = freshUser.staffId;
           token.mustChangePassword = freshUser.mustChangePassword;
+          token.twoFactorEnabled = freshUser.twoFactorEnabled;
         }
       }
 
@@ -83,6 +93,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: {},
         password: {},
+        twoFactorCode: {},
       },
 
       async authorize(credentials) {
@@ -90,8 +101,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const email = String(credentials.email ?? "").trim().toLowerCase();
         const password = String(credentials.password ?? "");
+        const twoFactorCode = String(credentials.twoFactorCode ?? "");
 
         if (!email || !password) return null;
+        await assertLoginAllowed(email);
 
         const user = await prisma.user.findUnique({
           where: {
@@ -102,26 +115,51 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           },
         });
 
-        if (!user) return null;
-        if (user.role === "STAFF" && !user.staff?.active) return null;
+        if (!user) {
+          await recordFailedLogin(email);
+          return null;
+        }
+        if (user.role === "STAFF" && !user.staff?.active) {
+          await recordFailedLogin(email);
+          return null;
+        }
 
         const validPassword = await bcrypt.compare(
           password,
           user.password
         );
 
-        if (!validPassword) return null;
+        if (!validPassword) {
+          await recordFailedLogin(email);
+          return null;
+        }
 
+        const normalizedRole = normalizeOwnerRole(user.email, user.role);
+        const requiresTwoFactor =
+          (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") &&
+          user.twoFactorEnabled;
+
+        if (
+          requiresTwoFactor &&
+          (!user.twoFactorSecret ||
+            !verifyTotpCode(user.twoFactorSecret, twoFactorCode))
+        ) {
+          await recordFailedLogin(email);
+          return null;
+        }
+
+        await clearLoginRateLimit(email);
         await touchUserPresence(user.id);
 
         return {
           id: user.id,
           name: user.name,
           email: user.email,
-          role: normalizeOwnerRole(user.email, user.role),
+          role: normalizedRole,
           permissions: user.permissions,
           staffId: user.staffId,
           mustChangePassword: user.mustChangePassword,
+          twoFactorEnabled: user.twoFactorEnabled,
         };
       },
     }),

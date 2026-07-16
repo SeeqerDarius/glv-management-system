@@ -17,6 +17,7 @@ const staffAllowedRoutes = [
   "/settings",
   "/change-password",
 ];
+const twoFactorSetupRoute = "/security/2fa";
 
 export const authConfig = {
   pages: {
@@ -49,9 +50,19 @@ export const authConfig = {
       }
 
       const role = auth?.user?.role;
+      const isAdminUser = role === "ADMIN" || role === "SUPER_ADMIN";
+      const twoFactorEnabled = auth?.user?.twoFactorEnabled === true;
 
       if (!mustChangePassword && pathname === "/change-password") {
         return Response.redirect(new URL("/dashboard", request.nextUrl));
+      }
+
+      if (
+        isAdminUser &&
+        !twoFactorEnabled &&
+        !pathname.startsWith(twoFactorSetupRoute)
+      ) {
+        return Response.redirect(new URL(twoFactorSetupRoute, request.nextUrl));
       }
 
       const permissions = Array.isArray(auth?.user?.permissions)
@@ -94,6 +105,7 @@ export const authConfig = {
         token.permissions = user.permissions ?? [];
         token.staffId = user.staffId;
         token.mustChangePassword = user.mustChangePassword;
+        token.twoFactorEnabled = user.twoFactorEnabled;
       }
 
       return token;
@@ -121,6 +133,10 @@ export const authConfig = {
         session.user.mustChangePassword =
           typeof token.mustChangePassword === "boolean"
             ? token.mustChangePassword
+            : undefined;
+        session.user.twoFactorEnabled =
+          typeof token.twoFactorEnabled === "boolean"
+            ? token.twoFactorEnabled
             : undefined;
       }
 

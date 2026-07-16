@@ -23,6 +23,7 @@ export const config = {
     "/audit-logs/:path*",
     "/profile",
     "/profile/:path*",
+    "/security/2fa",
     "/settings",
     "/settings/:path*",
   ],
