@@ -1,9 +1,12 @@
 import { UserRole, type User } from "@prisma/client";
 
-export const ownerEmail = "admin@glv.com";
+export const ownerEmails = ["admin@glv.com", "rockfrostconsult@gmail.com"];
 
 export function isOwnerEmail(email?: string | null) {
-  return email?.trim().toLowerCase() === ownerEmail;
+  const normalizedEmail = email?.trim().toLowerCase();
+  return Boolean(
+    normalizedEmail && ownerEmails.includes(normalizedEmail)
+  );
 }
 
 export function normalizeOwnerRole(
