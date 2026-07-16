@@ -6,13 +6,6 @@ function clean(value) {
   return value?.replace(/^"|"$/g, "").trim();
 }
 
-const databaseUrl = clean(process.env.DATABASE_URL);
-const unpooledUrl = clean(process.env.DATABASE_URL_UNPOOLED);
-
-if (!databaseUrl && unpooledUrl) {
-  process.env.DATABASE_URL = unpooledUrl;
-}
-
 const [command, ...args] = process.argv.slice(2);
 
 if (!command) {
@@ -20,10 +13,49 @@ if (!command) {
   process.exit(1);
 }
 
-const result = spawnSync(command, args, {
-  env: process.env,
-  shell: true,
-  stdio: "inherit",
-});
+const databaseUrl = clean(process.env.DATABASE_URL);
+const directUrl = clean(
+  process.env.DATABASE_URL_UNPOOLED ||
+    process.env.DIRECT_URL ||
+    process.env.POSTGRES_URL_NON_POOLING
+);
+const isPrismaMigrate =
+  command === "prisma" && args[0] === "migrate";
+const isMigrateDeploy =
+  isPrismaMigrate && args[1] === "deploy";
+const env = { ...process.env };
+
+if (isPrismaMigrate && directUrl) {
+  env.DATABASE_URL = directUrl;
+} else if (!databaseUrl && directUrl) {
+  env.DATABASE_URL = directUrl;
+}
+
+function run() {
+  return spawnSync(command, args, {
+    env,
+    shell: true,
+    stdio: "inherit",
+  });
+}
+
+const maxAttempts = isMigrateDeploy ? 4 : 1;
+let result = null;
+
+for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+  result = run();
+
+  if ((result.status ?? 1) === 0 || attempt === maxAttempts) {
+    break;
+  }
+
+  const delayMs = attempt * 15000;
+  console.warn(
+    `Prisma migrate deploy failed on attempt ${attempt}. Retrying in ${Math.round(
+      delayMs / 1000
+    )}s...`
+  );
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delayMs);
+}
 
 process.exit(result.status ?? 1);
