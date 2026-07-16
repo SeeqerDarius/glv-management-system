@@ -20,6 +20,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = normalizeOwnerRole(params.user.email, params.user.role);
       }
 
+      if (
+        !params.user &&
+        typeof token.id !== "string" &&
+        typeof token.email === "string"
+      ) {
+        const user = await prisma.user.findUnique({
+          where: {
+            email: token.email,
+          },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            permissions: true,
+            staffId: true,
+            mustChangePassword: true,
+          },
+        });
+
+        if (user) {
+          token.id = user.id;
+          token.email = user.email;
+          token.role = normalizeOwnerRole(user.email, user.role);
+          token.permissions = user.permissions;
+          token.staffId = user.staffId;
+          token.mustChangePassword = user.mustChangePassword;
+        }
+      }
+
       if (!params.user && typeof token.id === "string") {
         const freshUser = await prisma.user.findUnique({
           where: {

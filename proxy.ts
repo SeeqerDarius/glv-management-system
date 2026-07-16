@@ -20,6 +20,9 @@ export const config = {
     "/payments/:path*",
     "/reports/:path*",
     "/audit-logs/:path*",
+    "/profile",
+    "/profile/:path*",
+    "/settings",
     "/settings/:path*",
   ],
 };
