@@ -19,17 +19,19 @@ export async function login(
 ): Promise<LoginState> {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
+  const twoFactorCode = String(formData.get("twoFactorCode") ?? "");
 
   try {
     await signIn("credentials", {
       email,
       password,
+      twoFactorCode,
       redirectTo: "/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {
       return {
-        error: "Invalid email or password.",
+        error: "Invalid email, password, or 2FA code.",
       };
     }
 

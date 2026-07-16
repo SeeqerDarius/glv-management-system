@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { auth, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
 import { ensureSecuritySchema, getTwoFactorState } from "@/lib/security-schema";
@@ -95,5 +95,15 @@ export async function enableTwoFactor(formData: FormData) {
 
   revalidatePath("/security/2fa");
   revalidatePath("/", "layout");
-  redirect("/dashboard?security=2fa-enabled");
+  await signOut({
+    redirectTo: "/login?security=2fa-enabled",
+  });
+}
+
+export async function refreshTwoFactorSession() {
+  await requireAdminUser();
+
+  await signOut({
+    redirectTo: "/login?security=2fa-enabled",
+  });
 }

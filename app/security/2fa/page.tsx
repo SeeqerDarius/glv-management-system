@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import {
   enableTwoFactor,
   generateTwoFactorSecret,
+  refreshTwoFactorSession,
 } from "@/actions/two-factor";
 import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
@@ -45,6 +46,10 @@ export default async function TwoFactorPage({
   }
 
   const twoFactor = await getTwoFactorState(session.user.id);
+  if (twoFactor.enabled && session.user.twoFactorEnabled === true) {
+    redirect("/dashboard");
+  }
+
   const setupUri = twoFactor.secret
     ? getTotpUri({
         accountName: user.email,
@@ -77,88 +82,100 @@ export default async function TwoFactorPage({
         </div>
 
         {twoFactor.enabled ? (
-          <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
-            2FA is enabled for this account.
+          <div className="space-y-4 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+            <p className="font-medium">2FA is enabled for this account.</p>
+            <p>
+              Continue to sign in again with your authenticator code so the
+              browser session is refreshed.
+            </p>
+            <form action={refreshTwoFactorSession}>
+              <Button type="submit">Continue to Sign In</Button>
+            </form>
           </div>
-        ) : null}
-
-        {error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error === "invalid-code"
-              ? "That 2FA code was not valid. Check your authenticator app and try again."
-              : "Generate a setup key before entering a 2FA code."}
-          </div>
-        ) : null}
-
-        {!twoFactor.secret ? (
-          <form action={generateTwoFactorSecret}>
-            <Button type="submit">Generate 2FA Setup Key</Button>
-          </form>
         ) : (
-          <div className="space-y-5">
-            <div className="rounded-lg border bg-gray-50 p-4">
-              <p className="text-sm font-semibold text-gray-900">
-                Scan QR code
-              </p>
-              <p className="mt-1 text-xs leading-5 text-gray-600">
-                Open your authenticator app, choose add account, then scan this
-                code.
-              </p>
-              {qrCodeDataUrl ? (
-                <div className="mt-4 flex justify-center rounded-lg bg-white p-4">
-                  <Image
-                    src={qrCodeDataUrl}
-                    alt="Authenticator app QR code"
-                    width={224}
-                    height={224}
-                    unoptimized
-                    className="h-56 w-56 max-w-full rounded-md"
-                  />
-                </div>
-              ) : null}
-
-              <p className="mt-5 text-sm font-semibold text-gray-900">
-                Manual setup key
-              </p>
-              <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-sm text-gray-950">
-                {twoFactor.secret}
-              </p>
-              <p className="mt-3 text-xs leading-5 text-gray-600">
-                In Google Authenticator, Microsoft Authenticator, 1Password, or
-                Authy, choose manual setup and enter this key. If your app
-                accepts setup links, use this URI:
-              </p>
-              <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-xs text-gray-700">
-                {setupUri}
-              </p>
-            </div>
-
-            <form action={enableTwoFactor} className="grid gap-3 sm:grid-cols-[1fr_auto]">
-              <label className="space-y-1.5">
-                <span className="text-sm font-medium text-gray-700">
-                  Enter 6-digit code
-                </span>
-                <input
-                  name="code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  className="w-full rounded border p-3"
-                  required
-                />
-              </label>
-              <div className="flex items-end">
-                <Button type="submit" className="w-full sm:w-auto">
-                  Enable 2FA
-                </Button>
+          <>
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {error === "invalid-code"
+                  ? "That 2FA code was not valid. Check your authenticator app and try again."
+                  : "Generate a setup key before entering a 2FA code."}
               </div>
-            </form>
+            ) : null}
 
-            <form action={generateTwoFactorSecret}>
-              <Button type="submit" variant="outline">
-                Generate New Setup Key
-              </Button>
-            </form>
-          </div>
+            {!twoFactor.secret ? (
+              <form action={generateTwoFactorSecret}>
+                <Button type="submit">Generate 2FA Setup Key</Button>
+              </form>
+            ) : (
+              <div className="space-y-5">
+                <div className="rounded-lg border bg-gray-50 p-4">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Scan QR code
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-gray-600">
+                    Open your authenticator app, choose add account, then scan
+                    this code.
+                  </p>
+                  {qrCodeDataUrl ? (
+                    <div className="mt-4 flex justify-center rounded-lg bg-white p-4">
+                      <Image
+                        src={qrCodeDataUrl}
+                        alt="Authenticator app QR code"
+                        width={224}
+                        height={224}
+                        unoptimized
+                        className="h-56 w-56 max-w-full rounded-md"
+                      />
+                    </div>
+                  ) : null}
+
+                  <p className="mt-5 text-sm font-semibold text-gray-900">
+                    Manual setup key
+                  </p>
+                  <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-sm text-gray-950">
+                    {twoFactor.secret}
+                  </p>
+                  <p className="mt-3 text-xs leading-5 text-gray-600">
+                    In Google Authenticator, Microsoft Authenticator, 1Password,
+                    or Authy, choose manual setup and enter this key. If your app
+                    accepts setup links, use this URI:
+                  </p>
+                  <p className="mt-2 break-all rounded-md bg-white p-3 font-mono text-xs text-gray-700">
+                    {setupUri}
+                  </p>
+                </div>
+
+                <form
+                  action={enableTwoFactor}
+                  className="grid gap-3 sm:grid-cols-[1fr_auto]"
+                >
+                  <label className="space-y-1.5">
+                    <span className="text-sm font-medium text-gray-700">
+                      Enter 6-digit code
+                    </span>
+                    <input
+                      name="code"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      className="w-full rounded border p-3"
+                      required
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <Button type="submit" className="w-full sm:w-auto">
+                      Enable 2FA
+                    </Button>
+                  </div>
+                </form>
+
+                <form action={generateTwoFactorSecret}>
+                  <Button type="submit" variant="outline">
+                    Generate New Setup Key
+                  </Button>
+                </form>
+              </div>
+            )}
+          </>
         )}
       </section>
     </main>
