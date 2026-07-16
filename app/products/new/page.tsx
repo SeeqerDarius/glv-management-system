@@ -2,10 +2,17 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createProduct } from "@/actions/products";
 import { ProductForm } from "@/components/product-form";
+import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
 
 export default async function NewProductPage() {
-  const settings = await getSettings();
+  const [settings, categories] = await Promise.all([
+    getSettings(),
+    prisma.productCategory.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -32,6 +39,7 @@ export default async function NewProductPage() {
         submitLabel="Create Product"
         defaultDailyAmount={settings.defaultDailyCollection}
         defaultDuration={settings.installmentDurationDays}
+        categories={categories.map((category) => category.name)}
       />
     </div>
   );

@@ -1,15 +1,27 @@
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import {
+  createProductCategory,
+  deleteProductCategory,
+  updateProductCategory,
+} from "@/actions/product-categories";
+import { deleteProduct } from "@/actions/products";
 import { updateSettings } from "@/actions/settings";
+import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import Link from "next/link";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 
 type SettingsPageProps = {
   searchParams: Promise<{
+    category?: string;
     error?: string;
     saved?: string;
   }>;
@@ -75,6 +87,17 @@ const errorMessages: Record<string, string> = {
   "invalid-staff-code-length": "Staff code length must be between 2 and 8 characters.",
   "invalid-password-length": "Password length must be at least 6 characters.",
   "invalid-session-timeout": "Session timeout must be at least 5 minutes.",
+  "missing-category": "Category name is required.",
+  "duplicate-category": "A category with that name already exists.",
+  "category-not-found": "Category was not found.",
+  "delete-other-category": "The Other category is required and cannot be deleted.",
+};
+
+const categoryMessages: Record<string, string> = {
+  created: "Category added successfully.",
+  restored: "Existing category restored successfully.",
+  updated: "Category updated and matching products were updated.",
+  deleted: "Category deleted. Matching products were moved to Other.",
 };
 
 function Field({
@@ -192,9 +215,25 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
     redirect("/dashboard");
   }
 
-  const { error, saved } = await searchParams;
-  const setting = await prisma.setting.findFirst({ orderBy: { createdAt: "asc" } });
+  const { category, error, saved } = await searchParams;
+  const [setting, categories, categoryCounts, products] = await Promise.all([
+    prisma.setting.findFirst({ orderBy: { createdAt: "asc" } }),
+    prisma.productCategory.findMany({
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+    prisma.product.groupBy({
+      by: ["category"],
+      _count: { _all: true },
+    }),
+    prisma.product.findMany({
+      orderBy: { name: "asc" },
+      include: { _count: { select: { accounts: true } } },
+    }),
+  ]);
   const values = { ...defaults, ...setting };
+  const categoryUsage = new Map(
+    categoryCounts.map((item) => [item.category, item._count._all])
+  );
 
   return (
     <div className="space-y-6">
@@ -213,6 +252,12 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
       {saved ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
           Settings saved successfully.
+        </div>
+      ) : null}
+
+      {category ? (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+          {categoryMessages[category] ?? "Product category updated successfully."}
         </div>
       ) : null}
 
@@ -327,6 +372,178 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </Button>
         </div>
       </form>
+
+      <Card className="border-gray-200 bg-white shadow-sm">
+        <CardHeader>
+          <CardTitle>Products & Categories</CardTitle>
+          <CardDescription>
+            Manage the live product list and the categories staff select from
+            when creating or editing products.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950">Categories</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Renaming a category updates matching products. Deleting a category moves matching products to Other.
+              </p>
+            </div>
+            <form action={createProductCategory} className="flex w-full gap-2 sm:w-auto">
+              <Input
+                name="name"
+                placeholder="New category"
+                className="h-10 bg-white sm:w-56"
+                required
+              />
+              <Button type="submit" className="gap-2">
+                <Plus className="size-4" />
+                Add
+              </Button>
+            </form>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[680px] text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-3 py-2.5">Category</th>
+                    <th className="px-3 py-2.5 text-right">Products</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {categories.map((item) => {
+                    const usedBy = categoryUsage.get(item.name) ?? 0;
+
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-3 py-3">
+                          <form action={updateProductCategory} className="flex items-center gap-2">
+                            <input type="hidden" name="id" value={item.id} />
+                            <Input
+                              name="name"
+                              defaultValue={item.name}
+                              className="h-9 bg-white"
+                              required
+                            />
+                            <Button type="submit" variant="outline" size="sm">
+                              Save
+                            </Button>
+                          </form>
+                        </td>
+                        <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                          {usedBy}
+                        </td>
+                        <td className="px-3 py-3 text-right">
+                          <ConfirmDeleteForm
+                            action={deleteProductCategory}
+                            id={item.id}
+                            title={`Delete ${item.name}?`}
+                            description={
+                              usedBy > 0
+                                ? `${usedBy} product${usedBy === 1 ? "" : "s"} will be moved to Other.`
+                                : "This category is not being used by any product."
+                            }
+                            hasLinkedHistory={usedBy > 0}
+                            requireAdminPassword={false}
+                            triggerClassName="gap-1"
+                            buttonVariant="outline"
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </ConfirmDeleteForm>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
+            <div>
+              <h2 className="text-base font-semibold text-gray-950">Products</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Add, edit, or delete products from Settings. These are the same live products used in accounts, payments, reports, and procurement.
+              </p>
+            </div>
+            <Button asChild className="gap-2">
+              <Link href="/products/new">
+                <Plus className="size-4" />
+                Add Product
+              </Link>
+            </Button>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-3 py-2.5">Product</th>
+                    <th className="px-3 py-2.5">Category</th>
+                    <th className="px-3 py-2.5 text-right">Daily</th>
+                    <th className="px-3 py-2.5 text-right">Layaway</th>
+                    <th className="px-3 py-2.5 text-right">Accounts</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {products.map((product) => (
+                    <tr key={product.id}>
+                      <td className="px-3 py-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <ProductImagePreview
+                            src={product.imageUrl}
+                            alt={product.name}
+                            className="size-10"
+                            previewTitle={product.name}
+                          />
+                          <span className="font-medium text-gray-900">{product.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">{product.category}</td>
+                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                        {formatMoney(product.dailyAmount)}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                        {formatMoney(product.layawayPrice)}
+                      </td>
+                      <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                        {product._count.accounts}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button asChild variant="outline" size="sm" className="gap-1">
+                            <Link href={`/products/${product.id}/edit`}>
+                              <Pencil className="size-4" />
+                              Edit
+                            </Link>
+                          </Button>
+                          <ConfirmDeleteForm
+                            action={deleteProduct}
+                            id={product.id}
+                            title={`Delete ${product.name}?`}
+                            hasLinkedHistory={product._count.accounts > 0}
+                            description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
+                            buttonVariant="outline"
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </ConfirmDeleteForm>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

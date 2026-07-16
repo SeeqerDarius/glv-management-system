@@ -14,9 +14,15 @@ type EditProductPageProps = {
 export default async function EditProductPage({ params }: EditProductPageProps) {
   const { id } = await params;
 
-  const product = await prisma.product.findUnique({
-    where: { id },
-  });
+  const [product, categories] = await Promise.all([
+    prisma.product.findUnique({
+      where: { id },
+    }),
+    prisma.productCategory.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    }),
+  ]);
 
   if (!product) {
     notFound();
@@ -46,6 +52,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
         action={updateProduct}
         product={product}
         submitLabel="Save Changes"
+        categories={categories.map((category) => category.name)}
       />
     </div>
   );

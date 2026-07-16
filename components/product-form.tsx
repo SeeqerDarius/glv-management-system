@@ -25,6 +25,7 @@ type ProductFormProps = {
   submitLabel: string;
   defaultDailyAmount?: number;
   defaultDuration?: number;
+  categories?: string[];
 };
 
 const initialState: ProductFormState = {};
@@ -46,6 +47,7 @@ export function ProductForm({
   submitLabel,
   defaultDailyAmount = 0,
   defaultDuration = 184,
+  categories,
 }: ProductFormProps) {
   const [state, formAction, pending] = useActionState(action, initialState);
   const [dailyAmount, setDailyAmount] = useState(
@@ -57,6 +59,13 @@ export function ProductForm({
   const calculatedLayawayPrice = useMemo(() => {
     return dailyAmount * duration;
   }, [dailyAmount, duration]);
+  const categoryOptions = categories?.length
+    ? categories
+    : productCategories.map((category) => category.label);
+  const visibleCategoryOptions =
+    product?.category && !categoryOptions.includes(product.category)
+      ? [...categoryOptions, product.category].sort((a, b) => a.localeCompare(b))
+      : categoryOptions;
 
   useEffect(() => {
     return () => {
@@ -172,9 +181,9 @@ export function ProductForm({
           required
         >
           <option value="">Select category</option>
-          {productCategories.map((category) => (
-            <option key={category.label} value={category.label}>
-              {category.label}
+          {visibleCategoryOptions.map((category) => (
+            <option key={category} value={category}>
+              {category}
             </option>
           ))}
         </select>
