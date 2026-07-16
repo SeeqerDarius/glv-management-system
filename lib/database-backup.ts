@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ensureSettingsSchema } from "@/lib/settings-schema";
 import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 export const backupTableOrder = [
@@ -48,6 +49,7 @@ const dateFields: Record<string, string[]> = {
 };
 
 export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
+  await ensureSettingsSchema();
   const inventorySchemaReady =
     await ensureStaffInventorySchemaForRead("DATABASE_BACKUP");
 

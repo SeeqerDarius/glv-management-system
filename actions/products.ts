@@ -8,6 +8,12 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
+import {
+  assignDefaultInventoryForProduct,
+  normalizeDefaultStaffInventoryQuantity,
+} from "@/lib/default-staff-inventory";
+import { getSettings } from "@/lib/settings";
+import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type ProductFormState = {
   errors?: {
@@ -308,15 +314,17 @@ export async function createProduct(
   formData: FormData
 ): Promise<ProductFormState> {
   const user = await requireProductManager();
+  await ensureStaffInventorySchema();
   const validated = validateProduct(formData);
 
   if (validated.errors || !validated.data) {
     return { errors: validated.errors };
   }
+  const productData = validated.data;
 
   const duplicate = await findSimilarProduct(
-    validated.data.name,
-    validated.data.category
+    productData.name,
+    productData.category
   );
 
   if (duplicate && formData.get("confirmDuplicate") !== "true") {
@@ -327,7 +335,7 @@ export async function createProduct(
 
   const imageResult = await resolveProductImageUrl({
     formData,
-    productName: validated.data.name,
+    productName: productData.name,
   });
 
   if (imageResult.error) {
@@ -338,20 +346,43 @@ export async function createProduct(
     };
   }
 
-  const product = await prisma.product.create({
-    data: {
-      ...validated.data,
-      imageUrl: imageResult.imageUrl,
-      quantityOnSale: 0,
-      active: formData.get("active") === "on",
-    },
-  });
+  const settings = await getSettings();
+  const active = formData.get("active") === "on";
+  const product = await prisma.$transaction(async (tx) => {
+    const createdProduct = await tx.product.create({
+      data: {
+        ...productData,
+        imageUrl: imageResult.imageUrl,
+        quantityOnSale: 0,
+        active,
+      },
+    });
+    const inventoryRecordsCreated = active
+      ? await assignDefaultInventoryForProduct({
+          tx,
+          productId: createdProduct.id,
+          quantity: normalizeDefaultStaffInventoryQuantity(
+            settings.defaultStaffInventoryQuantity
+          ),
+        })
+      : 0;
 
-  await logProductAudit({
-    userId: user.id,
-    action: "CREATE_PRODUCT",
-    productId: product.id,
-    newValue: product,
+    await tx.auditLog.create({
+      data: {
+        userId: user.id,
+        action: "CREATE_PRODUCT",
+        entity: "Product",
+        entityId: createdProduct.id,
+        newValue: JSON.stringify({
+          ...createdProduct,
+          defaultStaffInventoryQuantity:
+            settings.defaultStaffInventoryQuantity,
+          inventoryRecordsCreated,
+        }),
+      },
+    });
+
+    return createdProduct;
   });
 
   revalidatePath("/products");
@@ -366,6 +397,7 @@ export async function updateProduct(
   formData: FormData
 ): Promise<ProductFormState> {
   const user = await requireProductManager();
+  await ensureStaffInventorySchema();
   const id = cleanInput(formData.get("id"));
   const validated = validateProduct(formData);
 
@@ -380,8 +412,9 @@ export async function updateProduct(
   if (validated.errors || !validated.data) {
     return { errors: validated.errors };
   }
+  const productData = validated.data;
 
-  const duplicate = await findDuplicateName(validated.data.name, id);
+  const duplicate = await findDuplicateName(productData.name, id);
 
   if (duplicate) {
     return {
@@ -405,7 +438,7 @@ export async function updateProduct(
 
   const imageResult = await resolveProductImageUrl({
     formData,
-    productName: validated.data.name,
+    productName: productData.name,
     existingImageUrl: existingProduct.imageUrl,
   });
 
@@ -421,15 +454,35 @@ export async function updateProduct(
     await del(existingProduct.imageUrl).catch(() => undefined);
   }
 
-  const updatedProduct = await prisma.product.update({
-    where: { id },
-    data: {
-      ...validated.data,
-      imageUrl: imageResult.imageUrl,
-      quantityOnSale: existingProduct.quantityOnSale,
-      active: formData.get("active") === "on",
-    },
-  });
+  const settings = await getSettings();
+  const nextActive = formData.get("active") === "on";
+  const { updatedProduct, inventoryRecordsCreated } = await prisma.$transaction(
+    async (tx) => {
+      const product = await tx.product.update({
+        where: { id },
+        data: {
+          ...productData,
+          imageUrl: imageResult.imageUrl,
+          quantityOnSale: existingProduct.quantityOnSale,
+          active: nextActive,
+        },
+      });
+      const createdCount = nextActive
+        ? await assignDefaultInventoryForProduct({
+            tx,
+            productId: product.id,
+            quantity: normalizeDefaultStaffInventoryQuantity(
+              settings.defaultStaffInventoryQuantity
+            ),
+          })
+        : 0;
+
+      return {
+        updatedProduct: product,
+        inventoryRecordsCreated: createdCount,
+      };
+    }
+  );
 
   await logProductAudit({
     userId: user.id,
@@ -438,6 +491,18 @@ export async function updateProduct(
     oldValue: existingProduct,
     newValue: updatedProduct,
   });
+  if (inventoryRecordsCreated > 0) {
+    await logProductAudit({
+      userId: user.id,
+      action: "ASSIGN_DEFAULT_PRODUCT_INVENTORY",
+      productId: updatedProduct.id,
+      newValue: {
+        defaultStaffInventoryQuantity:
+          settings.defaultStaffInventoryQuantity,
+        inventoryRecordsCreated,
+      },
+    });
+  }
 
   await logProductAudit({
     userId: user.id,

@@ -9,6 +9,7 @@ import {
   normalizeAppearanceSettings,
   type AppearanceSettings,
 } from "@/lib/settings";
+import { ensureSettingsSchema } from "@/lib/settings-schema";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -81,6 +82,7 @@ export async function updateGlobalAppearance(formData: FormData): Promise<void> 
 
   const userId = session.user.id;
   const data = appearanceFromForm(formData);
+  await ensureSettingsSchema();
 
   await prisma.$transaction(async (tx) => {
     const existing = await tx.setting.findFirst({ orderBy: { createdAt: "asc" } });

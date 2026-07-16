@@ -280,6 +280,7 @@ model Setting {
   paymentEditWindowHours          Int       @default(3)
   defaultCurrency                 String    @default("GHS")
   defaultMonthlySalary            Float     @default(0)
+  defaultStaffInventoryQuantity   Int       @default(10)
   commissionEnabled               Boolean   @default(false)
   commissionPercentage            Float     @default(0)
   payrollDay                      Int       @default(1)

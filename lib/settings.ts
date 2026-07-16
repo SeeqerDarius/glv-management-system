@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { ensureSettingsSchema } from "@/lib/settings-schema";
 
 export const themeOptions = ["light", "dark", "system"] as const;
 export const dashboardCardOptions = ["standard", "compact", "detailed"] as const;
@@ -15,6 +16,7 @@ export const fallbackSettings = {
   procurementThresholdPercent: 70,
   paymentEditWindowHours: 3,
   defaultMonthlySalary: 0,
+  defaultStaffInventoryQuantity: 10,
   receiptPrefix: "GLV/RCPT",
   customerIdPrefix: "GLV",
   staffCodeLength: 3,
@@ -76,6 +78,8 @@ export function normalizeAppearanceSettings(
 }
 
 export const getSettings = cache(async () => {
+  await ensureSettingsSchema();
+
   const settings = await prisma.setting.findFirst({
     orderBy: {
       createdAt: "asc",
