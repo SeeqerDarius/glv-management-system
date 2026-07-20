@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { DownloadIcon, Trash2 } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
+import { ReportAnalyticsCharts } from "@/components/reports/analytics-charts";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
@@ -9,11 +10,34 @@ import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { todayDateInputValue } from "@/lib/date-rules";
-import { getWeeklyStaffPerformanceReport } from "@/lib/reports";
+import {
+  getCurrentWeekRange,
+  getWeeklyCollectionTrend,
+  getWeeklyStaffPerformanceReport,
+} from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 import { salaryMonthInputValue } from "@/lib/salary-periods";
 
 export const dynamic = "force-dynamic";
+
+const TREND_WEEKS = 8;
+
+function weekParam(date: Date) {
+  const { start } = getCurrentWeekRange(date);
+  return `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+}
+
+function resolveSelectedDate(weekQuery: string | undefined) {
+  const now = new Date();
+  if (!weekQuery) return now;
+
+  const parsed = new Date(`${weekQuery}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return now;
+
+  const { start: currentWeekStart } = getCurrentWeekRange(now);
+  const { start: requestedWeekStart } = getCurrentWeekRange(parsed);
+  return requestedWeekStart > currentWeekStart ? now : parsed;
+}
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -48,6 +72,7 @@ export default async function ReportsPage({
   const isAdmin = isAdminRole(session?.user?.role);
   const query = await searchParams;
   let report: Awaited<ReturnType<typeof getWeeklyStaffPerformanceReport>>;
+  let trend: Awaited<ReturnType<typeof getWeeklyCollectionTrend>>;
 
   if (!isAdmin) {
     return (
@@ -66,12 +91,24 @@ export default async function ReportsPage({
     );
   }
 
+  const selectedDate = resolveSelectedDate(query.week);
+
   try {
-    report = await getWeeklyStaffPerformanceReport();
+    [report, trend] = await Promise.all([
+      getWeeklyStaffPerformanceReport(selectedDate),
+      getWeeklyCollectionTrend(TREND_WEEKS, selectedDate),
+    ]);
   } catch (error) {
     console.error("REPORTS_LOAD_ERROR", error);
     return <DatabaseUnavailable retryHref="/reports" title="Reports are temporarily unavailable" />;
   }
+
+  const isCurrentWeek = weekParam(selectedDate) === weekParam(new Date());
+  const previousWeekDate = new Date(report.start);
+  previousWeekDate.setDate(previousWeekDate.getDate() - 7);
+  const nextWeekDate = new Date(report.start);
+  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+  const exportHref = `/api/reports/weekly-export?week=${weekParam(selectedDate)}`;
 
   const today = todayDateInputValue();
   const defaultSalaryMonth = salaryMonthInputValue();
@@ -90,7 +127,41 @@ export default async function ReportsPage({
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h1 className="text-3xl font-bold text-gray-950">Financial Intelligence</h1><p className="mt-1 text-sm text-gray-600">GLV financial position and staff performance for {formatDate(report.start)} - {formatDate(report.end)}.</p></div>
-        <Button asChild><Link href="/api/reports/weekly-export" download><DownloadIcon className="size-4" />Export Weekly Report</Link></Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-lg border bg-white">
+            <Link
+              href={`/reports?week=${weekParam(previousWeekDate)}`}
+              className="flex size-9 items-center justify-center text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-950"
+              aria-label="Previous week"
+            >
+              <ChevronLeftIcon className="size-4" />
+            </Link>
+            {isCurrentWeek ? (
+              <span className="border-x px-3 py-2 text-xs font-medium text-gray-500">This Week</span>
+            ) : (
+              <Link
+                href="/reports"
+                className="border-x px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-950"
+              >
+                This Week
+              </Link>
+            )}
+            {isCurrentWeek ? (
+              <span className="flex size-9 items-center justify-center text-gray-300">
+                <ChevronRightIcon className="size-4" />
+              </span>
+            ) : (
+              <Link
+                href={`/reports?week=${weekParam(nextWeekDate)}`}
+                className="flex size-9 items-center justify-center text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-950"
+                aria-label="Next week"
+              >
+                <ChevronRightIcon className="size-4" />
+              </Link>
+            )}
+          </div>
+          <Button asChild><Link href={exportHref} download><DownloadIcon className="size-4" />Export Weekly Report</Link></Button>
+        </div>
       </div>
 
       <section className="space-y-3">
@@ -108,6 +179,31 @@ export default async function ReportsPage({
           <SummaryCard label="Net Profit So Far" value={formatMoney(report.summary.netProfitSoFar)} />
           <SummaryCard label={report.summary.gainLossStatus} value={formatMoney(report.summary.projectedNetProfit)} emphasis />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <div><h2 className="text-lg font-semibold text-gray-950">Analytics</h2><p className="text-sm text-gray-600">Collection trends, account health, and top performers at a glance.</p></div>
+        <ReportAnalyticsCharts
+          trend={trend.map((week) => ({
+            label: formatDate(week.start),
+            collected: week.collected,
+            isSelected: week.isSelected,
+          }))}
+          accountStatus={report.accountStatusBreakdown}
+          staffPerformance={report.rows.map((row) => ({
+            code: row.staffCode,
+            name: row.staffName,
+            value: row.weeklyCollection,
+          }))}
+          productProfitability={report.products
+            .slice()
+            .sort((a, b) => b.expectedLayawayProfit - a.expectedLayawayProfit)
+            .slice(0, 8)
+            .map((product) => ({
+              name: product.name,
+              value: product.expectedLayawayProfit,
+            }))}
+        />
       </section>
 
       <section className="space-y-3">

@@ -166,6 +166,52 @@ html[data-theme="dark"] footer.border-t {
   color: #0f2213;
 }
 
+/* ─── Report analytics charts ──────────────────────────────────────────────── */
+
+.glv-chart {
+  --chart-ink: #0b0b0b;
+  --chart-ink-secondary: #52514e;
+  --chart-muted: #898781;
+  --chart-grid: #e1e0d9;
+  --chart-baseline: #c3c2b7;
+  --chart-blue: #2a78d6;
+  --chart-blue-wash: rgba(42, 120, 214, 0.1);
+  --chart-green: #008300;
+  --chart-green-wash: rgba(0, 131, 0, 0.1);
+  --chart-good: #0ca30c;
+  --chart-warning: #fab219;
+  --chart-serious: #ec835a;
+  --chart-critical: #d03b3b;
+  --chart-tooltip-bg: #0b0b0b;
+  --chart-tooltip-text: #ffffff;
+}
+
+html[data-theme="dark"] .glv-chart {
+  --chart-ink: #ffffff;
+  --chart-ink-secondary: #c3c2b7;
+  --chart-grid: #2c2c2a;
+  --chart-baseline: #383835;
+  --chart-blue: #3987e5;
+  --chart-blue-wash: rgba(57, 135, 229, 0.16);
+  --chart-green-wash: rgba(0, 131, 0, 0.18);
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-text: #0b0b0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .glv-chart {
+    --chart-ink: #ffffff;
+    --chart-ink-secondary: #c3c2b7;
+    --chart-grid: #2c2c2a;
+    --chart-baseline: #383835;
+    --chart-blue: #3987e5;
+    --chart-blue-wash: rgba(57, 135, 229, 0.16);
+    --chart-green-wash: rgba(0, 131, 0, 0.18);
+    --chart-tooltip-bg: #ffffff;
+    --chart-tooltip-text: #0b0b0b;
+  }
+}
+
 /* ─── Global Transitions ───────────────────────────────────────────────────── */
 
 button,

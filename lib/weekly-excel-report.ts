@@ -4,6 +4,7 @@ import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
+import { getCurrentWeekRange } from "@/lib/reports";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
@@ -21,17 +22,6 @@ const palette = {
 
 const currencyFormat = '"GHS" #,##0.00;[Red]("GHS" #,##0.00);-';
 const dateFormat = "dd mmm yyyy";
-
-export function getCurrentWeekRange(now = new Date()) {
-  const start = new Date(now);
-  const day = start.getDay();
-  start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return { start, end };
-}
 
 function formatPeriod(start: Date, end: Date) {
   const formatter = new Intl.DateTimeFormat("en-GB", {

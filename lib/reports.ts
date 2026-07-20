@@ -259,6 +259,41 @@ export async function getAdminReportSummary() {
   };
 }
 
+export async function getWeeklyCollectionTrend(weeks: number, now = new Date()) {
+  const { start: selectedWeekStart } = getCurrentWeekRange(now);
+  const earliestWeekStart = new Date(selectedWeekStart);
+  earliestWeekStart.setDate(earliestWeekStart.getDate() - (weeks - 1) * 7);
+  const rangeEnd = new Date(selectedWeekStart);
+  rangeEnd.setDate(rangeEnd.getDate() + 6);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  const payments = await prisma.payment.findMany({
+    where: { paymentDate: { gte: earliestWeekStart, lte: rangeEnd } },
+    select: { amount: true, paymentDate: true },
+  });
+
+  return Array.from({ length: weeks }, (_, index) => {
+    const weekStart = new Date(earliestWeekStart);
+    weekStart.setDate(weekStart.getDate() + index * 7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    const collected = payments
+      .filter(
+        (payment) =>
+          payment.paymentDate >= weekStart && payment.paymentDate <= weekEnd
+      )
+      .reduce((total, payment) => total + payment.amount, 0);
+
+    return {
+      start: weekStart,
+      end: weekEnd,
+      collected,
+      isSelected: weekStart.getTime() === selectedWeekStart.getTime(),
+    };
+  });
+}
+
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses(now);
@@ -470,11 +505,18 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const payrollPercentageOfRevenue =
     monthlyIncome > 0 ? (totalSalaryPaid / monthlyIncome) * 100 : 0;
   const userNames = new Map(users.map((user) => [user.id, user.name]));
+  const accountStatusBreakdown = Object.values(AccountStatus).map((status) => ({
+    status,
+    count: accounts.filter(
+      (account) => getEffectiveAccountStatus(account) === status
+    ).length,
+  }));
 
   return {
     start,
     end,
     rows: rows.map((row, index) => ({ ...row, rank: index + 1 })),
+    accountStatusBreakdown,
     products: products.map((product) => {
       const layawayProfit =
         product.layawayPrice - product.costPrice - product.transportCost;
