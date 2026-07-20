@@ -4,7 +4,6 @@ const privilegedRoutes = [
   { route: "/staff", permission: "VIEW_STAFF" },
   { route: "/products", permission: "MANAGE_PRODUCTS" },
   { route: "/credits", permission: "MANAGE_PAYMENTS" },
-  { route: "/analytics", permission: "VIEW_REPORTS" },
   { route: "/reports", permission: "VIEW_REPORTS" },
   { route: "/audit-logs", permission: "VIEW_AUDIT_LOGS" },
 ] as const;
