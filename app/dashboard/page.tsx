@@ -158,8 +158,8 @@ export default async function DashboardPage() {
               mode={dashboardCards}
             />
             <MetricCard
-              label="Completed Accounts"
-              value={report.completedAccounts}
+              label="Completed & Delivered"
+              value={report.completedDeliveredAccounts}
               icon={CircleCheckBigIcon}
               accent="#44a36f"
               mode={dashboardCards}
@@ -251,8 +251,8 @@ export default async function DashboardPage() {
                   <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.customersAddedThisWeek}</p>
                 </div>
                 <div className="rounded-lg bg-gray-50 p-4">
-                  <p className="text-xs font-medium uppercase text-gray-500">Completed</p>
-                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.completedAccounts}</p>
+                  <p className="text-xs font-medium uppercase text-gray-500">Completed & Delivered</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.completedDeliveredAccounts}</p>
                 </div>
                 <div className="rounded-lg bg-amber-50 p-4">
                   <p className="text-xs font-medium uppercase text-amber-800">Needs Attention</p>

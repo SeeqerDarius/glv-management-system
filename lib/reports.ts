@@ -2,6 +2,7 @@ import {
   AccountStatus,
   CreditSource,
   CreditStatus,
+  DeliveryStatus,
   type CustomerAccount,
 } from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
@@ -174,6 +175,12 @@ export async function getAdminReportSummary() {
       account.status !== AccountStatus.CLOSED &&
       account.status !== AccountStatus.ARCHIVED
   );
+  const completedDeliveredAccounts = accounts.filter(
+    (account) =>
+      account.deliveryStatus === DeliveryStatus.DELIVERED &&
+      (account.status === AccountStatus.COMPLETED ||
+        account.status === AccountStatus.ARCHIVED)
+  ).length;
   const expectedReceivables = accounts
     .filter((account) => {
       const status = getEffectiveAccountStatus(account);
@@ -219,6 +226,7 @@ export async function getAdminReportSummary() {
     totalAccounts: accounts.length,
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
+    completedDeliveredAccounts,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
@@ -702,6 +710,12 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       [AccountStatus.SUSPENDED]: 0,
     }
   );
+  const completedDeliveredAccounts = accounts.filter(
+    (account) =>
+      account.deliveryStatus === DeliveryStatus.DELIVERED &&
+      (account.status === AccountStatus.COMPLETED ||
+        account.status === AccountStatus.ARCHIVED)
+  ).length;
 
   return {
     staff,
@@ -709,6 +723,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     totalAccounts: accounts.length,
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
+    completedDeliveredAccounts,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
