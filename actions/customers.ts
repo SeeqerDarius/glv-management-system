@@ -151,7 +151,7 @@ async function generateCustomerIdForCreate(
   tx: Prisma.TransactionClient,
   prefix: string
 ) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
 
   return getNextCustomerId(tx, prefix);
 }
