@@ -1,6 +1,6 @@
 "use server";
 
-import { UserPermission, UserRole } from "@prisma/client";
+import { Prisma, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
@@ -98,6 +98,12 @@ async function resolveStaffId(formData: FormData, role: UserRole, staffId?: stri
 }
 
 export async function generateCustomerId(staffId: string) {
+  const prefix = await getCustomerIdPrefix(staffId);
+
+  return getNextCustomerId(prisma, prefix);
+}
+
+async function getCustomerIdPrefix(staffId: string) {
   const staff = await prisma.staff.findUnique({
     where: {
       id: staffId,
@@ -113,11 +119,17 @@ export async function generateCustomerId(staffId: string) {
 
   const year = new Date().getFullYear().toString().slice(-2);
   const settings = await getSettings();
-  const prefix = `${settings.customerIdPrefix}/${staff.code}/${year}/`;
 
-  const existingCustomers = await prisma.customer.findMany({
+  return `${settings.customerIdPrefix}/${staff.code}/${year}/`;
+}
+
+async function getNextCustomerId(
+  client: Pick<typeof prisma, "customer"> | Prisma.TransactionClient,
+  prefix: string
+) {
+
+  const existingCustomers = await client.customer.findMany({
     where: {
-      staffId,
       customerId: {
         startsWith: prefix,
       },
@@ -133,6 +145,15 @@ export async function generateCustomerId(staffId: string) {
   }, 0);
 
   return `${prefix}${String(maxNumber + 1).padStart(3, "0")}`;
+}
+
+async function generateCustomerIdForCreate(
+  tx: Prisma.TransactionClient,
+  prefix: string
+) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
+
+  return getNextCustomerId(tx, prefix);
 }
 
 export async function createCustomer(
@@ -225,7 +246,7 @@ export async function createCustomer(
   }
 
   const staffId = await resolveStaffId(formData, user.role, user.staffId);
-  const customerId = await generateCustomerId(staffId);
+  const customerIdPrefix = await getCustomerIdPrefix(staffId);
   const product = productId
     ? await prisma.product.findUnique({
         where: {
@@ -255,6 +276,10 @@ export async function createCustomer(
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const customerId = await generateCustomerIdForCreate(
+        tx,
+        customerIdPrefix
+      );
       const createdCustomer = await tx.customer.create({
         data: {
           customerId,
