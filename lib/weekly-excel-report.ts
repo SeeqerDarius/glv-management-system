@@ -173,6 +173,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     orderBy: [{ category: "asc" }, { name: "asc" }],
     include: { _count: { select: { accounts: true } } },
   });
+  const procurement = await getProcurementList();
 
   const userNames = new Map(
     users.map((user) => [
@@ -250,10 +251,11 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   const payrollVsIncome = monthlyIncome - salaryPaidThisMonth;
   const payrollPercentageOfRevenue =
     monthlyIncome > 0 ? salaryPaidThisMonth / monthlyIncome : 0;
-  const netProfitSoFar = totalCollected - totalProductCost - salaryPaidThisMonth;
+  const cashAfterProcurement = totalCollected - procurement.totalCost;
+  const operatingCashPosition =
+    totalCollected - procurement.totalCost - salaryPaidThisMonth;
   const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
   const period = formatPeriod(start, end);
-  const procurement = await getProcurementList();
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "GLV Management System";
@@ -288,20 +290,21 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Total collected", totalCollected],
     ["Expected receivables", expectedReceivables],
     ["Outstanding balance", outstandingBalance],
-    ["Product cost exposure", totalProductCost],
+    ["Total product exposure (not immediate)", totalProductCost],
     ["Procurement products ready", procurement.items.length],
     ["Procurement units ready", procurement.totalQuantity],
     ["Procurement estimated cost", procurement.totalCost],
+    ["Cash after procurement", cashAfterProcurement],
     ["Current month payroll", currentMonthPayroll],
     ["Salary paid for due month", salaryPaidThisMonth],
     ["Total salaries paid", totalSalariesPaid],
     ["Outstanding salaries", outstandingSalaries],
     ["Payroll vs income", payrollVsIncome],
     ["Payroll percentage of revenue", payrollPercentageOfRevenue],
-    ["Net profit so far", netProfitSoFar],
+    ["Operating cash position", operatingCashPosition],
     ["Projected profit / loss", projectedNetProfit],
   ]);
-  for (let row = 5; row <= 33; row += 1) {
+  for (let row = 5; row <= 34; row += 1) {
     summary.getCell(row, 1).font = {
       name: "Aptos",
       size: 10,
@@ -311,10 +314,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   }
   summary.getCell("B5").numFmt = dateFormat;
   summary.getCell("B6").numFmt = dateFormat;
-  [19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 32, 33].forEach((row) => {
+  [19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 31, 33, 34].forEach((row) => {
     summary.getCell(row, 2).numFmt = currencyFormat;
   });
-  summary.getCell("B31").numFmt = "0.0%";
+  summary.getCell("B32").numFmt = "0.0%";
   finishSheet(summary, [30, 23]);
 
   const staffRows = staff

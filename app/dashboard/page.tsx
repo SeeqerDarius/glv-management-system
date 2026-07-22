@@ -203,18 +203,20 @@ export default async function DashboardPage() {
           <section className="space-y-3">
             <div>
               <h2 className="text-lg font-semibold text-gray-950">Gain / Loss Summary</h2>
-              <p className="text-sm text-gray-600">Current cash position and projected profitability after product costs and monthly payroll.</p>
+              <p className="text-sm text-gray-600">Current cash position after procurement due now and payroll, plus projected profitability.</p>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              <MetricCard mode={dashboardCards} label="Product Cost Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
+              <MetricCard mode={dashboardCards} label="Total Product Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
+              <MetricCard mode={dashboardCards} label="Procurement Due Now" value={formatMoney(report.procurementEstimatedCost)} icon={WalletCardsIcon} accent="#317f9d" />
+              <MetricCard mode={dashboardCards} label="Cash After Procurement" value={formatMoney(report.procurementCashBuffer)} icon={BadgeDollarSignIcon} accent={report.procurementCashBuffer < 0 ? "#c93636" : "#3b8d62"} />
               <MetricCard mode={dashboardCards} label="Total Expected Profit" value={formatMoney(report.totalExpectedProfit)} icon={TrendingUpIcon} accent={appearance.primaryColor} />
               <MetricCard mode={dashboardCards} label="Salary Paid for Due Month" value={formatMoney(report.totalSalaryPaid)} icon={HandCoinsIcon} accent="#846ab3" />
               <MetricCard mode={dashboardCards} label="Current Month Payroll" value={formatMoney(report.currentMonthPayroll)} icon={UsersIcon} accent={appearance.secondaryColor} />
               <MetricCard mode={dashboardCards} label="Outstanding Salaries" value={formatMoney(report.outstandingSalaries)} icon={UsersIcon} accent="#d18b35" />
               <MetricCard mode={dashboardCards} label="Payroll vs Income" value={formatMoney(report.payrollVsIncome)} icon={BadgeDollarSignIcon} accent={report.payrollVsIncome < 0 ? "#c93636" : "#3b8d62"} />
-              <MetricCard mode={dashboardCards} label="Net Profit So Far" value={formatMoney(report.netProfitSoFar)} icon={BadgeDollarSignIcon} accent={report.netProfitSoFar < 0 ? "#c93636" : "#3b8d62"} />
+              <MetricCard mode={dashboardCards} label="Operating Cash Position" value={formatMoney(report.operatingCashPosition)} icon={BadgeDollarSignIcon} accent={report.operatingCashPosition < 0 ? "#c93636" : "#3b8d62"} />
               <MetricCard mode={dashboardCards} label="Projected Net Profit" value={formatMoney(report.projectedNetProfit)} icon={TrendingUpIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : appearance.primaryColor} />
-              <MetricCard mode={dashboardCards} label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.netProfitSoFar < 0 ? "#d18b35" : "#3b8d62"} />
+              <MetricCard mode={dashboardCards} label="Current Position" value={report.currentPositionStatus} icon={ClockAlertIcon} accent={report.operatingCashPosition < 0 ? "#d18b35" : "#3b8d62"} />
               <MetricCard mode={dashboardCards} label="Projection" value={report.gainLossStatus} icon={CircleCheckBigIcon} accent={report.projectedNetProfit < 0 ? "#c93636" : appearance.primaryColor} />
               <MetricCard mode={dashboardCards} label="Refund Items" value={report.openCreditCount} icon={CircleDollarSignIcon} accent="#c93636" />
               <MetricCard mode={dashboardCards} label="Closure Refunds" value={report.closureRefundCount} icon={ClockAlertIcon} accent="#d18b35" />

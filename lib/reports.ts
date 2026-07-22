@@ -8,6 +8,7 @@ import {
 import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
+import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
@@ -151,6 +152,7 @@ export async function getAdminReportSummary() {
       source: CreditSource.ACCOUNT_CLOSURE_REFUND,
     },
   });
+  const procurement = await getProcurementList();
 
   const statusCounts = accounts.reduce(
     (totals, account) => {
@@ -197,6 +199,9 @@ export async function getAdminReportSummary() {
     0
   );
   const totalSalaryPaid = salaryAggregate._sum.amount ?? 0;
+  const procurementCashBuffer = totalCollected - procurement.totalCost;
+  const operatingCashPosition =
+    totalCollected - procurement.totalCost - totalSalaryPaid;
   const currentMonthPayroll = staff
     .filter((member) => member.active)
     .reduce(
@@ -217,7 +222,7 @@ export async function getAdminReportSummary() {
     (total, member) => total + getEffectiveMonthlySalary(member, month.start),
     0
   );
-  const netProfitSoFar = totalCollected - totalProductCost - totalSalaryPaid;
+  const netProfitSoFar = operatingCashPosition;
   const projectedNetProfit = totalExpectedProfit - currentMonthPayroll;
 
   return {
@@ -244,6 +249,11 @@ export async function getAdminReportSummary() {
       0
     ),
     totalProductCost,
+    procurementProductsReady: procurement.items.length,
+    procurementUnitsReady: procurement.totalQuantity,
+    procurementEstimatedCost: procurement.totalCost,
+    procurementCashBuffer,
+    operatingCashPosition,
     totalExpectedProfit,
     totalSalaryPaid,
     totalMonthlySalary,
@@ -260,7 +270,7 @@ export async function getAdminReportSummary() {
           ? "Projected Loss"
           : "Break Even",
     currentPositionStatus:
-      netProfitSoFar < 0 ? "Currently Negative / Recovering Capital" : "Currently Positive",
+      operatingCashPosition < 0 ? "Cash Deficit" : "Cash Positive",
     profitEstimate: totalExpectedProfit,
     recentAccounts: accounts.slice(0, 8),
     recentPayments,
