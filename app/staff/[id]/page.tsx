@@ -7,11 +7,9 @@ import {
   Mail,
   Pencil,
   Phone,
-  Package,
   ShieldCheck,
   UserCheck,
 } from "lucide-react";
-import { updateStaffInventory } from "@/actions/staff-inventory";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ProfileAvatar } from "@/components/profile-avatar";
@@ -20,14 +18,10 @@ import { auth } from "@/lib/auth";
 import { permissionLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 type StaffDetailsPageProps = {
   params: Promise<{
     id: string;
-  }>;
-  searchParams: Promise<{
-    inventory?: string;
   }>;
 };
 
@@ -51,15 +45,11 @@ function formatDateTime(date: Date) {
 
 export default async function StaffDetailsPage({
   params,
-  searchParams,
 }: StaffDetailsPageProps) {
   const { id } = await params;
-  const { inventory } = await searchParams;
   const session = await auth();
-  await ensureStaffInventorySchema();
 
   const canManageStaff = isSuperAdminRole(session?.user?.role);
-  const canManageInventory = isAdminRole(session?.user?.role);
   const staff = await prisma.staff.findUnique({
     where: {
       id,
@@ -85,16 +75,6 @@ export default async function StaffDetailsPage({
         },
         take: 8,
       },
-      inventory: {
-        include: {
-          product: true,
-        },
-        orderBy: {
-          product: {
-            name: "asc",
-          },
-        },
-      },
       _count: {
         select: {
           customers: true,
@@ -109,24 +89,6 @@ export default async function StaffDetailsPage({
   }
 
   const permissions = staff.user?.permissions ?? [];
-  const products = canManageInventory
-    ? await prisma.product.findMany({
-        where: {
-          active: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-        select: {
-          id: true,
-          name: true,
-          category: true,
-        },
-      })
-    : [];
-  const inventoryByProductId = new Map(
-    staff.inventory.map((item) => [item.productId, item]),
-  );
   const salaryPaid = staff.salaryPayments.reduce(
     (total, payment) => total + payment.amount,
     0,
@@ -304,114 +266,6 @@ export default async function StaffDetailsPage({
               </dd>
             </div>
           </dl>
-        </div>
-      </section>
-
-      <section className="rounded-lg border bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b p-5">
-          <div>
-            <h2 className="text-base font-semibold text-gray-950">
-              Staff Inventory
-            </h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Product stock allocated to this staff member. Creating a customer
-              account consumes one unit from this inventory.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-            <Package className="size-3.5" />
-            {staff.inventory.reduce((total, item) => total + item.quantity, 0)}{" "}
-            total units
-          </div>
-        </div>
-
-        {inventory === "updated" ? (
-          <div className="border-b border-lime-200 bg-lime-50 px-5 py-3 text-sm text-lime-900">
-            Staff inventory updated.
-          </div>
-        ) : null}
-        {inventory === "negative" ? (
-          <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
-            Inventory cannot be reduced below zero.
-          </div>
-        ) : null}
-        {inventory === "invalid" || inventory === "error" || inventory === "not-found" ? (
-          <div className="border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
-            Inventory update failed. Check the product and quantity.
-          </div>
-        ) : null}
-
-        <div className="overflow-x-auto">
-          <table className="min-w-[720px] text-sm">
-            <thead>
-              <tr className="bg-gray-100 text-left text-gray-700">
-                <th className="p-3 font-medium">Product</th>
-                <th className="p-3 font-medium">Category</th>
-                <th className="p-3 text-right font-medium">Current Stock</th>
-                {canManageInventory ? (
-                  <th className="p-3 text-right font-medium">Restock / Adjust</th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody>
-              {(canManageInventory ? products : staff.inventory.map((item) => item.product)).map((product) => {
-                const inventoryItem = inventoryByProductId.get(product.id);
-                const quantity = inventoryItem?.quantity ?? 0;
-
-                return (
-                  <tr key={product.id} className="border-t">
-                    <td className="p-3 font-semibold text-gray-950">
-                      {product.name}
-                    </td>
-                    <td className="p-3 text-gray-700">{product.category}</td>
-                    <td className="p-3 text-right">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          quantity > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {quantity}
-                      </span>
-                    </td>
-                    {canManageInventory ? (
-                      <td className="p-3">
-                        <form
-                          action={updateStaffInventory}
-                          className="ml-auto grid max-w-xs grid-cols-[1fr_auto] gap-2"
-                        >
-                          <input type="hidden" name="staffId" value={staff.id} />
-                          <input type="hidden" name="productId" value={product.id} />
-                          <input
-                            type="hidden"
-                            name="returnTo"
-                            value={`/staff/${staff.id}`}
-                          />
-                          <input
-                            name="quantity"
-                            type="number"
-                            step="1"
-                            placeholder="+5 or -1"
-                            className="w-full rounded border px-3 py-2 text-right"
-                            required
-                          />
-                          <Button type="submit" size="sm">
-                            Save
-                          </Button>
-                        </form>
-                      </td>
-                    ) : null}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {!canManageInventory && staff.inventory.length === 0 ? (
-            <div className="border-t p-8 text-center text-sm text-gray-600">
-              No stock has been allocated to this staff member yet.
-            </div>
-          ) : null}
         </div>
       </section>
 

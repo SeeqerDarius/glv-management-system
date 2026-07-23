@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { ensureSettingsSchema } from "@/lib/settings-schema";
-import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 export const backupTableOrder = [
   "settings",
@@ -9,7 +8,6 @@ export const backupTableOrder = [
   "staffApplications",
   "staff",
   "users",
-  "staffInventory",
   "userAppearancePreferences",
   "profileChangeRequests",
   "customers",
@@ -35,7 +33,6 @@ const dateFields: Record<string, string[]> = {
   staffApplications: ["reviewedAt", "createdAt"],
   staff: ["createdAt"],
   users: ["createdAt", "lastSeenAt", "twoFactorConfirmedAt"],
-  staffInventory: ["createdAt", "updatedAt"],
   userAppearancePreferences: ["createdAt", "updatedAt"],
   profileChangeRequests: ["reviewedAt", "createdAt", "updatedAt"],
   customers: ["createdAt"],
@@ -50,8 +47,6 @@ const dateFields: Record<string, string[]> = {
 
 export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
   await ensureSettingsSchema();
-  const inventorySchemaReady =
-    await ensureStaffInventorySchemaForRead("DATABASE_BACKUP");
 
   const [
     settings,
@@ -60,7 +55,6 @@ export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
     staffApplications,
     staff,
     users,
-    staffInventory,
     userAppearancePreferences,
     profileChangeRequests,
     customers,
@@ -78,7 +72,6 @@ export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
     prisma.staffApplication.findMany(),
     prisma.staff.findMany(),
     prisma.user.findMany(),
-    inventorySchemaReady ? prisma.staffInventory.findMany() : Promise.resolve([]),
     prisma.userAppearancePreference.findMany(),
     prisma.profileChangeRequest.findMany(),
     prisma.customer.findMany(),
@@ -102,7 +95,6 @@ export async function buildDatabaseBackup(): Promise<DatabaseBackup> {
       staffApplications,
       staff,
       users,
-      staffInventory,
       userAppearancePreferences,
       profileChangeRequests,
       customers,
@@ -123,6 +115,13 @@ export function reviveBackupRows<T>(table: string, rows: unknown): T[] {
   return rows.map((row) => {
     if (!row || typeof row !== "object") return row as T;
     const revived = { ...(row as Record<string, unknown>) };
+
+    if (table === "settings") {
+      delete revived.defaultStaffInventoryQuantity;
+    }
+    if (table === "customerAccounts") {
+      delete revived.inventoryStaffId;
+    }
 
     for (const field of dateFields[table] ?? []) {
       const value = revived[field];

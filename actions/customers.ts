@@ -18,8 +18,6 @@ import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
-import { restoreStaffInventory } from "@/lib/staff-inventory";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type CustomerFormState = {
   errors?: {
@@ -161,7 +159,6 @@ export async function createCustomer(
   formData: FormData
 ): Promise<CustomerFormState> {
   const user = await requireUser();
-  await ensureStaffInventorySchema();
 
   const fullName = cleanInput(formData.get("fullName"));
   const phone = cleanInput(formData.get("phone"));
@@ -309,7 +306,6 @@ export async function createCustomer(
               customerId: createdCustomer.id,
               product,
               startDate,
-              inventoryStaffId: staffId,
             })
           : null;
 
@@ -343,14 +339,6 @@ export async function createCustomer(
     accountId = result.accountId;
   } catch (error) {
     console.error("CREATE_CUSTOMER_ERROR", error);
-    if (error instanceof Error && error.name === "StaffInventoryError") {
-      return {
-        errors: {
-          productId: error.message,
-        },
-      };
-    }
-
     return {
       errors: {
         form: "Unable to create customer. Please check the details and try again.",
@@ -560,7 +548,6 @@ export async function bulkReassignCustomers(formData: FormData): Promise<void> {
 
 export async function deleteCustomer(formData: FormData): Promise<void> {
   const user = await requireUser();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
 
@@ -607,18 +594,6 @@ export async function deleteCustomer(formData: FormData): Promise<void> {
       });
 
       if (accountIds.length > 0) {
-        for (const account of customer.accounts) {
-          if (account.inventoryStaffId) {
-            await restoreStaffInventory({
-              tx,
-              userId: user.id,
-              staffId: account.inventoryStaffId,
-              productId: account.productId,
-              accountId: account.id,
-            });
-          }
-        }
-
         await tx.payment.deleteMany({
           where: {
             accountId: {

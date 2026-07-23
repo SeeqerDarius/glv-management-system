@@ -28,11 +28,6 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
-import {
-  consumeStaffInventory,
-  restoreStaffInventory,
-} from "@/lib/staff-inventory";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type AccountFormState = {
   errors?: {
@@ -108,7 +103,6 @@ export async function createAccount(
   formData: FormData
 ): Promise<AccountFormState> {
   const user = await requireUser();
-  await ensureStaffInventorySchema();
 
   const customerId = cleanInput(formData.get("customerId"));
   const productId = cleanInput(formData.get("productId"));
@@ -223,7 +217,6 @@ export async function createAccount(
         customerId: customer.id,
         product,
         startDate,
-        inventoryStaffId: customer.staffId,
       });
 
       if (wantsFirstPayment && firstPaymentDate) {
@@ -250,14 +243,6 @@ export async function createAccount(
     });
   } catch (error) {
     console.error("CREATE_ACCOUNT_ERROR", error);
-    if (error instanceof Error && error.name === "StaffInventoryError") {
-      return {
-        errors: {
-          productId: error.message,
-        },
-      };
-    }
-
     return {
       errors: {
         form: "Unable to create account. Please check the details and try again.",
@@ -275,7 +260,6 @@ export async function createAccount(
 
 export async function deleteAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const requestedReturnTo = cleanInput(formData.get("returnTo"));
@@ -320,16 +304,6 @@ export async function deleteAccount(formData: FormData): Promise<void> {
         },
       });
 
-      if (account.inventoryStaffId) {
-        await restoreStaffInventory({
-          tx,
-          userId: user.id,
-          staffId: account.inventoryStaffId,
-          productId: account.productId,
-          accountId: account.id,
-        });
-      }
-
       await tx.payment.deleteMany({
         where: {
           accountId: account.id,
@@ -353,7 +327,6 @@ export async function deleteAccount(formData: FormData): Promise<void> {
 
 export async function updateAccountPrice(formData: FormData): Promise<void> {
   const user = await requireAdmin();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);
@@ -450,7 +423,6 @@ export async function updateAccountPrice(formData: FormData): Promise<void> {
 
 export async function updateAccountProduct(formData: FormData): Promise<void> {
   const user = await requireAdmin();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const productId = cleanInput(formData.get("productId"));
@@ -520,24 +492,12 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const inventoryStaffId = account.inventoryStaffId ?? account.customer.staffId;
-      if (account.inventoryStaffId) {
-        await restoreStaffInventory({
-          tx,
-          userId: user.id,
-          staffId: account.inventoryStaffId,
-          productId: account.productId,
-          accountId: account.id,
-        });
-      }
-
       await tx.customerAccount.update({
         where: {
           id: account.id,
         },
         data: {
           productId: product.id,
-          inventoryStaffId,
           targetAmount: nextTargetAmount,
           dailyAmount: nextDailyAmount,
           expectedEndDate,
@@ -547,14 +507,6 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
           deliveredAt: null,
           deliveredBy: null,
         },
-      });
-
-      await consumeStaffInventory({
-        tx,
-        userId: user.id,
-        staffId: inventoryStaffId,
-        productId: product.id,
-        accountId: account.id,
       });
 
       const existingCredits = await tx.customerCredit.aggregate({
@@ -599,7 +551,6 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
           oldValue: JSON.stringify({
             productId: account.productId,
             productName: account.product.name,
-            inventoryStaffId: account.inventoryStaffId,
             targetAmount: account.targetAmount,
             dailyAmount: account.dailyAmount,
             expectedEndDate: account.expectedEndDate,
@@ -612,7 +563,6 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
           newValue: JSON.stringify({
             productId: product.id,
             productName: product.name,
-            inventoryStaffId,
             targetAmount: nextTargetAmount,
             dailyAmount: nextDailyAmount,
             expectedEndDate,
@@ -631,10 +581,6 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
     });
   } catch (error) {
     console.error("UPDATE_ACCOUNT_PRODUCT_ERROR", error);
-    if (error instanceof Error && error.name === "StaffInventoryError") {
-      redirect(`${returnTo}?error=staff-inventory-empty`);
-    }
-
     redirect(`${returnTo}?error=invalid-account-product`);
   }
 
@@ -648,7 +594,6 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
 
 export async function updateAccountDeliveryStatus(formData: FormData): Promise<void> {
   const user = await requireUser();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const nextStatusValue = cleanInput(formData.get("deliveryStatus"));
@@ -746,7 +691,6 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
 
 export async function reactivateDormantAccount(formData: FormData): Promise<void> {
   const user = await requireAdmin();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const returnTo = safeReturnTo(cleanInput(formData.get("returnTo")), `/accounts/${id}`);

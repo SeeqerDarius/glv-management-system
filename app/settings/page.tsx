@@ -55,7 +55,6 @@ const defaults = {
   minimumDeposit: 0,
   defaultCurrency: "GHS",
   defaultMonthlySalary: 0,
-  defaultStaffInventoryQuantity: 10,
   commissionEnabled: false,
   commissionPercentage: 0,
   payrollDay: 1,
@@ -89,7 +88,6 @@ const errorMessages: Record<string, string> = {
   "invalid-number": "Amounts and percentages must be valid positive numbers.",
   "invalid-percent": "Percentage values cannot be more than 100.",
   "invalid-payroll-day": "Payroll day must be between 1 and 31.",
-  "invalid-default-staff-inventory": "Default staff inventory must be zero or more.",
   "invalid-payment-edit-window": "Payment edit window must be between 3 and 16 hours.",
   "invalid-staff-code-length": "Staff code length must be between 2 and 8 characters.",
   "invalid-password-length": "Password length must be at least 6 characters.",
@@ -443,10 +441,6 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <ToggleField label="Commission Enabled" name="commissionEnabled" defaultChecked={values.commissionEnabled} />
           <Field label="Commission Percentage" name="commissionPercentage" type="number" min={0} max={100} step="0.01" defaultValue={values.commissionPercentage} />
           <Field label="Payroll Day" name="payrollDay" type="number" min={1} max={31} defaultValue={values.payrollDay} />
-        </SettingsSection>
-
-        <SettingsSection title="Inventory Settings" description="Default product stock assigned to staff when staff or products are created. Existing stock counts are not overwritten.">
-          <Field label="Default Staff Product Stock" name="defaultStaffInventoryQuantity" type="number" min={0} defaultValue={values.defaultStaffInventoryQuantity} />
         </SettingsSection>
 
         <SettingsSection title="Receipt Settings" description="Numbering rules for receipts, customer IDs, and staff codes.">

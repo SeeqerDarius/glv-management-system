@@ -38,7 +38,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 type AccountDetailsPageProps = {
   params: Promise<{
@@ -82,7 +81,6 @@ export default async function AccountDetailsPage({
   const settings = await getSettings();
   const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
 
-  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses();
 
   const account = await prisma.customerAccount.findFirst({
@@ -362,13 +360,6 @@ export default async function AccountDetailsPage({
       {error === "invalid-account-product" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Select an active replacement product before correcting this account.
-        </div>
-      ) : null}
-
-      {error === "staff-inventory-empty" ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          The assigned staff member has no stock for the replacement product.
-          Restock the staff inventory first.
         </div>
       ) : null}
 

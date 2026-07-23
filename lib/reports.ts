@@ -11,7 +11,6 @@ import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export function getCurrentWeekRange(now = new Date()) {
   const day = now.getDay();
@@ -99,7 +98,6 @@ function expectedCollectionForRange(
 }
 
 export async function getAdminReportSummary() {
-  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses();
 
   const month = getCurrentMonthRange();
@@ -313,7 +311,6 @@ export async function getWeeklyCollectionTrend(weeks: number, now = new Date()) 
 }
 
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
-  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses(now);
 
   const { start, end } = getCurrentWeekRange(now);
@@ -764,7 +761,6 @@ export async function getActivityReport({
   includeFinancialValues?: boolean;
   now?: Date;
 }) {
-  await ensureStaffInventorySchema();
   await refreshAccountLifecycleStatuses(now);
 
   const week = getCurrentWeekRange(now);

@@ -3,10 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import {
-  normalizeDefaultStaffInventoryQuantity,
-  syncDefaultInventoryForAllStaff,
-} from "@/lib/default-staff-inventory";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
 import { ensureSettingsSchema } from "@/lib/settings-schema";
@@ -57,10 +53,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
   const paymentEditWindowHours = integerValue(formData, "paymentEditWindowHours");
   const minimumDeposit = numberValue(formData, "minimumDeposit");
   const defaultMonthlySalary = numberValue(formData, "defaultMonthlySalary");
-  const defaultStaffInventoryQuantity = integerValue(
-    formData,
-    "defaultStaffInventoryQuantity"
-  );
   const commissionPercentage = numberValue(formData, "commissionPercentage");
   const payrollDay = integerValue(formData, "payrollDay");
   const staffCodeLength = integerValue(formData, "staffCodeLength");
@@ -89,12 +81,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
   }
   if (payrollDay < 1 || payrollDay > 31 || Number.isNaN(payrollDay)) {
     redirect("/settings?error=invalid-payroll-day");
-  }
-  if (
-    defaultStaffInventoryQuantity < 0 ||
-    Number.isNaN(defaultStaffInventoryQuantity)
-  ) {
-    redirect("/settings?error=invalid-default-staff-inventory");
   }
   if (staffCodeLength < 2 || staffCodeLength > 8 || Number.isNaN(staffCodeLength)) {
     redirect("/settings?error=invalid-staff-code-length");
@@ -129,7 +115,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
     minimumDeposit,
     defaultCurrency: text(formData, "defaultCurrency") || "GHS",
     defaultMonthlySalary,
-    defaultStaffInventoryQuantity,
     commissionEnabled: enabled(formData, "commissionEnabled"),
     commissionPercentage,
     payrollDay,
@@ -157,12 +142,6 @@ export async function updateSettings(formData: FormData): Promise<void> {
     const setting = existing
       ? await tx.setting.update({ where: { id: existing.id }, data })
       : await tx.setting.create({ data });
-    const inventoryRecordsCreated = await syncDefaultInventoryForAllStaff({
-      tx,
-      quantity: normalizeDefaultStaffInventoryQuantity(
-        defaultStaffInventoryQuantity
-      ),
-    });
 
     await tx.auditLog.create({
       data: {
@@ -171,10 +150,7 @@ export async function updateSettings(formData: FormData): Promise<void> {
         entity: "Setting",
         entityId: setting.id,
         oldValue: existing ? JSON.stringify(existing) : null,
-        newValue: JSON.stringify({
-          ...data,
-          inventoryRecordsCreated,
-        }),
+        newValue: JSON.stringify(data),
       },
     });
   });

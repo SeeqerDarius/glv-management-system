@@ -6,7 +6,6 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 const DORMANT_AFTER_DAYS = 21;
 const PROBATION_AFTER_MONTHS = 4;
@@ -122,8 +121,6 @@ export function getClosureRefundAmounts(totalPaid: number) {
 }
 
 export async function refreshAccountLifecycleStatuses(now = new Date()) {
-  await ensureStaffInventorySchema();
-
   const archiveCutoff = addDays(now, -ARCHIVE_AFTER_DELIVERY_DAYS);
   const deliveredCompletedAccounts = await prisma.customerAccount.findMany({
     where: {

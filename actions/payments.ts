@@ -20,7 +20,6 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type PaymentFormState = {
   errors?: {
@@ -137,7 +136,6 @@ export async function recordPayment(
   formData: FormData
 ): Promise<PaymentFormState> {
   const user = await requireUser();
-  await ensureStaffInventorySchema();
 
   const accountId = cleanInput(formData.get("accountId"));
   const amount = Number(cleanInput(formData.get("amount")));

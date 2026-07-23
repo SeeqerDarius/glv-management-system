@@ -8,22 +8,12 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
-import { ensureStaffInventorySchemaForRead } from "@/lib/staff-inventory-schema";
 
 type ProfilePageProps = {
   searchParams: Promise<{
     saved?: string;
     passwordChanged?: string;
   }>;
-};
-
-type ProfileInventoryItem = {
-  id: string;
-  quantity: number;
-  product: {
-    name: string;
-    category: string;
-  };
 };
 
 function formatDate(date: Date) {
@@ -43,27 +33,11 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   }
 
   const { saved, passwordChanged } = await searchParams;
-  const inventorySchemaReady = await ensureStaffInventorySchemaForRead("PROFILE");
   const [user, pendingCount] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },
       include: {
-        staff: inventorySchemaReady
-          ? {
-              include: {
-                inventory: {
-                  include: {
-                    product: true,
-                  },
-                  orderBy: {
-                    product: {
-                      name: "asc",
-                    },
-                  },
-                },
-              },
-            }
-          : true,
+        staff: true,
         profileRequests: {
           orderBy: { createdAt: "desc" },
           take: 8,
@@ -80,11 +54,6 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   if (!user) {
     redirect("/dashboard");
   }
-
-  const staffInventory: ProfileInventoryItem[] | null =
-    user.staff && "inventory" in user.staff && Array.isArray(user.staff.inventory)
-      ? (user.staff.inventory as ProfileInventoryItem[])
-      : null;
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -126,58 +95,6 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
       />
 
       <ProfilePasswordForm />
-
-      {user.staff ? (
-        <section className="rounded-lg border bg-white p-5">
-          <h2 className="text-lg font-semibold text-gray-950">My Inventory</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Products currently allocated to your staff profile. Creating a
-            customer account uses one unit from this stock.
-          </p>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">
-                  <th className="p-3">Product</th>
-                  <th className="p-3">Category</th>
-                  <th className="p-3 text-right">Available</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {staffInventory?.map((item) => (
-                  <tr key={item.id}>
-                    <td className="p-3 font-semibold text-gray-950">
-                      {item.product.name}
-                    </td>
-                    <td className="p-3 text-gray-700">{item.product.category}</td>
-                    <td className="p-3 text-right">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          item.quantity > 0
-                            ? "bg-green-100 text-green-700"
-                            : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        {item.quantity}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {staffInventory?.length === 0 ? (
-              <p className="border-t py-8 text-center text-sm text-gray-600">
-                No products have been allocated to your inventory yet.
-              </p>
-            ) : null}
-            {!staffInventory ? (
-              <p className="border-t py-8 text-center text-sm text-gray-600">
-                Inventory is temporarily unavailable. Please refresh shortly.
-              </p>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
 
       <section className="rounded-lg border bg-white p-5">
         <h2 className="text-lg font-semibold text-gray-950">

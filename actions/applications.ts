@@ -10,11 +10,6 @@ import { isSuperAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
 import { generateStaffCode } from "@/actions/staff";
 import { getMonthStart } from "@/lib/salary-history";
-import {
-  assignDefaultInventoryToStaff,
-  normalizeDefaultStaffInventoryQuantity,
-} from "@/lib/default-staff-inventory";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type SignupState = {
   error?: string;
@@ -117,7 +112,6 @@ export async function approveStaffApplication(
   formData: FormData
 ): Promise<ApprovalState> {
   const reviewer = await requireApplicationReviewer();
-  await ensureStaffInventorySchema();
 
   const id = cleanInput(formData.get("id"));
   const application = await prisma.staffApplication.findUnique({
@@ -174,13 +168,6 @@ export async function approveStaffApplication(
           staffId: staff.id,
         },
       });
-      const inventoryRecordsCreated = await assignDefaultInventoryToStaff({
-        tx,
-        staffId: staff.id,
-        quantity: normalizeDefaultStaffInventoryQuantity(
-          settings.defaultStaffInventoryQuantity
-        ),
-      });
 
       await tx.staffApplication.update({
         where: {
@@ -205,9 +192,6 @@ export async function approveStaffApplication(
             userId: user.id,
             email: application.email,
             code,
-            defaultStaffInventoryQuantity:
-              settings.defaultStaffInventoryQuantity,
-            inventoryRecordsCreated,
           }),
         },
       });

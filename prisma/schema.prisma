@@ -55,8 +55,6 @@ model Staff {
   salaryPayments StaffSalaryPayment[]
   salaryHistory  StaffSalaryHistory[]
   user           User?
-  inventory      StaffInventory[]
-  inventoryAccounts CustomerAccount[] @relation("AccountInventoryStaff")
 }
 
 model StaffApplication {
@@ -99,22 +97,6 @@ model Product {
   transportCost  Float             @default(0)
   quantityOnSale Int               @default(0)
   accounts       CustomerAccount[]
-  staffInventory StaffInventory[]
-}
-
-model StaffInventory {
-  id        String   @id @default(cuid())
-  staffId   String
-  productId String
-  quantity  Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-
-  @@unique([staffId, productId])
-  @@index([productId])
-  @@index([quantity])
 }
 
 model ProductCategory {
@@ -188,7 +170,6 @@ model CustomerAccount {
   id              String        @id @default(cuid())
   customerId      String
   productId       String
-  inventoryStaffId String?
   startDate       DateTime
   expectedEndDate DateTime
   targetAmount    Float
@@ -202,7 +183,6 @@ model CustomerAccount {
   createdAt       DateTime      @default(now())
   customer        Customer      @relation(fields: [customerId], references: [id])
   product         Product       @relation(fields: [productId], references: [id])
-  inventoryStaff  Staff?        @relation("AccountInventoryStaff", fields: [inventoryStaffId], references: [id])
   payments        Payment[]
   credits         CustomerCredit[]
 }
@@ -280,7 +260,6 @@ model Setting {
   paymentEditWindowHours          Int       @default(3)
   defaultCurrency                 String    @default("GHS")
   defaultMonthlySalary            Float     @default(0)
-  defaultStaffInventoryQuantity   Int       @default(10)
   commissionEnabled               Boolean   @default(false)
   commissionPercentage            Float     @default(0)
   payrollDay                      Int       @default(1)

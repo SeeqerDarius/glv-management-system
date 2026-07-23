@@ -10,14 +10,9 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { isAdminRole, isSuperAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
-import {
-  assignDefaultInventoryToStaff,
-  normalizeDefaultStaffInventoryQuantity,
-} from "@/lib/default-staff-inventory";
 import { parsePermissions } from "@/lib/permissions";
 import { getSettings } from "@/lib/settings";
 import { getMonthStart } from "@/lib/salary-history";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type StaffFormState = {
   errors?: {
@@ -225,7 +220,6 @@ export async function createStaff(
   formData: FormData
 ): Promise<StaffFormState> {
   const user = await requireStaffManager();
-  await ensureStaffInventorySchema();
 
   const fullName = cleanInput(formData.get("fullName"));
   const position = cleanInput(formData.get("position"));
@@ -335,13 +329,6 @@ export async function createStaff(
           profileImageUrl: imageResult.imageUrl,
         },
       });
-      const inventoryRecordsCreated = await assignDefaultInventoryToStaff({
-        tx,
-        staffId: createdStaff.id,
-        quantity: normalizeDefaultStaffInventoryQuantity(
-          settings.defaultStaffInventoryQuantity
-        ),
-      });
 
       await tx.auditLog.create({
         data: {
@@ -356,9 +343,6 @@ export async function createStaff(
             code,
             role: UserRole.STAFF,
             mustChangePassword: true,
-            defaultStaffInventoryQuantity:
-              settings.defaultStaffInventoryQuantity,
-            inventoryRecordsCreated,
           }),
         },
       });

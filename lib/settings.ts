@@ -16,7 +16,6 @@ export const fallbackSettings = {
   procurementThresholdPercent: 70,
   paymentEditWindowHours: 3,
   defaultMonthlySalary: 0,
-  defaultStaffInventoryQuantity: 10,
   receiptPrefix: "GLV/RCPT",
   customerIdPrefix: "GLV",
   staffCodeLength: 3,

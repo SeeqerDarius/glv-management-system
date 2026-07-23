@@ -3,11 +3,9 @@ import { createCustomer } from "@/actions/customers";
 import { CustomerForm } from "@/components/customer-form";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export default async function NewCustomerPage() {
   const session = await auth();
-  await ensureStaffInventorySchema();
 
   const canAssignStaff = session?.user?.role === UserRole.ADMIN || session?.user?.role === UserRole.SUPER_ADMIN;
   const staff = canAssignStaff
@@ -35,12 +33,6 @@ export default async function NewCustomerPage() {
       layawayPrice: true,
       dailyAmount: true,
       duration: true,
-      staffInventory: {
-        select: {
-          staffId: true,
-          quantity: true,
-        },
-      },
     },
   });
   const existingCustomers = await prisma.customer.findMany({

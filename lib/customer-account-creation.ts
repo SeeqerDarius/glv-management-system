@@ -1,6 +1,4 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
-import { consumeStaffInventory } from "@/lib/staff-inventory";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export function parseAccountStartDate(value: string) {
   if (!value) return null;
@@ -39,17 +37,13 @@ export async function createCustomerAccountForProduct({
   customerId,
   product,
   startDate,
-  inventoryStaffId,
 }: {
   tx: Prisma.TransactionClient;
   userId: string;
   customerId: string;
   product: AccountProduct;
   startDate: Date;
-  inventoryStaffId: string;
 }) {
-  await ensureStaffInventorySchema();
-
   const targetAmount = product.layawayPrice;
   const dailyAmount = product.dailyAmount;
   const expectedEndDate = addDays(startDate, product.duration);
@@ -70,7 +64,6 @@ export async function createCustomerAccountForProduct({
     data: {
       customerId,
       productId: product.id,
-      inventoryStaffId,
       targetAmount,
       dailyAmount,
       startDate,
@@ -79,14 +72,6 @@ export async function createCustomerAccountForProduct({
       balance: targetAmount,
       status: AccountStatus.ACTIVE,
     },
-  });
-
-  await consumeStaffInventory({
-    tx,
-    userId,
-    staffId: inventoryStaffId,
-    productId: product.id,
-    accountId: account.id,
   });
 
   await tx.auditLog.create({
@@ -99,7 +84,6 @@ export async function createCustomerAccountForProduct({
         accountId: account.id,
         customerId,
         productId: product.id,
-        inventoryStaffId,
       }),
     },
   });

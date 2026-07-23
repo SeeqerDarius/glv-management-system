@@ -27,10 +27,6 @@ type ProductOption = {
   dailyAmount: number;
   duration: number;
   imageUrl?: string | null;
-  staffInventory: Array<{
-    staffId: string;
-    quantity: number;
-  }>;
 };
 
 type AccountFormProps = {
@@ -65,18 +61,8 @@ export function AccountForm({
     selectedCustomerExists ? selectedCustomerId : ""
   );
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
-  const availableProducts = selectedCustomer
-    ? products
-        .map((product) => ({
-          ...product,
-          staffQuantity:
-            product.staffInventory.find(
-              (inventory) => inventory.staffId === selectedCustomer.staff.id
-            )?.quantity ?? 0,
-        }))
-        .filter((product) => product.staffQuantity > 0)
-    : [];
-  const selectedProduct = availableProducts.find(
+  const availableProducts = selectedCustomer ? products : [];
+  const selectedProduct = products.find(
     (product) => product.id === selectedProductId
   );
   const today = todayDateInputValue();
@@ -134,7 +120,7 @@ export function AccountForm({
         >
           <option value="">
             {selectedCustomer
-              ? "Select product from staff inventory"
+              ? "Select product"
               : "Select customer first"}
           </option>
           {availableProducts.map((product) => (
@@ -142,16 +128,9 @@ export function AccountForm({
               {product.name} - {product.category} |{" "}
               {formatMoney(product.layawayPrice)} |{" "}
               {formatMoney(product.dailyAmount)}/day | {product.duration} days
-              {" "}({product.staffQuantity} in staff inventory)
             </option>
           ))}
         </select>
-        {selectedCustomer && availableProducts.length === 0 ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            This staff member has no product stock available. Admin or Super
-            Admin must restock their inventory first.
-          </p>
-        ) : null}
         {selectedProduct ? (
           <div className="grid gap-3 rounded-md border border-lime-200 bg-lime-50 p-3 text-sm sm:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)]">
             <ProductImagePreview
@@ -169,9 +148,6 @@ export function AccountForm({
               <p className="mt-0.5 text-xs text-gray-600">
                 {selectedProduct.category} | {formatMoney(selectedProduct.layawayPrice)} |{" "}
                 {formatMoney(selectedProduct.dailyAmount)}/day
-              </p>
-              <p className="mt-1 text-xs font-semibold text-green-800">
-                Staff inventory: {selectedProduct.staffQuantity}
               </p>
               {selectedProduct.imageUrl ? (
                 <p className="mt-2 text-xs font-medium text-green-700">

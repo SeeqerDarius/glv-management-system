@@ -8,12 +8,6 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
-import {
-  assignDefaultInventoryForProduct,
-  normalizeDefaultStaffInventoryQuantity,
-} from "@/lib/default-staff-inventory";
-import { getSettings } from "@/lib/settings";
-import { ensureStaffInventorySchema } from "@/lib/staff-inventory-schema";
 
 export type ProductFormState = {
   errors?: {
@@ -314,7 +308,6 @@ export async function createProduct(
   formData: FormData
 ): Promise<ProductFormState> {
   const user = await requireProductManager();
-  await ensureStaffInventorySchema();
   const validated = validateProduct(formData);
 
   if (validated.errors || !validated.data) {
@@ -346,7 +339,6 @@ export async function createProduct(
     };
   }
 
-  const settings = await getSettings();
   const active = formData.get("active") === "on";
   const product = await prisma.$transaction(async (tx) => {
     const createdProduct = await tx.product.create({
@@ -357,15 +349,6 @@ export async function createProduct(
         active,
       },
     });
-    const inventoryRecordsCreated = active
-      ? await assignDefaultInventoryForProduct({
-          tx,
-          productId: createdProduct.id,
-          quantity: normalizeDefaultStaffInventoryQuantity(
-            settings.defaultStaffInventoryQuantity
-          ),
-        })
-      : 0;
 
     await tx.auditLog.create({
       data: {
@@ -373,12 +356,7 @@ export async function createProduct(
         action: "CREATE_PRODUCT",
         entity: "Product",
         entityId: createdProduct.id,
-        newValue: JSON.stringify({
-          ...createdProduct,
-          defaultStaffInventoryQuantity:
-            settings.defaultStaffInventoryQuantity,
-          inventoryRecordsCreated,
-        }),
+        newValue: JSON.stringify(createdProduct),
       },
     });
 
@@ -397,7 +375,6 @@ export async function updateProduct(
   formData: FormData
 ): Promise<ProductFormState> {
   const user = await requireProductManager();
-  await ensureStaffInventorySchema();
   const id = cleanInput(formData.get("id"));
   const validated = validateProduct(formData);
 
@@ -454,11 +431,10 @@ export async function updateProduct(
     await del(existingProduct.imageUrl).catch(() => undefined);
   }
 
-  const settings = await getSettings();
   const nextActive = formData.get("active") === "on";
-  const { updatedProduct, inventoryRecordsCreated } = await prisma.$transaction(
+  const updatedProduct = await prisma.$transaction(
     async (tx) => {
-      const product = await tx.product.update({
+      return tx.product.update({
         where: { id },
         data: {
           ...productData,
@@ -467,20 +443,6 @@ export async function updateProduct(
           active: nextActive,
         },
       });
-      const createdCount = nextActive
-        ? await assignDefaultInventoryForProduct({
-            tx,
-            productId: product.id,
-            quantity: normalizeDefaultStaffInventoryQuantity(
-              settings.defaultStaffInventoryQuantity
-            ),
-          })
-        : 0;
-
-      return {
-        updatedProduct: product,
-        inventoryRecordsCreated: createdCount,
-      };
     }
   );
 
@@ -491,18 +453,6 @@ export async function updateProduct(
     oldValue: existingProduct,
     newValue: updatedProduct,
   });
-  if (inventoryRecordsCreated > 0) {
-    await logProductAudit({
-      userId: user.id,
-      action: "ASSIGN_DEFAULT_PRODUCT_INVENTORY",
-      productId: updatedProduct.id,
-      newValue: {
-        defaultStaffInventoryQuantity:
-          settings.defaultStaffInventoryQuantity,
-        inventoryRecordsCreated,
-      },
-    });
-  }
 
   await logProductAudit({
     userId: user.id,
