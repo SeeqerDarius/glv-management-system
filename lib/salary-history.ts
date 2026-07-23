@@ -5,6 +5,7 @@ export type SalaryHistoryEntry = {
 
 export type SalaryTrackedStaff = {
   monthlySalary: number;
+  createdAt?: Date;
   salaryHistory?: SalaryHistoryEntry[];
 };
 
@@ -17,6 +18,20 @@ export function getEffectiveMonthlySalary(
   monthDate = new Date()
 ) {
   const monthStart = getMonthStart(monthDate);
+  const monthEnd = new Date(
+    monthStart.getFullYear(),
+    monthStart.getMonth() + 1,
+    0,
+    23,
+    59,
+    59,
+    999
+  );
+
+  if (staff.createdAt && staff.createdAt > monthEnd) {
+    return 0;
+  }
+
   const history = [...(staff.salaryHistory ?? [])].sort(
     (a, b) => a.effectiveMonth.getTime() - b.effectiveMonth.getTime()
   );

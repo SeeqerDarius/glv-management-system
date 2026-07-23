@@ -107,6 +107,7 @@ export async function getAdminReportSummary() {
   const staff = await prisma.staff.findMany({
     select: {
       monthlySalary: true,
+      createdAt: true,
       active: true,
       salaryHistory: { orderBy: { effectiveMonth: "asc" } },
     },
