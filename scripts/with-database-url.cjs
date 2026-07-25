@@ -1,9 +1,24 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
+require("dotenv/config");
+
 const { spawnSync } = require("node:child_process");
 
 function clean(value) {
   return value?.replace(/^"|"$/g, "").trim();
+}
+
+function requireVerifiedSsl(value) {
+  if (!value) return value;
+
+  try {
+    const url = new URL(value);
+    url.searchParams.set("sslmode", "require");
+    url.searchParams.set("sslcert", "prod-ca-2021.crt");
+    return url.toString();
+  } catch {
+    return value;
+  }
 }
 
 const [command, ...args] = process.argv.slice(2);
@@ -13,12 +28,12 @@ if (!command) {
   process.exit(1);
 }
 
-const databaseUrl = clean(process.env.DATABASE_URL);
-const directUrl = clean(
+const databaseUrl = requireVerifiedSsl(clean(process.env.DATABASE_URL));
+const directUrl = requireVerifiedSsl(clean(
   process.env.DATABASE_URL_UNPOOLED ||
     process.env.DIRECT_URL ||
     process.env.POSTGRES_URL_NON_POOLING
-);
+));
 const isPrismaMigrate =
   command === "prisma" && args[0] === "migrate";
 const isMigrateDeploy =
@@ -27,8 +42,8 @@ const env = { ...process.env };
 
 if (isPrismaMigrate && directUrl) {
   env.DATABASE_URL = directUrl;
-} else if (!databaseUrl && directUrl) {
-  env.DATABASE_URL = directUrl;
+} else {
+  env.DATABASE_URL = databaseUrl || directUrl;
 }
 
 function run() {

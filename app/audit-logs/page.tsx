@@ -1,4 +1,8 @@
+import { redirect } from "next/navigation";
+import { UserPermission } from "@prisma/client";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type AuditLogsPageProps = {
   searchParams: Promise<{
@@ -133,6 +137,19 @@ function actionVariant(action: string) {
 }
 
 export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps) {
+  const session = await auth();
+  const canViewAuditLogs =
+    isAdminRole(session?.user?.role) ||
+    hasPermission(
+      session?.user?.role,
+      session?.user?.permissions,
+      UserPermission.VIEW_AUDIT_LOGS
+    );
+
+  if (!canViewAuditLogs) {
+    redirect("/dashboard");
+  }
+
   const { q, sort } = await searchParams;
   const query = q?.trim() ?? "";
   const sortParam = sort ?? "";

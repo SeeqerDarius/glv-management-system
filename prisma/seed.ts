@@ -1,30 +1,33 @@
 import { PrismaClient, UserRole } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "node:crypto";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminPassword = await bcrypt.hash("Admin@2026", 10);
+  const temporaryPassword = `${randomBytes(18).toString("base64url")}Aa1!`;
+  const adminPassword = await bcrypt.hash(temporaryPassword, 10);
 
   await prisma.user.upsert({
     where: {
-      email: "admin@glv.com",
+      email: "rockfrostconsult@gmail.com",
     },
     update: {
       password: adminPassword,
       role: UserRole.ADMIN,
-      mustChangePassword: false,
+      mustChangePassword: true,
     },
     create: {
       name: "Andy",
-      email: "admin@glv.com",
+      email: "rockfrostconsult@gmail.com",
       password: adminPassword,
       role: UserRole.ADMIN,
-      mustChangePassword: false,
+      mustChangePassword: true,
     },
   });
 
-  console.log("Admin password reset to Admin@2026");
+  console.log(`Owner account created. Temporary password: ${temporaryPassword}`);
+  console.log("A password change is required at first login.");
 }
 
 main()

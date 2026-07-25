@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { Prisma } from "@prisma/client";
+import { redirect } from "next/navigation";
+import { UserPermission, type Prisma } from "@prisma/client";
 import { SearchIcon, Eye, Pencil, Trash2, UserX } from "lucide-react";
 import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
@@ -9,7 +10,7 @@ import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isSuperAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole, isSuperAdminRole } from "@/lib/roles";
 
 const onlineWindowMs = 5 * 60 * 1000;
 
@@ -107,6 +108,18 @@ type StaffRow = StaffListItem & {
 export default async function StaffPage({ searchParams }: StaffPageProps) {
   const { q, sort, error, deleted } = await searchParams;
   const session = await auth();
+  const canViewStaff =
+    isAdminRole(session?.user?.role) ||
+    hasPermission(
+      session?.user?.role,
+      session?.user?.permissions,
+      UserPermission.VIEW_STAFF
+    );
+
+  if (!canViewStaff) {
+    redirect("/dashboard");
+  }
+
   const canManageStaff = isSuperAdminRole(session?.user?.role);
   const query = q?.trim() ?? "";
   const sortParam = sort ?? "";

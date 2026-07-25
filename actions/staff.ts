@@ -404,6 +404,14 @@ export async function updateStaff(formData: FormData): Promise<void> {
   const requestedPermissions = canGrantPrivileges
     ? parsePermissions(formData.getAll("permissions"))
     : existingStaff.user?.permissions ?? [];
+  const requestedRole =
+    cleanInput(formData.get("role")) === UserRole.ADMIN
+      ? UserRole.ADMIN
+      : UserRole.STAFF;
+  const updatedRole =
+    existingStaff.user?.role === UserRole.SUPER_ADMIN
+      ? UserRole.SUPER_ADMIN
+      : requestedRole;
   const imageResult = await uploadStaffProfileImage({
     staffKey: existingStaff.user?.id ?? existingStaff.id,
     formData,
@@ -466,10 +474,30 @@ export async function updateStaff(formData: FormData): Promise<void> {
           ...(canGrantPrivileges
             ? {
                 permissions: requestedPermissions,
+                role: updatedRole,
               }
             : {}),
         },
       });
+
+      if (existingStaff.user.role !== updatedRole) {
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "UPDATE_USER_ROLE",
+            entity: "User",
+            entityId: existingStaff.user.id,
+            oldValue: JSON.stringify({
+              role: existingStaff.user.role,
+              staffId: updatedStaff.id,
+            }),
+            newValue: JSON.stringify({
+              role: updatedRole,
+              staffId: updatedStaff.id,
+            }),
+          },
+        });
+      }
 
       if (
         canGrantPrivileges &&
@@ -508,6 +536,7 @@ export async function updateStaff(formData: FormData): Promise<void> {
   revalidatePath("/staff");
   revalidatePath("/profile");
   revalidatePath(`/staff/${staff.id}`);
+  revalidatePath("/dashboard");
   revalidatePath("/", "layout");
   redirect("/staff");
 }

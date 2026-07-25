@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { UserPermission } from "@prisma/client";
 import {
   Eye,
   FileSpreadsheet,
@@ -12,9 +14,11 @@ import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
+import { auth } from "@/lib/auth";
 import { ProductCategoryBadge } from "@/lib/product-categories";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 
 type ProductsPageProps = {
   searchParams: Promise<{
@@ -59,6 +63,19 @@ function percent(value: number) {
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const session = await auth();
+  const canManageProducts =
+    isAdminRole(session?.user?.role) ||
+    hasPermission(
+      session?.user?.role,
+      session?.user?.permissions,
+      UserPermission.MANAGE_PRODUCTS
+    );
+
+  if (!canManageProducts) {
+    redirect("/dashboard");
+  }
+
   const { q, tab, sort, error, deleted } = await searchParams;
   const query = q?.trim() ?? "";
   const activeTab = tab === "procurement" ? "procurement" : "products";

@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/*": ["./prisma/prod-ca-2021.crt"],
+  },
 };
 
 export default nextConfig;

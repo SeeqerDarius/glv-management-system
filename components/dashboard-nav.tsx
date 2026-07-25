@@ -86,7 +86,7 @@ export function DashboardNav({
   const firstAdminHref = visibleNavigation.find((item) => item.adminSection)?.href;
 
   return (
-    <nav className="flex-1 overflow-y-auto p-3">
+    <nav className="flex-1 overflow-y-auto p-3 [overscroll-behavior:contain]">
       {visibleNavigation.map((item) => {
           const isActive =
             item.href === "/dashboard"

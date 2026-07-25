@@ -58,6 +58,7 @@ export const authConfig = {
       }
 
       if (
+        !mustChangePassword &&
         isAdminUser &&
         !twoFactorEnabled &&
         !pathname.startsWith(twoFactorSetupRoute)
@@ -65,20 +66,9 @@ export const authConfig = {
         return Response.redirect(new URL(twoFactorSetupRoute, request.nextUrl));
       }
 
-      const permissions = Array.isArray(auth?.user?.permissions)
-        ? auth.user.permissions
-        : [];
       const privilegedRoute = privilegedRoutes.find(({ route }) =>
         pathname.startsWith(route)
       );
-
-      if (
-        role === "STAFF" &&
-        privilegedRoute &&
-        !permissions.includes(privilegedRoute.permission)
-      ) {
-        return Response.redirect(new URL("/dashboard", request.nextUrl));
-      }
 
       if (
         role !== "STAFF" &&

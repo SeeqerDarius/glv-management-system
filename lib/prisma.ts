@@ -1,13 +1,9 @@
-import { neonConfig } from "@neondatabase/serverless";
-import { PrismaNeon } from "@prisma/adapter-neon";
+import path from "node:path";
 import { PrismaClient } from "@prisma/client";
-import ws from "ws";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
-
-neonConfig.webSocketConstructor = ws;
 
 function getDatabaseUrl() {
   const databaseUrl = process.env.DATABASE_URL?.replace(/^"|"$/g, "").trim();
@@ -27,22 +23,22 @@ function getDatabaseUrl() {
     if (!url.searchParams.has("connect_timeout")) {
       url.searchParams.set("connect_timeout", "15");
     }
-    // Remove pool_timeout if it was previously set
     url.searchParams.delete("pool_timeout");
+    url.searchParams.set("sslmode", "require");
+    url.searchParams.set(
+      "sslcert",
+      path.join(process.cwd(), "prisma", "prod-ca-2021.crt")
+    );
     return url.toString();
   } catch {
     return connectionString;
   }
 }
 
-const adapter = new PrismaNeon({
-  connectionString: getDatabaseUrl(),
-});
-
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
-    adapter,
+    datasourceUrl: getDatabaseUrl(),
   });
 
 if (process.env.NODE_ENV !== "production") {

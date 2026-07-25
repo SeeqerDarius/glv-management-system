@@ -1,7 +1,8 @@
+import { UserPermission } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { getCurrentWeekRange } from "@/lib/reports";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { buildWeeklyReportWorkbook } from "@/lib/weekly-excel-report";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,17 @@ function resolveReportDate(weekParam: string | null) {
 
 export async function GET(request: NextRequest) {
   const session = await auth();
+  const canViewReports =
+    isAdminRole(session?.user?.role) ||
+    hasPermission(
+      session?.user?.role,
+      session?.user?.permissions,
+      UserPermission.VIEW_REPORTS
+    );
 
-  if (!session?.user?.id || !isAdminRole(session.user.role)) {
+  if (!session?.user?.id || !canViewReports) {
     return NextResponse.json(
-      { error: "Admin access is required." },
+      { error: "Report access is required." },
       { status: 403 }
     );
   }

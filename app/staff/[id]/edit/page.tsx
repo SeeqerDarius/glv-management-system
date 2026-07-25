@@ -152,13 +152,50 @@ export default async function EditStaffPage({
         ) : null}
 
         {canManageStaff && staff.user ? (
+          <fieldset className="space-y-3 rounded-md border border-blue-200 bg-blue-50 p-4">
+            <div>
+              <legend className="font-semibold text-gray-950">
+                System Role
+              </legend>
+              <p className="mt-1 text-xs text-gray-600">
+                Administrators receive full management access and must set up
+                two-factor authentication.
+              </p>
+            </div>
+            {staff.user.role === "SUPER_ADMIN" ? (
+              <>
+                <input type="hidden" name="role" value="SUPER_ADMIN" />
+                <p className="rounded-md border bg-white p-3 text-sm font-medium text-gray-800">
+                  Super Admin — this protected role cannot be changed here.
+                </p>
+              </>
+            ) : (
+              <label className="block space-y-1">
+                <span className="text-sm font-medium text-gray-700">
+                  Access level
+                </span>
+                <select
+                  name="role"
+                  defaultValue={staff.user.role}
+                  className="w-full rounded border bg-white p-3"
+                >
+                  <option value="STAFF">Staff</option>
+                  <option value="ADMIN">Admin</option>
+                </select>
+              </label>
+            )}
+          </fieldset>
+        ) : null}
+
+        {canManageStaff && staff.user ? (
           <fieldset className="space-y-3 rounded-md border border-lime-200 bg-lime-50 p-4">
             <div>
               <legend className="font-semibold text-gray-950">
                 Assistant Admin Privileges
               </legend>
               <p className="mt-1 text-xs text-gray-600">
-                These privileges extend access while the user&apos;s main role remains STAFF. Give Manage Products to let this staff member add products, view procurement, and download the procurement export.
+                These privileges extend access when the user&apos;s role is
+                Staff. Admins already receive full access.
               </p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">

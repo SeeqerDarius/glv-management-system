@@ -10,7 +10,6 @@ import {
 } from "@/lib/login-rate-limit";
 import { normalizeOwnerRole } from "@/lib/owner";
 import { touchUserPresence } from "@/lib/presence";
-import { getTwoFactorState } from "@/lib/security-schema";
 import { verifyTotpCode } from "@/lib/totp";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -43,18 +42,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             permissions: true,
             staffId: true,
             mustChangePassword: true,
+            twoFactorEnabled: true,
           },
         });
 
         if (user) {
-          const twoFactor = await getTwoFactorState(user.id);
           token.id = user.id;
           token.email = user.email;
           token.role = normalizeOwnerRole(user.email, user.role);
           token.permissions = user.permissions;
           token.staffId = user.staffId;
           token.mustChangePassword = user.mustChangePassword;
-          token.twoFactorEnabled = twoFactor.enabled;
+          token.twoFactorEnabled = user.twoFactorEnabled;
         }
       }
 
@@ -69,17 +68,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             permissions: true,
             staffId: true,
             mustChangePassword: true,
+            twoFactorEnabled: true,
           },
         });
 
         if (freshUser) {
-          const twoFactor = await getTwoFactorState(token.id);
           token.email = freshUser.email;
           token.role = normalizeOwnerRole(freshUser.email, freshUser.role);
           token.permissions = freshUser.permissions;
           token.staffId = freshUser.staffId;
           token.mustChangePassword = freshUser.mustChangePassword;
-          token.twoFactorEnabled = twoFactor.enabled;
+          token.twoFactorEnabled = freshUser.twoFactorEnabled;
         }
       }
 
@@ -120,6 +119,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             permissions: true,
             staffId: true,
             mustChangePassword: true,
+            twoFactorEnabled: true,
+            twoFactorSecret: true,
             staff: {
               select: {
                 active: true,
@@ -148,7 +149,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const normalizedRole = normalizeOwnerRole(user.email, user.role);
-        const twoFactor = await getTwoFactorState(user.id);
+        const twoFactor = {
+          enabled: user.twoFactorEnabled,
+          secret: user.twoFactorSecret,
+        };
         const requiresTwoFactor =
           (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") &&
           twoFactor.enabled;

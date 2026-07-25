@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BotIcon,
   Loader2Icon,
@@ -40,8 +40,19 @@ export function AiSupportChat({ userName, roleLabel }: AiSupportChatProps) {
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const messageListRef = useRef<HTMLDivElement | null>(null);
 
   const canSend = input.trim().length > 0 && !pending;
+
+  useEffect(() => {
+    const messageList = messageListRef.current;
+    if (!open || !messageList) return;
+
+    messageList.scrollTo({
+      top: messageList.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [open, messages, pending]);
 
   async function submitMessage(messageText: string) {
     const cleanMessage = messageText.trim();
@@ -134,7 +145,10 @@ export function AiSupportChat({ userName, roleLabel }: AiSupportChatProps) {
             </button>
           </div>
 
-          <div className="flex-1 space-y-3 overflow-y-auto p-4">
+          <div
+            ref={messageListRef}
+            className="flex-1 space-y-3 overflow-y-auto p-4 [overscroll-behavior:contain]"
+          >
             {messages.map((message, index) => (
               <div
                 key={`${message.role}-${index}`}

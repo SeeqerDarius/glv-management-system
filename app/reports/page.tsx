@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserPermission } from "@prisma/client";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
 import { ReportAnalyticsCharts } from "@/components/reports/analytics-charts";
@@ -15,7 +16,7 @@ import {
   getWeeklyCollectionTrend,
   getWeeklyStaffPerformanceReport,
 } from "@/lib/reports";
-import { isAdminRole } from "@/lib/roles";
+import { hasPermission, isAdminRole } from "@/lib/roles";
 import { salaryMonthInputValue } from "@/lib/salary-periods";
 
 export const dynamic = "force-dynamic";
@@ -69,16 +70,22 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const session = await auth();
-  const isAdmin = isAdminRole(session?.user?.role);
+  const canViewReports =
+    isAdminRole(session?.user?.role) ||
+    hasPermission(
+      session?.user?.role,
+      session?.user?.permissions,
+      UserPermission.VIEW_REPORTS
+    );
   const query = await searchParams;
   let report: Awaited<ReturnType<typeof getWeeklyStaffPerformanceReport>>;
   let trend: Awaited<ReturnType<typeof getWeeklyCollectionTrend>>;
 
-  if (!isAdmin) {
+  if (!canViewReports) {
     return (
       <div className="rounded-lg border bg-white p-5">
         <h1 className="text-xl font-semibold text-gray-950">
-          Reports are available to administrators.
+          You do not have permission to view reports.
         </h1>
         <p className="mt-2 text-sm text-gray-600">
           Use the dashboard, customers, accounts, and payments pages for your

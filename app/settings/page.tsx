@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -500,6 +501,21 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                   Download Backup
                 </a>
               </Button>
+              <Button asChild variant="outline" className="mt-4 ml-3">
+                <a href="/api/admin/database-backup/latest" download>
+                  Download Latest Automatic Backup
+                </a>
+              </Button>
+              <Button asChild variant="outline" className="mt-4 ml-3">
+                <Link href="/settings/import-weekly-report">
+                  Import Weekly Report
+                </Link>
+              </Button>
+              <p className="mt-3 text-xs text-gray-500">
+                Automatic backups run daily at 2:00 AM Ghana time. The two
+                newest encrypted backups are retained, so day three deletes
+                day one.
+              </p>
             </div>
 
             <form

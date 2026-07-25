@@ -108,10 +108,6 @@ html[data-theme="dark"] {
 
 /* ─── Base ─────────────────────────────────────────────────────────────────── */
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
@@ -402,6 +398,12 @@ textarea:focus {
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 0 var(--border), var(--glv-shadow-xs);
+}
+
+/* ─── Mobile Nav Backdrop ─────────────────────────────────────────────────────── */
+
+.glv-backdrop {
+  animation: glv-fade-in 200ms ease-out both;
 }
 
 /* ─── Page Enter Animation ───────────────────────────────────────────────────── */
