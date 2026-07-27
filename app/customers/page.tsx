@@ -4,6 +4,7 @@ import { Eye, HandCoins, SearchIcon, Trash2 } from "lucide-react";
 import { bulkReassignCustomers, deleteCustomer } from "@/actions/customers";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { PaymentModal } from "@/components/payment-modal";
 import { Button } from "@/components/ui/button";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
@@ -99,7 +100,12 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     fullName: string;
     phone: string | null;
     staff: { code: string };
-    accounts: Array<{ id: string }>;
+    accounts: Array<{
+      id: string;
+      balance: number;
+      dailyAmount: number;
+      product: { name: string; imageUrl: string | null };
+    }>;
     _count: { accounts: number };
   }> = [];
   let totalCustomers = 0;
@@ -134,7 +140,12 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
               ],
             },
           },
-          select: { id: true },
+          select: {
+            id: true,
+            balance: true,
+            dailyAmount: true,
+            product: { select: { name: true, imageUrl: true } },
+          },
           take: 1,
         },
         _count: { select: { accounts: true } },
@@ -347,14 +358,29 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
                       </Link>
 
                       {canRecordPayment ? (
-                        <Link
-                          href={`/payments/new?customerId=${customer.id}`}
-                          aria-label={`Record payment for ${customer.fullName}`}
-                          title="Record Payment"
-                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
-                        >
-                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
-                        </Link>
+                        <PaymentModal
+                          accounts={customer.accounts.map((account) => ({
+                            ...account,
+                            customer: {
+                              id: customer.id,
+                              customerId: customer.customerId,
+                              fullName: customer.fullName,
+                            },
+                          }))}
+                          selectedCustomerId={customer.id}
+                          selectedAccountId={customer.accounts.length === 1 ? customer.accounts[0].id : undefined}
+                          customerName={customer.fullName}
+                          trigger={
+                            <button
+                              type="button"
+                              aria-label={`Record payment for ${customer.fullName}`}
+                              title="Record Payment"
+                              className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                            >
+                              <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                            </button>
+                          }
+                        />
                       ) : null}
 
                       {isAdmin ? (

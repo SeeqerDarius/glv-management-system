@@ -1,10 +1,11 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
-import { getSettings } from "@/lib/settings";
 
-async function generateReceiptNo(tx: Prisma.TransactionClient) {
+async function generateReceiptNo(
+  tx: Prisma.TransactionClient,
+  receiptPrefixValue: string
+) {
   const year = new Date().getFullYear().toString().slice(-2);
-  const settings = await getSettings();
-  const receiptPrefix = settings.receiptPrefix.replace(/\/+$/, "");
+  const receiptPrefix = receiptPrefixValue.replace(/\/+$/, "");
   const prefix = `${receiptPrefix}/${year}/`;
   const payments = await tx.payment.findMany({
     where: {
@@ -59,6 +60,7 @@ export async function recordPaymentForAccount({
   paymentDate,
   method,
   notes,
+  receiptPrefix,
 }: {
   tx: Prisma.TransactionClient;
   userId: string;
@@ -67,8 +69,9 @@ export async function recordPaymentForAccount({
   paymentDate: Date;
   method: string;
   notes?: string | null;
+  receiptPrefix: string;
 }) {
-  const receiptNo = await generateReceiptNo(tx);
+  const receiptNo = await generateReceiptNo(tx, receiptPrefix);
   const nextTotalPaid = account.totalPaid + amount;
   const rawBalance = account.balance - amount;
   const creditAmount = rawBalance < 0 ? Math.abs(rawBalance) : 0;

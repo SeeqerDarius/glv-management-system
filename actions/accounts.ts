@@ -28,6 +28,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
+import { getSettings } from "@/lib/settings";
 
 export type AccountFormState = {
   errors?: {
@@ -208,39 +209,46 @@ export async function createAccount(
   }
 
   let accountId: string;
+  const receiptPrefix = wantsFirstPayment
+    ? (await getSettings()).receiptPrefix
+    : "";
 
   try {
-    accountId = await prisma.$transaction(async (tx) => {
-      const account = await createCustomerAccountForProduct({
-        tx,
-        userId: user.id,
-        customerId: customer.id,
-        product,
-        startDate,
-      });
-
-      if (wantsFirstPayment && firstPaymentDate) {
-        await recordPaymentForAccount({
+    accountId = await prisma.$transaction(
+      async (tx) => {
+        const account = await createCustomerAccountForProduct({
           tx,
           userId: user.id,
-          account: {
-            ...account,
-            customer: {
-              id: customer.id,
-            },
-            product: {
-              id: product.id,
-            },
-          },
-          amount: firstPaymentAmount,
-          paymentDate: firstPaymentDate,
-          method: firstPaymentMethod,
-          notes: firstPaymentNotes,
+          customerId: customer.id,
+          product,
+          startDate,
         });
-      }
 
-      return account.id;
-    });
+        if (wantsFirstPayment && firstPaymentDate) {
+          await recordPaymentForAccount({
+            tx,
+            userId: user.id,
+            account: {
+              ...account,
+              customer: {
+                id: customer.id,
+              },
+              product: {
+                id: product.id,
+              },
+            },
+            amount: firstPaymentAmount,
+            paymentDate: firstPaymentDate,
+            method: firstPaymentMethod,
+            notes: firstPaymentNotes,
+            receiptPrefix,
+          });
+        }
+
+        return account.id;
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
   } catch (error) {
     console.error("CREATE_ACCOUNT_ERROR", error);
     return {

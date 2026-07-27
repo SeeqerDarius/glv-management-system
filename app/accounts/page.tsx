@@ -11,6 +11,7 @@ import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
+import { PaymentModal } from "@/components/payment-modal";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
@@ -500,14 +501,22 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                       status !== AccountStatus.SUSPENDED &&
                       status !== AccountStatus.CLOSED &&
                       status !== AccountStatus.ARCHIVED ? (
-                        <Link
-                          href={`/payments/new?customerId=${account.customer.id}&accountId=${account.id}`}
-                          aria-label={`Record payment for ${account.customer.fullName}`}
-                          title="Record Payment"
-                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
-                        >
-                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
-                        </Link>
+                        <PaymentModal
+                          accounts={[account]}
+                          selectedCustomerId={account.customer.id}
+                          selectedAccountId={account.id}
+                          customerName={account.customer.fullName}
+                          trigger={
+                            <button
+                              type="button"
+                              aria-label={`Record payment for ${account.customer.fullName}`}
+                              title="Record Payment"
+                              className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                            >
+                              <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                            </button>
+                          }
+                        />
                       ) : null}
                     </div>
                   </td>

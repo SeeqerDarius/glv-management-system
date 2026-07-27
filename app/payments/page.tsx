@@ -5,6 +5,7 @@ import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
+import { PaymentModalLauncher } from "@/components/payment-modal-launcher";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
@@ -342,9 +343,11 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
             View recorded installment payments and receipts.
           </p>
         </div>
-        <Button asChild className="w-full sm:w-auto">
-          <Link href="/payments/new">Record Payment</Link>
-        </Button>
+        <PaymentModalLauncher
+          trigger={
+            <Button className="w-full sm:w-auto">Record Payment</Button>
+          }
+        />
       </div>
 
       {/* Toasts */}

@@ -14,6 +14,7 @@ import {
   WalletCardsIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { PaymentModalLauncher } from "@/components/payment-modal-launcher";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
@@ -243,9 +244,9 @@ export default async function DashboardPage() {
                   <h2 className="text-lg font-semibold text-gray-950">Account Tasks</h2>
                   <p className="text-sm text-gray-600">Assigned customer activity and account progress.</p>
                 </div>
-                <Button asChild variant="outline">
-                  <Link href="/payments/new">Record Payment</Link>
-                </Button>
+                <PaymentModalLauncher
+                  trigger={<Button variant="outline">Record Payment</Button>}
+                />
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-lime-50 p-4">

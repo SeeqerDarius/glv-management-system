@@ -23,6 +23,7 @@ import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { ProductImagePreview } from "@/components/product-image-preview";
+import { PaymentModal } from "@/components/payment-modal";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
@@ -433,14 +434,29 @@ export default async function CustomerProfilePage({
                         <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
                       </Link>
                       {canRecordPayment ? (
-                        <Link
-                          href={`/payments/new?customerId=${customer.id}&accountId=${account.id}`}
-                          aria-label={`Record payment for ${account.product.name}`}
-                          title="Record Payment"
-                          className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
-                        >
-                          <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
-                        </Link>
+                        <PaymentModal
+                          accounts={[{
+                            ...account,
+                            customer: {
+                              id: customer.id,
+                              customerId: customer.customerId,
+                              fullName: customer.fullName,
+                            },
+                          }]}
+                          selectedCustomerId={customer.id}
+                          selectedAccountId={account.id}
+                          customerName={customer.fullName}
+                          trigger={
+                            <button
+                              type="button"
+                              aria-label={`Record payment for ${account.product.name}`}
+                              title="Record Payment"
+                              className="group/pay flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                            >
+                              <HandCoins className="size-4 transition-transform duration-200 group-hover/pay:scale-125 group-hover/pay:-translate-y-0.5" />
+                            </button>
+                          }
+                        />
                       ) : null}
                       {canMarkDelivered ? (
                         <form action={updateAccountDeliveryStatus}>

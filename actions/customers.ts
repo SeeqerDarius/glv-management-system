@@ -270,70 +270,80 @@ export async function createCustomer(
 
   let customer: Awaited<ReturnType<typeof prisma.customer.create>>;
   let accountId: string | null = null;
+  const receiptPrefix = wantsFirstPayment
+    ? (await getSettings()).receiptPrefix
+    : "";
 
   try {
-    const result = await prisma.$transaction(async (tx) => {
-      const customerId = await generateCustomerIdForCreate(
-        tx,
-        customerIdPrefix
-      );
-      const createdCustomer = await tx.customer.create({
-        data: {
-          customerId,
-          fullName,
-          phone: phone || null,
-          address: cleanInput(formData.get("address")) || null,
-          nationalId: cleanInput(formData.get("nationalId")) || null,
-          staffId,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          userId: user.id,
-          action: "CREATE_CUSTOMER",
-          entity: "Customer",
-          entityId: createdCustomer.id,
-          newValue: JSON.stringify(createdCustomer),
-        },
-      });
-
-      const account =
-        product && startDate
-          ? await createCustomerAccountForProduct({
-              tx,
-              userId: user.id,
-              customerId: createdCustomer.id,
-              product,
-              startDate,
-            })
-          : null;
-
-      if (account && wantsFirstPayment && firstPaymentDate) {
-        await recordPaymentForAccount({
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const customerId = await generateCustomerIdForCreate(
           tx,
-          userId: user.id,
-          account: {
-            ...account,
-            customer: {
-              id: createdCustomer.id,
-            },
-            product: {
-              id: product!.id,
-            },
+          customerIdPrefix
+        );
+        const createdCustomer = await tx.customer.create({
+          data: {
+            customerId,
+            fullName,
+            phone: phone || null,
+            address: cleanInput(formData.get("address")) || null,
+            nationalId: cleanInput(formData.get("nationalId")) || null,
+            staffId,
           },
-          amount: firstPaymentAmount,
-          paymentDate: firstPaymentDate,
-          method: firstPaymentMethod,
-          notes: firstPaymentNotes,
         });
-      }
 
-      return {
-        customer: createdCustomer,
-        accountId: account?.id ?? null,
-      };
-    });
+        await tx.auditLog.create({
+          data: {
+            userId: user.id,
+            action: "CREATE_CUSTOMER",
+            entity: "Customer",
+            entityId: createdCustomer.id,
+            newValue: JSON.stringify(createdCustomer),
+          },
+        });
+
+        const account =
+          product && startDate
+            ? await createCustomerAccountForProduct({
+                tx,
+                userId: user.id,
+                customerId: createdCustomer.id,
+                product,
+                startDate,
+              })
+            : null;
+
+        if (account && wantsFirstPayment && firstPaymentDate) {
+          await recordPaymentForAccount({
+            tx,
+            userId: user.id,
+            account: {
+              ...account,
+              customer: {
+                id: createdCustomer.id,
+              },
+              product: {
+                id: product!.id,
+              },
+            },
+            amount: firstPaymentAmount,
+            paymentDate: firstPaymentDate,
+            method: firstPaymentMethod,
+            notes: firstPaymentNotes,
+            receiptPrefix,
+          });
+        }
+
+        return {
+          customer: createdCustomer,
+          accountId: account?.id ?? null,
+        };
+      },
+      {
+        maxWait: 10_000,
+        timeout: 30_000,
+      }
+    );
 
     customer = result.customer;
     accountId = result.accountId;

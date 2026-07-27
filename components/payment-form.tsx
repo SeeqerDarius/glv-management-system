@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
 import { recordPayment, type PaymentFormState } from "@/actions/payments";
 import { ProductImagePreview } from "@/components/product-image-preview";
@@ -8,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
 
-type AccountOption = {
+export type PaymentAccountOption = {
   id: string;
   balance: number;
   dailyAmount: number;
@@ -24,9 +30,12 @@ type AccountOption = {
 };
 
 type PaymentFormProps = {
-  accounts: AccountOption[];
+  accounts: PaymentAccountOption[];
   selectedCustomerId?: string;
   selectedAccountId?: string;
+  inline?: boolean;
+  onCancel?: () => void;
+  onSuccess?: (receiptNo: string) => void;
 };
 
 const initialState: PaymentFormState = {};
@@ -41,6 +50,9 @@ export function PaymentForm({
   accounts,
   selectedCustomerId = "",
   selectedAccountId = "",
+  inline = false,
+  onCancel,
+  onSuccess,
 }: PaymentFormProps) {
   const [state, formAction, pending] = useActionState(
     recordPayment,
@@ -90,6 +102,12 @@ export function PaymentForm({
       ? Math.max(paymentAmount - selectedAccount.balance, 0)
       : 0;
 
+  useEffect(() => {
+    if (state.success) {
+      onSuccess?.(state.success.receiptNo);
+    }
+  }, [onSuccess, state.success]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (confirmed) {
       setConfirmed(false);
@@ -115,6 +133,7 @@ export function PaymentForm({
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border bg-white p-5"
     >
+      {inline ? <input type="hidden" name="inline" value="true" /> : null}
       {state.errors?.form ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {state.errors.form}
@@ -217,6 +236,7 @@ export function PaymentForm({
           <input
             name="paymentDate"
             type="date"
+            defaultValue={today}
             max={today}
             className="w-full rounded border p-3"
             required
@@ -251,13 +271,19 @@ export function PaymentForm({
         <Button type="submit" disabled={pending}>
           {pending ? "Recording..." : "Record Payment"}
         </Button>
-        <Button asChild type="button" variant="outline">
-          <Link href="/payments">Cancel</Link>
-        </Button>
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : (
+          <Button asChild type="button" variant="outline">
+            <Link href="/payments">Cancel</Link>
+          </Button>
+        )}
       </div>
 
       {confirmOpen && selectedAccount ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-lg rounded-lg border bg-white p-5 shadow-xl">
             <h2 className="text-lg font-semibold text-gray-950">
               Confirm Payment

@@ -22,6 +22,9 @@ import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
 
 export type PaymentFormState = {
+  success?: {
+    receiptNo: string;
+  };
   errors?: {
     accountId?: string;
     amount?: string;
@@ -230,21 +233,26 @@ export async function recordPayment(
   let createdPayment: {
     receiptNo: string;
   };
+  const receiptPrefix = (await getSettings()).receiptPrefix;
 
   try {
-    createdPayment = await prisma.$transaction(async (tx) => {
-      const createdPayment = await recordPaymentForAccount({
-        tx,
-        userId: user.id,
-        account,
-        amount,
-        paymentDate,
-        method,
-        notes,
-      });
+    createdPayment = await prisma.$transaction(
+      async (tx) => {
+        const createdPayment = await recordPaymentForAccount({
+          tx,
+          userId: user.id,
+          account,
+          amount,
+          paymentDate,
+          method,
+          notes,
+          receiptPrefix,
+        });
 
-      return createdPayment;
-    });
+        return createdPayment;
+      },
+      { maxWait: 10_000, timeout: 30_000 }
+    );
 
   } catch {
     return {
@@ -256,8 +264,18 @@ export async function recordPayment(
 
   revalidatePath("/payments");
   revalidatePath("/accounts");
+  revalidatePath("/customers");
   revalidatePath(`/accounts/${account.id}`);
   revalidatePath(`/customers/${account.customer.id}`);
+
+  if (cleanInput(formData.get("inline")) === "true") {
+    return {
+      success: {
+        receiptNo: createdPayment.receiptNo,
+      },
+    };
+  }
+
   redirect(`/accounts/${account.id}?payment=${createdPayment.receiptNo}`);
 }
 
