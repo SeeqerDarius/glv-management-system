@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -46,11 +47,18 @@ const navigation = [
   adminSection?: boolean;
 }>;
 
+function sidebarRelativeCenter(link: HTMLElement) {
+  const rect = link.getBoundingClientRect();
+  const sidebarTop = link.closest(".glv-sidebar")?.getBoundingClientRect().top ?? 0;
+  return rect.top - sidebarTop + rect.height / 2;
+}
+
 export function DashboardNav({
   isAdmin,
   permissions,
   attention,
   onNavigate,
+  collapsed = false,
 }: {
   isAdmin: boolean;
   permissions: UserPermission[];
@@ -70,8 +78,10 @@ export function DashboardNav({
       href?: string;
     }
   ) => void;
+  collapsed?: boolean;
 }) {
   const pathname = usePathname();
+  const [hoverTip, setHoverTip] = useState<{ label: string; top: number } | null>(null);
   const visibleNavigation = navigation.filter(
     (item) => {
       const adminOnly = "adminOnly" in item && item.adminOnly;
@@ -86,6 +96,7 @@ export function DashboardNav({
   const firstAdminHref = visibleNavigation.find((item) => item.adminSection)?.href;
 
   return (
+    <>
     <nav className="flex-1 overflow-y-auto p-3 [overscroll-behavior:contain]">
       {visibleNavigation.map((item) => {
           const isActive =
@@ -102,23 +113,44 @@ export function DashboardNav({
 
           return (
             <div key={item.href}>
-              {firstAdminItem ? <p className="mb-2 mt-5 px-3 text-[0.68rem] font-bold uppercase text-lime-200/60">Administration</p> : null}
+              {firstAdminItem ? (
+                <p className={`glv-sidebar-fade mb-2 mt-5 px-3 text-[0.68rem] font-bold uppercase text-lime-200/60 ${collapsed ? "glv-sidebar-fade-hidden" : ""}`}>
+                  Administration
+                </p>
+              ) : null}
               <Link
               href={attentionItem?.href ?? item.href}
               onClick={() => onNavigate?.(item.href, attentionItem)}
+              onMouseEnter={(event) => {
+                if (!collapsed) return;
+                setHoverTip({ label: item.label, top: sidebarRelativeCenter(event.currentTarget) });
+              }}
+              onMouseLeave={() => setHoverTip(null)}
+              onFocus={(event) => {
+                if (!collapsed) return;
+                setHoverTip({ label: item.label, top: sidebarRelativeCenter(event.currentTarget) });
+              }}
+              onBlur={() => setHoverTip(null)}
               aria-current={isActive ? "page" : undefined}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                "glv-nav-link mb-1 flex h-10 items-center gap-3 whitespace-nowrap rounded-md px-3 text-sm font-medium",
+                "glv-nav-link group relative mb-1 flex h-10 items-center gap-3 whitespace-nowrap rounded-md px-3 text-sm font-medium",
+                collapsed && "lg:justify-center lg:gap-0 lg:px-0",
                 isActive && "glv-nav-link-active"
               )}
             >
-              <Icon className="size-4" />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              <span className="relative flex shrink-0">
+                <Icon className="size-4" />
+                {collapsed && attentionCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 hidden size-2 rounded-full bg-amber-400 lg:block" />
+                ) : null}
+              </span>
+              <span className={`glv-sidebar-fade min-w-0 flex-1 truncate ${collapsed ? "glv-sidebar-fade-hidden" : ""}`}>{item.label}</span>
               {attentionCount > 0 ? (
                 <span
                   title={attentionItem?.label}
                   aria-label={attentionItem?.label}
-                  className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-green-950"
+                  className={`ml-auto inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[0.68rem] font-bold leading-none text-green-950 ${collapsed ? "lg:hidden" : ""}`}
                 >
                   {attentionCount > 99 ? "99+" : attentionCount}
                 </span>
@@ -128,5 +160,22 @@ export function DashboardNav({
           );
         })}
     </nav>
+    {collapsed ? (
+      <div
+        className={cn(
+          "glv-sidebar-tooltip pointer-events-none fixed z-50 hidden whitespace-nowrap rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-semibold text-white opacity-0 shadow-lg lg:block",
+          hoverTip && "opacity-100"
+        )}
+        style={{
+          top: hoverTip?.top ?? 0,
+          left: "5.25rem",
+          marginLeft: "0.75rem",
+          transform: hoverTip ? "translate(0, -50%)" : "translate(-4px, -50%)",
+        }}
+      >
+        {hoverTip?.label}
+      </div>
+    ) : null}
+    </>
   );
 }
