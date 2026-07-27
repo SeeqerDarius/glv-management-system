@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { ArrowLeft, FileSpreadsheet } from "lucide-react";
 import { ProductImagePreview } from "@/components/product-image-preview";
@@ -50,14 +51,12 @@ export default async function ProcurementProductPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <Link
-            href="/products?tab=procurement"
-            aria-label="Back to procurement list"
-            title="Back"
+          <BackButton
+            fallbackHref="/products?tab=procurement"
             className="mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4" />
-          </Link>
+          </BackButton>
           <ProductImagePreview
             src={product.imageUrl}
             alt={product.name}

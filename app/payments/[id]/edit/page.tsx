@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { UserPermission, UserRole } from "@prisma/client";
@@ -75,14 +75,12 @@ export default async function EditPaymentPage({ params }: EditPaymentPageProps) 
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex min-w-0 items-start gap-3">
-        <Link
-          href={`/accounts/${payment.accountId}`}
-          aria-label="Back to account"
-          title="Back"
+        <BackButton
+          fallbackHref={`/accounts/${payment.accountId}`}
           className="mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
         >
           <ArrowLeft className="size-4" />
-        </Link>
+        </BackButton>
         <ProductImagePreview
           src={payment.account.product.imageUrl}
           alt={payment.account.product.name}

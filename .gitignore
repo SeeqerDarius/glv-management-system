@@ -44,3 +44,10 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Local documentation build and QA artifacts
+/documentation/.docx_deps/
+/documentation/prepared_screenshots/
+/documentation/rendered_manual/
+/tmp/
+~$*.docx

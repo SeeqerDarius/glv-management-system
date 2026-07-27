@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/with-database-url.cjs prisma generate && node scripts/with-database-url.cjs next build",
+    "build": "node scripts/with-database-url.cjs prisma migrate deploy && node scripts/with-database-url.cjs prisma generate && node scripts/with-database-url.cjs next build",
     "db:deploy": "node scripts/with-database-url.cjs prisma migrate deploy",
     "deploy:check": "node scripts/with-database-url.cjs prisma migrate status",
     "postinstall": "prisma generate",
@@ -17,8 +17,6 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "@neondatabase/serverless": "^1.1.0",
-    "@prisma/adapter-neon": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@vercel/blob": "^2.6.1",
     "bcryptjs": "^3.0.3",
@@ -37,7 +35,6 @@
     "react-hook-form": "^7.79.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
-    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "overrides": {
@@ -51,7 +48,6 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/ws": "^8.18.1",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "prisma": "^6.19.3",

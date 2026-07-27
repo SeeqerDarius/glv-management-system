@@ -16,6 +16,7 @@ import { getTotpUri } from "@/lib/totp";
 type TwoFactorPageProps = {
   searchParams: Promise<{
     error?: string;
+    setup?: string;
   }>;
 };
 
@@ -32,7 +33,7 @@ export default async function TwoFactorPage({
     redirect("/dashboard");
   }
 
-  const { error } = await searchParams;
+  const { error, setup } = await searchParams;
   await ensureSecuritySchema();
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
@@ -98,7 +99,9 @@ export default async function TwoFactorPage({
               <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 {error === "invalid-code"
                   ? "That 2FA code was not valid. Check your authenticator app and try again."
-                  : "Generate a setup key before entering a 2FA code."}
+                  : error === "generation-failed"
+                    ? "The setup key could not be generated. Please try again."
+                    : "Generate a setup key before entering a 2FA code."}
               </div>
             ) : null}
 
@@ -108,6 +111,12 @@ export default async function TwoFactorPage({
               </form>
             ) : (
               <div className="space-y-5">
+                {setup === "generated" ? (
+                  <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
+                    Setup key generated. Scan the QR code or use the manual key
+                    below, then enter the six-digit code from your authenticator.
+                  </div>
+                ) : null}
                 <div className="rounded-lg border bg-gray-50 p-4">
                   <p className="text-sm font-semibold text-gray-900">
                     Scan QR code

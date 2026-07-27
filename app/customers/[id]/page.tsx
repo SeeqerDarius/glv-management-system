@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import {
   AccountStatus,
@@ -132,14 +133,12 @@ export default async function CustomerProfilePage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <Link
-            href="/customers"
-            aria-label="Back to customers"
-            title="Back"
+          <BackButton
+            fallbackHref="/customers"
             className="group/back mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
-          </Link>
+          </BackButton>
           <div className="min-w-0">
             <h1 className="break-words text-2xl font-bold text-gray-950 sm:text-3xl">
               {customer.fullName}

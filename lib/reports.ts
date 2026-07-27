@@ -342,6 +342,16 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     orderBy: { paymentDate: "desc" },
     include: { staff: true },
   });
+  const staffDeposits = await prisma.staffDeposit.findMany({
+    where: {
+      depositDate: {
+        gte: start,
+        lte: end,
+      },
+    },
+    orderBy: { depositDate: "desc" },
+    include: { staff: true },
+  });
   const products = await prisma.product.findMany({
     orderBy: [{ category: "asc" }, { name: "asc" }],
     include: { _count: { select: { accounts: true } } },
@@ -378,6 +388,14 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       (total, payment) => total + payment.amount,
       0
     );
+    const weeklyCollection = memberPayments
+      .filter(
+        (payment) => payment.paymentDate >= start && payment.paymentDate <= end
+      )
+      .reduce((total, payment) => total + payment.amount, 0);
+    const weeklyDeposited = staffDeposits
+      .filter((deposit) => deposit.staffId === member.id)
+      .reduce((total, deposit) => total + deposit.amount, 0);
 
     const monthlySalary = getEffectiveMonthlySalary(member, salaryDueMonth);
 
@@ -424,11 +442,9 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         (total, account) => total + account.balance,
         0
       ),
-      weeklyCollection: memberPayments
-        .filter(
-          (payment) => payment.paymentDate >= start && payment.paymentDate <= end
-        )
-        .reduce((total, payment) => total + payment.amount, 0),
+      weeklyCollection,
+      weeklyDeposited,
+      depositVariance: weeklyDeposited - weeklyCollection,
       monthlyCollection: memberPayments
         .filter(
           (payment) =>
@@ -521,6 +537,14 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
   const payrollPercentageOfRevenue =
     monthlyIncome > 0 ? (totalSalaryPaid / monthlyIncome) * 100 : 0;
   const userNames = new Map(users.map((user) => [user.id, user.name]));
+  const weeklyRecordedCollections = rows.reduce(
+    (total, row) => total + row.weeklyCollection,
+    0
+  );
+  const weeklyDeposits = staffDeposits.reduce(
+    (total, deposit) => total + deposit.amount,
+    0
+  );
   const accountStatusBreakdown = Object.values(AccountStatus).map((status) => ({
     status,
     count: accounts.filter(
@@ -551,6 +575,10 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       ...payment,
       paidByName: userNames.get(payment.paidBy) ?? "System User",
     })),
+    staffDeposits: staffDeposits.map((deposit) => ({
+      ...deposit,
+      recordedByName: userNames.get(deposit.recordedBy) ?? "System User",
+    })),
     summary: {
       totalExpectedReceivables: accounts
         .filter((account) => {
@@ -573,6 +601,9 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       payrollVsIncome,
       payrollPercentageOfRevenue,
       monthlyIncome,
+      weeklyRecordedCollections,
+      weeklyDeposits,
+      weeklyDepositVariance: weeklyDeposits - weeklyRecordedCollections,
       netProfitSoFar: totalCollected - totalProductCost - totalSalaryPaid,
       projectedNetProfit,
       gainLossStatus:

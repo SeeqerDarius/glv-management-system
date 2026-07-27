@@ -263,7 +263,7 @@ export async function createAccount(
   revalidatePath(`/customers/${customer.id}`);
   revalidatePath("/products");
   revalidatePath(`/products/${productId}`);
-  redirect(`/accounts/${accountId}`);
+  redirect(`/accounts/${accountId}?created=account`);
 }
 
 export async function deleteAccount(formData: FormData): Promise<void> {

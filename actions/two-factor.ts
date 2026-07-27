@@ -28,28 +28,38 @@ export async function generateTwoFactorSecret() {
   const user = await requireAdminUser();
   const secret = generateTotpSecret();
 
-  await ensureSecuritySchema();
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      twoFactorSecret: secret,
-      twoFactorEnabled: false,
-      twoFactorConfirmedAt: null,
-    },
-  });
+  try {
+    await ensureSecuritySchema();
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          twoFactorSecret: secret,
+          twoFactorEnabled: false,
+          twoFactorConfirmedAt: null,
+        },
+      });
 
-  await prisma.auditLog.create({
-    data: {
+      await tx.auditLog.create({
+        data: {
+          userId: user.id,
+          action: "GENERATE_2FA_SECRET",
+          entity: "User",
+          entityId: user.id,
+          newValue: JSON.stringify({ twoFactorSetupStarted: true }),
+        },
+      });
+    });
+  } catch (error) {
+    console.error("GENERATE_2FA_SECRET_FAILED", {
       userId: user.id,
-      action: "GENERATE_2FA_SECRET",
-      entity: "User",
-      entityId: user.id,
-      newValue: JSON.stringify({ twoFactorSetupStarted: true }),
-    },
-  });
+      error: error instanceof Error ? error.message : String(error),
+    });
+    redirect("/security/2fa?error=generation-failed");
+  }
 
   revalidatePath("/security/2fa");
-  redirect("/security/2fa");
+  redirect("/security/2fa?setup=generated");
 }
 
 export async function enableTwoFactor(formData: FormData) {

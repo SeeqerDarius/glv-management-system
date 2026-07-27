@@ -1,15 +1,10 @@
+import { LoginRateLimitError } from "@/lib/auth-errors";
 import { prisma } from "@/lib/prisma";
 import { ensureSecuritySchema } from "@/lib/security-schema";
 
 const maxLoginAttempts = 5;
 const lockoutMinutes = 15;
 const staleAttemptMinutes = 30;
-
-export class LoginRateLimitError extends Error {
-  constructor(public lockedUntil: Date) {
-    super("Too many login attempts.");
-  }
-}
 
 function normalizeIdentifier(email: string) {
   return email.trim().toLowerCase();

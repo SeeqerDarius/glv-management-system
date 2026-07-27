@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import { AccountStatus } from "@prisma/client";
 import { ArrowLeft, Pencil, Trash2 } from "lucide-react";
@@ -67,14 +68,12 @@ export default async function ProductDetailsPage({
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Link
-            href="/products"
-            aria-label="Back to products"
-            title="Back"
+          <BackButton
+            fallbackHref="/products"
             className="group/back mt-0.5 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
-          </Link>
+          </BackButton>
           <ProductImagePreview
             src={product.imageUrl}
             alt={product.name}

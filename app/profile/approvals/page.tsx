@@ -1,11 +1,11 @@
-import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { redirect } from "next/navigation";
 import { ProfileChangeStatus } from "@prisma/client";
 import {
   approveProfileChange,
   rejectProfileChange,
 } from "@/actions/profile";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
@@ -63,9 +63,12 @@ export default async function ProfileApprovalsPage({
             users.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/profile">Back to Profile</Link>
-        </Button>
+        <BackButton
+          fallbackHref="/profile"
+          className={buttonVariants({ variant: "outline" })}
+        >
+          Back to previous page
+        </BackButton>
       </div>
 
       {reviewed ? (

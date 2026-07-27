@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import {
   AccountStatus,
@@ -11,6 +12,7 @@ import {
   HandCoins,
   PackageCheck,
   Pencil,
+  Plus,
   RotateCcw,
   Trash2,
 } from "lucide-react";
@@ -65,7 +67,7 @@ export default async function AccountDetailsPage({
   searchParams,
 }: AccountDetailsPageProps) {
   const { id } = await params;
-  const { error, refunded, updated } = await searchParams;
+  const { created, error, refunded, updated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -169,14 +171,12 @@ export default async function AccountDetailsPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
-          <Link
-            href="/accounts"
-            aria-label="Back to accounts"
-            title="Back"
+          <BackButton
+            fallbackHref="/accounts"
             className="group/back mt-1 flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-gray-100 hover:text-gray-700"
           >
             <ArrowLeft className="size-4 transition-transform duration-200 group-hover/back:scale-125 group-hover/back:-translate-x-0.5" />
-          </Link>
+          </BackButton>
           <ProductImagePreview
             src={account.product.imageUrl}
             alt={account.product.name}
@@ -243,6 +243,24 @@ export default async function AccountDetailsPage({
           ) : null}
         </div>
       </div>
+
+      {created === "account" ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-950 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-semibold">Customer account created successfully.</p>
+            <p className="mt-1 text-lime-800">
+              Add another product account for {account.customer.fullName}, or
+              continue working with this account.
+            </p>
+          </div>
+          <Button asChild className="w-full shrink-0 sm:w-auto">
+            <Link href={`/accounts/new?customerId=${account.customer.id}`}>
+              <Plus className="size-4" />
+              Create Another Account
+            </Link>
+          </Button>
+        </div>
+      ) : null}
 
       {status === "COMPLETED" ? (
         <div className="flex flex-col gap-3 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900 sm:flex-row sm:items-center sm:justify-between">

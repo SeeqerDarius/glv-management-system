@@ -1,7 +1,7 @@
 "use server";
 
 import { signIn } from "@/lib/auth";
-import { AuthError } from "next-auth";
+import { AuthError, CredentialsSignin } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
 export type LoginState = {
@@ -29,6 +29,36 @@ export async function login(
       redirectTo: "/dashboard",
     });
   } catch (error) {
+    if (
+      error instanceof CredentialsSignin &&
+      error.code === "rate_limit"
+    ) {
+      return {
+        error:
+          "Too many unsuccessful sign-in attempts. Wait 15 minutes, then try again with the correct password and 2FA code.",
+      };
+    }
+
+    if (
+      error instanceof CredentialsSignin &&
+      error.code === "two_factor_required"
+    ) {
+      return {
+        error:
+          "Your password is correct. Enter the current six-digit code from your authenticator app.",
+      };
+    }
+
+    if (
+      error instanceof CredentialsSignin &&
+      error.code === "invalid_two_factor"
+    ) {
+      return {
+        error:
+          "Your password is correct, but the 2FA code is invalid or expired. Wait for a new code and try once.",
+      };
+    }
+
     if (error instanceof AuthError) {
       return {
         error: "Invalid email, password, or 2FA code.",

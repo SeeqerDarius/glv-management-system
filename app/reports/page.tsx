@@ -2,6 +2,10 @@ import Link from "next/link";
 import { UserPermission } from "@prisma/client";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
+import {
+  deleteStaffDeposit,
+  recordStaffDeposit,
+} from "@/actions/staff-deposits";
 import { ReportAnalyticsCharts } from "@/components/reports/analytics-charts";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
@@ -53,6 +57,10 @@ function formatMonth(date: Date) {
     month: "short",
     year: "numeric",
   }).format(date);
+}
+
+function dateInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function SummaryCard({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
@@ -118,6 +126,22 @@ export default async function ReportsPage({
   const exportHref = `/api/reports/weekly-export?week=${weekParam(selectedDate)}`;
 
   const today = todayDateInputValue();
+  const selectedWeek = weekParam(selectedDate);
+  const depositDate = dateInputValue(
+    report.end < new Date() ? report.end : new Date()
+  );
+  const depositErrorMessage =
+    query.depositError === "missing-staff"
+      ? "Choose a staff member."
+      : query.depositError === "invalid-amount"
+        ? "Deposit amount must be greater than zero."
+        : query.depositError === "invalid-date"
+          ? "Choose a valid deposit date."
+          : query.depositError === "future-date"
+            ? "Deposit date cannot be in the future."
+            : query.depositError === "not-found"
+              ? "Deposit record could not be found."
+              : "Unable to record the staff deposit.";
   const defaultSalaryMonth = salaryMonthInputValue();
   const maxSalaryMonth = salaryMonthInputValue(new Date());
   const salaryError = query.salaryError;
@@ -175,6 +199,19 @@ export default async function ReportsPage({
         <div><h2 className="text-lg font-semibold text-gray-950">Business Overview</h2><p className="text-sm text-gray-600">Collections, capital exposure, salary commitments, and expected returns.</p></div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard label="Total Collected" value={formatMoney(report.summary.totalCollected)} />
+          <SummaryCard label="Recorded This Week" value={formatMoney(report.summary.weeklyRecordedCollections)} />
+          <SummaryCard label="Deposited This Week" value={formatMoney(report.summary.weeklyDeposits)} />
+          <SummaryCard
+            label={
+              report.summary.weeklyDepositVariance < 0
+                ? "Weekly Deposit Shortage"
+                : report.summary.weeklyDepositVariance > 0
+                  ? "Weekly Deposit Surplus"
+                  : "Weekly Deposit Variance"
+            }
+            value={formatMoney(Math.abs(report.summary.weeklyDepositVariance))}
+            emphasis
+          />
           <SummaryCard label="Outstanding Balance" value={formatMoney(report.summary.totalOutstandingBalance)} />
           <SummaryCard label="Expected Receivables" value={formatMoney(report.summary.totalExpectedReceivables)} />
           <SummaryCard label="Product Cost Exposure" value={formatMoney(report.summary.totalProductCost)} />
@@ -215,7 +252,41 @@ export default async function ReportsPage({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-gray-950">Staff Weekly Performance</h2>
-        <div className="overflow-x-auto rounded-lg border bg-white"><table className="w-full min-w-[1200px] text-sm"><thead><tr><th className="p-3">Rank</th><th className="p-3">Staff</th><th className="p-3">Customers</th><th className="p-3">Active</th><th className="p-3">Contract Value</th><th className="p-3">Weekly</th><th className="p-3">Monthly Collection</th><th className="p-3">Total Collected</th><th className="p-3">Outstanding</th><th className="p-3">Due Month Salary</th><th className="p-3">Paid for Due Month</th><th className="p-3">Salary Balance</th><th className="p-3">Projected After Payroll</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.staffId} className="border-t"><td className="p-3"><Badge variant={row.rank === 1 ? "default" : "secondary"}>#{row.rank}</Badge></td><td className="p-3"><p className="font-semibold">{row.staffCode}</p><p className="text-xs text-gray-500">{row.staffName}</p></td><td className="p-3">{row.assignedCustomers}</td><td className="p-3">{row.activeAccounts}</td><td className="p-3">{formatMoney(row.totalContractValue)}</td><td className="p-3">{formatMoney(row.weeklyCollection)}</td><td className="p-3">{formatMoney(row.monthlyCollection)}</td><td className="p-3">{formatMoney(row.totalCollected)}</td><td className="p-3">{formatMoney(row.outstandingBalance)}</td><td className="p-3">{formatMoney(row.monthlySalary)}</td><td className="p-3">{formatMoney(row.salaryPaidThisMonth)}</td><td className="p-3">{formatMoney(row.salaryBalanceThisMonth)}</td><td className="p-3">{formatMoney(row.projectedProfitAfterSalary)}</td></tr>)}</tbody></table></div>
+        <div className="overflow-x-auto rounded-lg border bg-white"><table className="w-full min-w-[1400px] text-sm"><thead><tr><th className="p-3">Rank</th><th className="p-3">Staff</th><th className="p-3">Customers</th><th className="p-3">Active</th><th className="p-3">Contract Value</th><th className="p-3">Weekly Recorded</th><th className="p-3">Weekly Deposited</th><th className="p-3">Deposit Variance</th><th className="p-3">Monthly Collection</th><th className="p-3">Total Collected</th><th className="p-3">Outstanding</th><th className="p-3">Due Month Salary</th><th className="p-3">Paid for Due Month</th><th className="p-3">Salary Balance</th><th className="p-3">Projected After Payroll</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.staffId} className="border-t"><td className="p-3"><Badge variant={row.rank === 1 ? "default" : "secondary"}>#{row.rank}</Badge></td><td className="p-3"><p className="font-semibold">{row.staffCode}</p><p className="text-xs text-gray-500">{row.staffName}</p></td><td className="p-3">{row.assignedCustomers}</td><td className="p-3">{row.activeAccounts}</td><td className="p-3">{formatMoney(row.totalContractValue)}</td><td className="p-3">{formatMoney(row.weeklyCollection)}</td><td className="p-3">{formatMoney(row.weeklyDeposited)}</td><td className={`p-3 font-semibold ${row.depositVariance < 0 ? "text-red-700" : row.depositVariance > 0 ? "text-blue-700" : "text-green-700"}`}>{row.depositVariance < 0 ? `Shortage ${formatMoney(Math.abs(row.depositVariance))}` : row.depositVariance > 0 ? `Surplus ${formatMoney(row.depositVariance)}` : "Balanced"}</td><td className="p-3">{formatMoney(row.monthlyCollection)}</td><td className="p-3">{formatMoney(row.totalCollected)}</td><td className="p-3">{formatMoney(row.outstandingBalance)}</td><td className="p-3">{formatMoney(row.monthlySalary)}</td><td className="p-3">{formatMoney(row.salaryPaidThisMonth)}</td><td className="p-3">{formatMoney(row.salaryBalanceThisMonth)}</td><td className="p-3">{formatMoney(row.projectedProfitAfterSalary)}</td></tr>)}</tbody></table></div>
+      </section>
+
+      <section id="staff-deposits" className="space-y-4">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-950">Staff Deposits</h2>
+          <p className="text-sm text-gray-600">
+            Record money physically deposited into company accounts and compare
+            it with payments entered for {formatDate(report.start)} - {formatDate(report.end)}.
+          </p>
+        </div>
+        {query.depositError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{depositErrorMessage}</p> : null}
+        {query.depositRecorded ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Staff deposit recorded.</p> : null}
+        {query.depositDeleted ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Staff deposit deleted.</p> : null}
+        {isAdminRole(session?.user?.role) ? (
+          <form action={recordStaffDeposit} className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-2 lg:grid-cols-7">
+            <input type="hidden" name="week" value={selectedWeek} />
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{report.rows.map((row) => <option key={row.staffId} value={row.staffId}>{row.staffCode} - {row.staffName}</option>)}</select></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Amount Deposited</span><input name="amount" type="number" min="0.01" step="0.01" className="w-full rounded border p-3" required /></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Deposit Date</span><input name="depositDate" type="date" defaultValue={depositDate} min={dateInputValue(report.start)} max={dateInputValue(report.end < new Date() ? report.end : new Date())} className="w-full rounded border p-3" required /></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Channel</span><select name="channel" className="w-full rounded border p-3"><option value="Cash Deposit">Cash Deposit</option><option value="Bank Transfer">Bank Transfer</option><option value="Mobile Money">Mobile Money</option><option value="Cheque">Cheque</option><option value="Other">Other</option></select></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Reference</span><input name="reference" className="w-full rounded border p-3" placeholder="Slip or transaction ID" /></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
+            <div className="flex items-end"><Button type="submit" className="w-full">Record Deposit</Button></div>
+          </form>
+        ) : null}
+        <div className="overflow-hidden rounded-lg border bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-[1050px] text-sm">
+              <thead><tr><th className="p-3">Deposit Date</th><th className="p-3">Staff</th><th className="p-3">Amount</th><th className="p-3">Channel</th><th className="p-3">Reference</th><th className="p-3">Recorded By</th><th className="p-3">Notes</th>{isAdminRole(session?.user?.role) ? <th className="p-3 text-right">Action</th> : null}</tr></thead>
+              <tbody>{report.staffDeposits.map((deposit) => <tr key={deposit.id} className="border-t"><td className="p-3">{formatDate(deposit.depositDate)}</td><td className="p-3">{deposit.staff.code} - {deposit.staff.fullName}</td><td className="p-3 font-semibold">{formatMoney(deposit.amount)}</td><td className="p-3">{deposit.channel || "-"}</td><td className="p-3">{deposit.reference || "-"}</td><td className="p-3">{deposit.recordedByName}</td><td className="p-3">{deposit.notes || "-"}</td>{isAdminRole(session?.user?.role) ? <td className="p-3 text-right"><div className="flex justify-end"><ConfirmDeleteForm action={deleteStaffDeposit} id={deposit.id} title="Delete staff deposit?" description="This removes the deposit record and recalculates the staff variance." hiddenFields={{ week: selectedWeek }} triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125" /></ConfirmDeleteForm></div></td> : null}</tr>)}</tbody>
+            </table>
+          </div>
+          {report.staffDeposits.length === 0 ? <p className="border-t p-6 text-center text-sm text-gray-500">No staff deposits recorded for this week.</p> : null}
+        </div>
       </section>
 
       <section id="salary-tracking" className="space-y-4">

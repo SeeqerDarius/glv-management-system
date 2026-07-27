@@ -54,6 +54,7 @@ model Staff {
   customers      Customer[]
   salaryPayments StaffSalaryPayment[]
   salaryHistory  StaffSalaryHistory[]
+  deposits       StaffDeposit[]
   user           User?
 }
 
@@ -164,6 +165,22 @@ model StaffSalaryHistory {
 
   @@unique([staffId, effectiveMonth])
   @@index([staffId, effectiveMonth])
+}
+
+model StaffDeposit {
+  id          String   @id @default(cuid())
+  staffId     String
+  amount      Float
+  depositDate DateTime
+  channel     String?
+  reference   String?
+  notes       String?
+  recordedBy  String
+  createdAt   DateTime @default(now())
+  staff       Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, depositDate])
+  @@index([depositDate])
 }
 
 model CustomerAccount {

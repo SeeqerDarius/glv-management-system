@@ -11,6 +11,10 @@ import {
 import { normalizeOwnerRole } from "@/lib/owner";
 import { touchUserPresence } from "@/lib/presence";
 import { verifyTotpCode } from "@/lib/totp";
+import {
+  InvalidTwoFactorError,
+  TwoFactorRequiredError,
+} from "@/lib/auth-errors";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
@@ -157,13 +161,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           (normalizedRole === "ADMIN" || normalizedRole === "SUPER_ADMIN") &&
           twoFactor.enabled;
 
+        if (requiresTwoFactor && !twoFactorCode.trim()) {
+          throw new TwoFactorRequiredError();
+        }
+
         if (
           requiresTwoFactor &&
           (!twoFactor.secret ||
             !verifyTotpCode(twoFactor.secret, twoFactorCode))
         ) {
           await recordFailedLogin(email);
-          return null;
+          throw new InvalidTwoFactorError();
         }
 
         await clearLoginRateLimit(email);
