@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { AccountStatus } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import {
   getClosureRefundAmounts,
   getDormantReactivationAmounts,
+  isDormantReactivationEligible,
 } from "@/lib/account-lifecycle";
 import { formatMoney } from "@/lib/accounts";
 import { createAccountDocument } from "@/lib/customer-documents";
@@ -25,7 +27,14 @@ export async function generateCustomerDocument(formData: FormData) {
   const kind = clean(formData.get("kind"));
   const account = await prisma.customerAccount.findUnique({
     where: { id: accountId },
-    include: { product: true },
+    include: {
+      product: true,
+      payments: {
+        orderBy: { paymentDate: "desc" },
+        take: 1,
+        select: { paymentDate: true },
+      },
+    },
   });
   if (!account) redirect("/accounts");
 
@@ -33,6 +42,12 @@ export async function generateCustomerDocument(formData: FormData) {
   let type: string;
   let values: Record<string, string>;
   if (kind === "CANCELLATION") {
+    if (
+      account.status !== AccountStatus.CLOSED &&
+      account.status !== AccountStatus.CANCELLED
+    ) {
+      redirect(`/accounts/${accountId}?error=document-not-eligible`);
+    }
     const calculation = getClosureRefundAmounts(account.totalPaid);
     templateKey = LEGAL_TEMPLATE_KEYS.CANCELLATION;
     type = "CANCELLATION_CALCULATION";
@@ -44,6 +59,9 @@ export async function generateCustomerDocument(formData: FormData) {
       processingTime: clean(formData.get("processingTime")) || "Subject to review and approval",
     };
   } else if (kind === "REACTIVATION") {
+    if (!isDormantReactivationEligible(account)) {
+      redirect(`/accounts/${accountId}?error=document-not-eligible`);
+    }
     const calculation = getDormantReactivationAmounts(account.totalPaid);
     templateKey = LEGAL_TEMPLATE_KEYS.REACTIVATION;
     type = "REACTIVATION_CALCULATION";

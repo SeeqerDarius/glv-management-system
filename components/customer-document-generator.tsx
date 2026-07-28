@@ -35,7 +35,6 @@ export function CustomerDocumentGenerator({
 }) {
   const [customerId, setCustomerId] = useState("");
   const [accountId, setAccountId] = useState("");
-  const [kind, setKind] = useState("TERMS");
   const customer = customers.find((item) => item.id === customerId);
   const account = customer?.accounts.find((item) => item.id === accountId);
 
@@ -46,15 +45,16 @@ export function CustomerDocumentGenerator({
     >
       <div>
         <h2 className="text-lg font-semibold text-gray-950">
-          Generate a Customer Document
+          Generate Customer Terms and Conditions
         </h2>
         <p className="text-sm text-gray-600">
           Select the customer and account. Their live database information will
-          fill the document automatically.
+          fill the addressed terms automatically.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <input type="hidden" name="kind" value="TERMS" />
+      <div className="grid gap-4 md:grid-cols-2">
         <label className="space-y-1">
           <span className="text-sm font-medium">Customer</span>
           <select
@@ -96,19 +96,6 @@ export function CustomerDocumentGenerator({
           </select>
         </label>
 
-        <label className="space-y-1">
-          <span className="text-sm font-medium">Document</span>
-          <select
-            name="kind"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-            className="w-full rounded border bg-white p-3"
-          >
-            <option value="TERMS">Terms and Conditions</option>
-            <option value="CANCELLATION">Cancellation Calculation</option>
-            <option value="REACTIVATION">Reactivation Calculation</option>
-          </select>
-        </label>
       </div>
 
       {customer ? (
@@ -127,29 +114,8 @@ export function CustomerDocumentGenerator({
         </div>
       ) : null}
 
-      {kind === "CANCELLATION" ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Expected refund method</span>
-            <input
-              name="refundMethod"
-              defaultValue="Customer credit / original payment channel"
-              className="w-full rounded border bg-white p-3"
-            />
-          </label>
-          <label className="space-y-1">
-            <span className="text-sm font-medium">Processing time</span>
-            <input
-              name="processingTime"
-              defaultValue="Within 10 business days after approval"
-              className="w-full rounded border bg-white p-3"
-            />
-          </label>
-        </div>
-      ) : null}
-
       <Button type="submit" disabled={!account}>
-        Generate Addressed Document
+        Generate Addressed Terms
       </Button>
     </form>
   );

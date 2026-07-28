@@ -165,6 +165,10 @@ export default async function AccountDetailsPage({
   const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
   const canReactivateDormant =
     isAdmin && isDormantReactivationEligible(account);
+  const canGenerateCancellation =
+    isAdmin &&
+    (account.status === AccountStatus.CLOSED ||
+      account.status === AccountStatus.CANCELLED);
   const reactivationCutoffDate = getDormantReactivationCutoffDate(account);
   const reactivationAmounts = getDormantReactivationAmounts(account.totalPaid);
   const reactivationBalance = Math.max(
@@ -353,35 +357,32 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
-      {isAdmin ? (
+      {canGenerateCancellation || canReactivateDormant ? (
         <section className="space-y-4 rounded-lg border border-lime-200 bg-lime-50 p-5">
           <div>
             <h2 className="text-lg font-semibold text-gray-950">Customer Legal Documents</h2>
-            <p className="text-sm text-gray-600">Generate an addressed letterhead document, queue it for enabled electronic channels, then print or save it as PDF.</p>
+            <p className="text-sm text-gray-600">Generate the calculation required for this account&apos;s current lifecycle stage.</p>
           </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            <form action={generateCustomerDocument} className="rounded-md border bg-white p-4">
-              <input type="hidden" name="accountId" value={account.id} />
-              <input type="hidden" name="kind" value="TERMS" />
-              <p className="font-medium">Terms and Conditions</p>
-              <p className="mt-1 text-xs text-gray-500">Create or resend the current approved terms for this account.</p>
-              <Button type="submit" className="mt-4 w-full">Generate Terms</Button>
-            </form>
-            <form action={generateCustomerDocument} className="space-y-3 rounded-md border bg-white p-4">
-              <input type="hidden" name="accountId" value={account.id} />
-              <input type="hidden" name="kind" value="CANCELLATION" />
-              <p className="font-medium">Cancellation Calculation</p>
-              <input name="refundMethod" placeholder="Refund method" defaultValue="Customer credit / original payment channel" className="w-full rounded border p-2 text-sm" />
-              <input name="processingTime" placeholder="Processing time" defaultValue="Within 10 business days after approval" className="w-full rounded border p-2 text-sm" />
-              <Button type="submit" variant="outline" className="w-full">Generate Calculation</Button>
-            </form>
-            <form action={generateCustomerDocument} className="rounded-md border bg-white p-4">
-              <input type="hidden" name="accountId" value={account.id} />
-              <input type="hidden" name="kind" value="REACTIVATION" />
-              <p className="font-medium">Reactivation Calculation</p>
-              <p className="mt-1 text-xs text-gray-500">Show previous payment, service charge, remaining amount, new balance and expected date.</p>
-              <Button type="submit" variant="outline" className="mt-4 w-full">Generate Calculation</Button>
-            </form>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {canGenerateCancellation ? (
+              <form action={generateCustomerDocument} className="space-y-3 rounded-md border bg-white p-4">
+                <input type="hidden" name="accountId" value={account.id} />
+                <input type="hidden" name="kind" value="CANCELLATION" />
+                <p className="font-medium">Cancellation Calculation</p>
+                <input name="refundMethod" aria-label="Expected refund method" placeholder="Refund method" defaultValue="Customer credit / original payment channel" className="w-full rounded border p-2 text-sm" />
+                <input name="processingTime" aria-label="Expected processing time" placeholder="Processing time" defaultValue="Within 10 business days after approval" className="w-full rounded border p-2 text-sm" />
+                <Button type="submit" variant="outline" className="w-full">Generate Calculation</Button>
+              </form>
+            ) : null}
+            {canReactivateDormant ? (
+              <form action={generateCustomerDocument} className="rounded-md border bg-white p-4">
+                <input type="hidden" name="accountId" value={account.id} />
+                <input type="hidden" name="kind" value="REACTIVATION" />
+                <p className="font-medium">Reactivation Calculation</p>
+                <p className="mt-1 text-xs text-gray-500">Show previous payment, service charge, remaining amount, new balance and expected date.</p>
+                <Button type="submit" variant="outline" className="mt-4 w-full">Generate Calculation</Button>
+              </form>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -422,6 +423,12 @@ export default async function AccountDetailsPage({
       {error === "reactivation-not-eligible" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           This account is not eligible for six-month dormant reactivation yet.
+        </div>
+      ) : null}
+
+      {error === "document-not-eligible" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This legal calculation is not available at the account&apos;s current lifecycle stage.
         </div>
       ) : null}
 
