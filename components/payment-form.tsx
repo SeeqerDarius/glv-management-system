@@ -13,6 +13,10 @@ import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
+import {
+  IdempotencyField,
+  useIdempotencyKey,
+} from "@/components/idempotency-field";
 
 export type PaymentAccountOption = {
   id: string;
@@ -76,6 +80,7 @@ export function PaymentForm({
   const [method, setMethod] = useState("Cash");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const idempotencyKey = useIdempotencyKey();
   const selectedAccount = accounts.find((account) => account.id === accountId);
   const today = todayDateInputValue();
   const customers = Array.from(
@@ -133,6 +138,7 @@ export function PaymentForm({
       onSubmit={handleSubmit}
       className="space-y-4 rounded-lg border bg-white p-5"
     >
+      <IdempotencyField value={idempotencyKey} />
       {inline ? <input type="hidden" name="inline" value="true" /> : null}
       {state.errors?.form ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -268,7 +274,7 @@ export function PaymentForm({
       </label>
 
       <div className="flex gap-3">
-        <Button type="submit" disabled={pending}>
+        <Button type="submit" disabled={pending || !idempotencyKey}>
           {pending ? "Recording..." : "Record Payment"}
         </Button>
         {onCancel ? (

@@ -7,6 +7,10 @@ import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
+import {
+  IdempotencyField,
+  useIdempotencyKey,
+} from "@/components/idempotency-field";
 
 type CustomerOption = {
   id: string;
@@ -66,9 +70,11 @@ export function AccountForm({
     (product) => product.id === selectedProductId
   );
   const today = todayDateInputValue();
+  const idempotencyKey = useIdempotencyKey();
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
+      <IdempotencyField value={idempotencyKey} />
       {state.errors?.form ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {state.errors.form}

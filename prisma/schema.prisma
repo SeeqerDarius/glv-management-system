@@ -26,6 +26,21 @@ model User {
   staff              Staff?           @relation(fields: [staffId], references: [id])
   appearance         UserAppearancePreference?
   profileRequests    ProfileChangeRequest[]
+  idempotencyKeys    IdempotencyKey[]
+}
+
+model IdempotencyKey {
+  id         String   @id @default(cuid())
+  key        String
+  operation  String
+  userId     String
+  resourceId String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, operation, key])
+  @@index([expiresAt])
 }
 
 model LoginRateLimit {
@@ -74,6 +89,7 @@ model Customer {
   customerId String            @unique
   fullName   String
   phone      String?
+  email      String?
   address    String?
   nationalId String?
   photoUrl   String?
@@ -82,6 +98,8 @@ model Customer {
   staff      Staff             @relation(fields: [staffId], references: [id])
   accounts   CustomerAccount[]
   credits    CustomerCredit[]
+  documents  CustomerDocument[]
+  messages   CustomerMessage[]
 }
 
 model Product {
@@ -202,6 +220,66 @@ model CustomerAccount {
   product         Product       @relation(fields: [productId], references: [id])
   payments        Payment[]
   credits         CustomerCredit[]
+  documents       CustomerDocument[]
+  messages        CustomerMessage[]
+}
+
+model LegalTemplate {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  subject     String
+  body        String
+  active      Boolean  @default(true)
+  updatedBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CustomerDocument {
+  id          String          @id @default(cuid())
+  publicToken String          @unique @default(uuid())
+  type        String
+  title       String
+  subject     String
+  content     String
+  customerId  String
+  accountId   String?
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  customer    Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  account     CustomerAccount? @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  messages    CustomerMessage[]
+
+  @@index([customerId, createdAt])
+  @@index([accountId, createdAt])
+}
+
+model CustomerMessage {
+  id          String            @id @default(cuid())
+  type        String
+  channel     String
+  recipient   String
+  subject     String?
+  body        String
+  status      String            @default("PENDING")
+  scheduledAt DateTime
+  sentAt      DateTime?
+  attempts    Int               @default(0)
+  lastError   String?
+  providerId  String?
+  dedupeKey   String            @unique
+  customerId  String
+  accountId   String?
+  documentId  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  customer    Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  account     CustomerAccount?  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  document    CustomerDocument? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([customerId, createdAt])
 }
 
 model Payment {

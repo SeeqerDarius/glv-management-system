@@ -7,6 +7,11 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import {
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  readIdempotencyKey,
+} from "@/lib/idempotency";
 
 async function requireAdmin() {
   const session = await auth();
@@ -25,6 +30,14 @@ function weekQuery(formData: FormData) {
   return /^\d{4}-\d{2}-\d{2}$/.test(week) ? `week=${week}&` : "";
 }
 
+function weekQueryForDate(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+  const week = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+  return `week=${week}&`;
+}
+
 export async function recordStaffDeposit(formData: FormData): Promise<void> {
   const user = await requireAdmin();
   const week = weekQuery(formData);
@@ -35,6 +48,7 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
   const channel = clean(formData.get("channel"));
   const reference = clean(formData.get("reference"));
   const notes = clean(formData.get("notes"));
+  const idempotencyKey = readIdempotencyKey(formData);
   const errorHref = (error: string) =>
     `/reports?${week}depositError=${error}#staff-deposits`;
 
@@ -46,6 +60,7 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
     redirect(errorHref("invalid-date"));
   }
   if (isFutureDate(depositDate)) redirect(errorHref("future-date"));
+  if (!idempotencyKey) redirect(errorHref("expired-form"));
 
   const staff = await prisma.staff.findUnique({
     where: { id: staffId },
@@ -54,6 +69,16 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
   if (!staff) redirect(errorHref("missing-staff"));
 
   await prisma.$transaction(async (tx) => {
+    const claim = await claimIdempotencyKey({
+      tx,
+      userId: user.id,
+      operation: "RECORD_STAFF_DEPOSIT",
+      key: idempotencyKey!,
+    });
+    if (!claim.claimed) {
+      return;
+    }
+
     const deposit = await tx.staffDeposit.create({
       data: {
         staffId: staff.id,
@@ -82,10 +107,13 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
         }),
       },
     });
+    await completeIdempotencyKey(tx, claim.id, deposit.id);
   });
 
   revalidatePath("/reports");
-  redirect(`/reports?${week}depositRecorded=1#staff-deposits`);
+  redirect(
+    `/reports?${weekQueryForDate(depositDate)}depositRecorded=1#staff-deposits`
+  );
 }
 
 export async function deleteStaffDeposit(formData: FormData): Promise<void> {

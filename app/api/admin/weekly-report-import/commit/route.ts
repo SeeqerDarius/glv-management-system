@@ -6,6 +6,11 @@ import {
   parseWeeklyReport,
   type RecoveredAccountRow,
 } from "@/lib/weekly-report-import";
+import {
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  normalizeIdempotencyKey,
+} from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -42,6 +47,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
   const actorId = session.user.id;
+  const idempotencyKey = normalizeIdempotencyKey(
+    request.headers.get("idempotency-key")
+  );
+  if (!idempotencyKey) {
+    return Response.json(
+      { error: "Missing or invalid Idempotency-Key header." },
+      { status: 400 }
+    );
+  }
 
   const formData = await request.formData();
   const file = formData.get("file");
@@ -80,6 +94,28 @@ export async function POST(request: Request) {
 
     const result = await prisma.$transaction(
       async (tx) => {
+        const claim = await claimIdempotencyKey({
+          tx,
+          userId: actorId,
+          operation: "IMPORT_WEEKLY_REPORT",
+          key: idempotencyKey,
+        });
+        if (!claim.claimed) {
+          if (!claim.resourceId) {
+            throw new Error("The original import is still processing.");
+          }
+          return JSON.parse(claim.resourceId) as {
+            productsCreated: number;
+            customersCreated: number;
+            customersUpdated: number;
+            accountsCreated: number;
+            accountsSkipped: number;
+            paymentsCreated: number;
+            paymentsSkipped: number;
+            openingAdjustmentsCreated: number;
+          };
+        }
+
         const counts = {
           productsCreated: 0,
           customersCreated: 0,
@@ -317,6 +353,11 @@ export async function POST(request: Request) {
             newValue: JSON.stringify({ counts, staffMapping }),
           },
         });
+        await completeIdempotencyKey(
+          tx,
+          claim.id,
+          JSON.stringify(counts)
+        );
 
         return counts;
       },

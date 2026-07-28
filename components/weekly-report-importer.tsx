@@ -50,6 +50,9 @@ export function WeeklyReportImporter() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [idempotencyKey, setIdempotencyKey] = useState(() =>
+    crypto.randomUUID()
+  );
 
   async function previewFile() {
     if (!file) return;
@@ -86,12 +89,14 @@ export function WeeklyReportImporter() {
       formData.append("staffMapping", JSON.stringify(mapping));
       const response = await fetch("/api/admin/weekly-report-import/commit", {
         method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
         body: formData,
       });
       if (!response.ok) throw new Error(await responseMessage(response));
       const body = (await response.json()) as { counts: ImportResult };
       setResult(body.counts);
       setPreview(null);
+      setIdempotencyKey(crypto.randomUUID());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The import failed.");
     } finally {

@@ -6,6 +6,9 @@ import {
   type Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createAccountDocument } from "@/lib/customer-documents";
+import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
+import { formatMoney } from "@/lib/accounts";
 
 const DORMANT_AFTER_DAYS = 21;
 const PROBATION_AFTER_MONTHS = 4;
@@ -272,5 +275,26 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
         },
       });
     });
+
+    if (nextStatus === AccountStatus.CLOSED) {
+      const { refundAmount, serviceFee, serviceFeeRate } =
+        getClosureRefundAmounts(account.totalPaid);
+      await createAccountDocument({
+        accountId: account.id,
+        templateKey: LEGAL_TEMPLATE_KEYS.CANCELLATION,
+        type: "ACCOUNT_CLOSURE_CALCULATION",
+        createdBy: "system",
+        dedupeBase: `ACCOUNT_CLOSURE_CALCULATION:${account.id}`,
+        values: {
+          deductionRate: `${Math.round(serviceFeeRate * 100)}%`,
+          deductionAmount: formatMoney(serviceFee),
+          refundAmount: formatMoney(refundAmount),
+          refundMethod: "Customer credit / approved payment channel",
+          processingTime: "Subject to identity and account verification",
+        },
+      }).catch((error) =>
+        console.error("QUEUE_CLOSURE_CALCULATION_ERROR", error)
+      );
+    }
   }
 }

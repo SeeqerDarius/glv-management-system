@@ -3,6 +3,7 @@
 import { Prisma, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -18,6 +19,13 @@ import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
+import { createAccountDocument } from "@/lib/customer-documents";
+import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
+import {
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  readIdempotencyKey,
+} from "@/lib/idempotency";
 
 export type CustomerFormState = {
   errors?: {
@@ -162,6 +170,7 @@ export async function createCustomer(
 
   const fullName = cleanInput(formData.get("fullName"));
   const phone = cleanInput(formData.get("phone"));
+  const email = cleanInput(formData.get("email"));
   const productId = cleanInput(formData.get("productId"));
   const startDateValue = cleanInput(formData.get("startDate"));
   const firstPaymentAmountValue = cleanInput(formData.get("amount"));
@@ -170,6 +179,7 @@ export async function createCustomer(
   const firstPaymentDate = parsePaymentDate(firstPaymentDateValue);
   const firstPaymentMethod = cleanInput(formData.get("method"));
   const firstPaymentNotes = cleanInput(formData.get("notes"));
+  const idempotencyKey = readIdempotencyKey(formData);
   const wantsFirstPayment = Boolean(
     firstPaymentAmountValue || firstPaymentDateValue
   );
@@ -207,6 +217,9 @@ export async function createCustomer(
 
   if (wantsFirstPayment && !firstPaymentMethod) {
     errors.method = "Please select a payment method.";
+  }
+  if (!idempotencyKey) {
+    errors.form = "This form has expired. Refresh the page and try again.";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -277,6 +290,28 @@ export async function createCustomer(
   try {
     const result = await prisma.$transaction(
       async (tx) => {
+        const claim = await claimIdempotencyKey({
+          tx,
+          userId: user.id,
+          operation: "CREATE_CUSTOMER",
+          key: idempotencyKey!,
+        });
+        if (!claim.claimed) {
+          if (!claim.resourceId) {
+            throw new Error("The original customer request is still processing.");
+          }
+          const existingCustomer = await tx.customer.findUnique({
+            where: { id: claim.resourceId },
+          });
+          if (!existingCustomer) {
+            throw new Error("The original customer could not be found.");
+          }
+          return {
+            customer: existingCustomer,
+            accountId: null,
+          };
+        }
+
         const customerId = await generateCustomerIdForCreate(
           tx,
           customerIdPrefix
@@ -286,6 +321,7 @@ export async function createCustomer(
             customerId,
             fullName,
             phone: phone || null,
+            email: email || null,
             address: cleanInput(formData.get("address")) || null,
             nationalId: cleanInput(formData.get("nationalId")) || null,
             staffId,
@@ -334,6 +370,7 @@ export async function createCustomer(
           });
         }
 
+        await completeIdempotencyKey(tx, claim.id, createdCustomer.id);
         return {
           customer: createdCustomer,
           accountId: account?.id ?? null,
@@ -358,6 +395,15 @@ export async function createCustomer(
 
   revalidatePath("/customers");
   if (accountId) {
+    after(async () => {
+      await createAccountDocument({
+        accountId,
+        templateKey: LEGAL_TEMPLATE_KEYS.TERMS,
+        type: "CUSTOMER_TERMS",
+        createdBy: user.id,
+        dedupeBase: `CUSTOMER_TERMS:${accountId}`,
+      }).catch((error) => console.error("QUEUE_CUSTOMER_TERMS_ERROR", error));
+    });
     revalidatePath("/accounts");
     revalidatePath("/products");
     revalidatePath(`/products/${productId}`);
@@ -435,6 +481,7 @@ export async function updateCustomer(formData: FormData): Promise<void> {
     data: {
       fullName: cleanInput(formData.get("fullName")),
       phone: cleanInput(formData.get("phone")) || null,
+      email: cleanInput(formData.get("email")) || null,
       address: cleanInput(formData.get("address")) || null,
       nationalId: cleanInput(formData.get("nationalId")) || null,
       staffId,

@@ -460,9 +460,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </SettingsSection>
 
         <SettingsSection title="Notifications" description="Outbound channel preferences. These are separate from the in-app sidebar attention badges and need provider setup before messages can be sent.">
-          <ToggleField label="Email Notifications (planned)" name="emailNotificationsEnabled" defaultChecked={values.emailNotificationsEnabled} description="Saved only. No email delivery provider is connected yet." />
-          <ToggleField label="SMS Notifications (planned)" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} description="Saved only. No SMS gateway is connected yet." />
-          <ToggleField label="WhatsApp Reminders (planned)" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} description="Saved only. No WhatsApp provider is connected yet." />
+          <ToggleField label="Email Notifications" name="emailNotificationsEnabled" defaultChecked={values.emailNotificationsEnabled} description="Queues customer documents and receipts for email when Resend is configured." />
+          <ToggleField label="SMS Notifications" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} description="Queues customer notices for SMS when Twilio is configured." />
+          <ToggleField label="WhatsApp Notifications" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} description="Queues customer notices for WhatsApp when Twilio WhatsApp is configured." />
         </SettingsSection>
 
         <SettingsSection title="System" description="Operational metadata for database, Neon, storage, backup, and restore visibility.">
@@ -479,6 +479,22 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </Button>
         </div>
       </form>
+      ) : null}
+
+      {isSuperAdmin ? (
+        <Card className="border-lime-200 bg-lime-50 shadow-sm">
+          <CardHeader>
+            <CardTitle>Legal Documents & Customer Messages</CardTitle>
+            <CardDescription>
+              Edit terms, cancellation and reactivation calculations, receipt messages, and review the delivery queue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/settings/legal">Manage Legal Templates</Link>
+            </Button>
+          </CardContent>
+        </Card>
       ) : null}
 
       {isSuperAdmin ? (

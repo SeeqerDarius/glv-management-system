@@ -8,8 +8,9 @@ export default async function NewCustomerPage() {
   const session = await auth();
 
   const canAssignStaff = session?.user?.role === UserRole.ADMIN || session?.user?.role === UserRole.SUPER_ADMIN;
-  const staff = canAssignStaff
-    ? await prisma.staff.findMany({
+  const [staff, products, existingCustomers] = await Promise.all([
+    canAssignStaff
+      ? prisma.staff.findMany({
         where: {
           active: true,
         },
@@ -17,34 +18,35 @@ export default async function NewCustomerPage() {
           fullName: "asc",
         },
       })
-    : [];
-  const products = await prisma.product.findMany({
-    where: {
-      active: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      imageUrl: true,
-      layawayPrice: true,
-      dailyAmount: true,
-      duration: true,
-    },
-  });
-  const existingCustomers = await prisma.customer.findMany({
-    orderBy: {
-      fullName: "asc",
-    },
-    select: {
-      id: true,
-      fullName: true,
-      customerId: true,
-    },
-  });
+      : Promise.resolve([]),
+    prisma.product.findMany({
+      where: {
+        active: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        imageUrl: true,
+        layawayPrice: true,
+        dailyAmount: true,
+        duration: true,
+      },
+    }),
+    prisma.customer.findMany({
+      orderBy: {
+        fullName: "asc",
+      },
+      select: {
+        id: true,
+        fullName: true,
+        customerId: true,
+      },
+    }),
+  ]);
 
   return (
     <div className="max-w-2xl space-y-6">

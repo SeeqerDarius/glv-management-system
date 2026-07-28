@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { UserPermission } from "@prisma/client";
 import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Trash2 } from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
@@ -130,6 +131,8 @@ export default async function ReportsPage({
   const depositDate = dateInputValue(
     report.end < new Date() ? report.end : new Date()
   );
+  const earliestDepositDate = new Date(report.start);
+  earliestDepositDate.setDate(earliestDepositDate.getDate() - 7);
   const depositErrorMessage =
     query.depositError === "missing-staff"
       ? "Choose a staff member."
@@ -141,6 +144,8 @@ export default async function ReportsPage({
             ? "Deposit date cannot be in the future."
             : query.depositError === "not-found"
               ? "Deposit record could not be found."
+              : query.depositError === "expired-form"
+                ? "This form expired. Refresh the page and try again."
               : "Unable to record the staff deposit.";
   const defaultSalaryMonth = salaryMonthInputValue();
   const maxSalaryMonth = salaryMonthInputValue(new Date());
@@ -269,9 +274,10 @@ export default async function ReportsPage({
         {isAdminRole(session?.user?.role) ? (
           <form action={recordStaffDeposit} className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-2 lg:grid-cols-7">
             <input type="hidden" name="week" value={selectedWeek} />
+            <input type="hidden" name="idempotencyKey" value={randomUUID()} />
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{report.rows.map((row) => <option key={row.staffId} value={row.staffId}>{row.staffCode} - {row.staffName}</option>)}</select></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Amount Deposited</span><input name="amount" type="number" min="0.01" step="0.01" className="w-full rounded border p-3" required /></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Deposit Date</span><input name="depositDate" type="date" defaultValue={depositDate} min={dateInputValue(report.start)} max={dateInputValue(report.end < new Date() ? report.end : new Date())} className="w-full rounded border p-3" required /></label>
+            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Deposit Date</span><input name="depositDate" type="date" defaultValue={depositDate} min={dateInputValue(earliestDepositDate)} max={dateInputValue(report.end < new Date() ? report.end : new Date())} className="w-full rounded border p-3" required /><span className="block text-[11px] text-gray-500">You may backdate a deposit into the previous week. It will appear in the report for the selected date.</span></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Channel</span><select name="channel" className="w-full rounded border p-3"><option value="Cash Deposit">Cash Deposit</option><option value="Bank Transfer">Bank Transfer</option><option value="Mobile Money">Mobile Money</option><option value="Cheque">Cheque</option><option value="Other">Other</option></select></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Reference</span><input name="reference" className="w-full rounded border p-3" placeholder="Slip or transaction ID" /></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>

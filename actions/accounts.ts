@@ -10,6 +10,7 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -28,7 +29,15 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
+import { createAccountDocument } from "@/lib/customer-documents";
+import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
+import {
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  readIdempotencyKey,
+} from "@/lib/idempotency";
 import { getSettings } from "@/lib/settings";
+import { formatMoney } from "@/lib/accounts";
 
 export type AccountFormState = {
   errors?: {
@@ -115,6 +124,7 @@ export async function createAccount(
   const firstPaymentDate = parsePaymentDate(firstPaymentDateValue);
   const firstPaymentMethod = cleanInput(formData.get("method"));
   const firstPaymentNotes = cleanInput(formData.get("notes"));
+  const idempotencyKey = readIdempotencyKey(formData);
   const wantsFirstPayment = Boolean(
     firstPaymentAmountValue || firstPaymentDateValue
   );
@@ -137,6 +147,9 @@ export async function createAccount(
   }
   if (wantsFirstPayment && !firstPaymentMethod) {
     errors.method = "Please select a payment method.";
+  }
+  if (!idempotencyKey) {
+    errors.form = "This form has expired. Refresh the page and try again.";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -216,6 +229,19 @@ export async function createAccount(
   try {
     accountId = await prisma.$transaction(
       async (tx) => {
+        const claim = await claimIdempotencyKey({
+          tx,
+          userId: user.id,
+          operation: "CREATE_ACCOUNT",
+          key: idempotencyKey!,
+        });
+        if (!claim.claimed) {
+          if (!claim.resourceId) {
+            throw new Error("The original account request is still processing.");
+          }
+          return claim.resourceId;
+        }
+
         const account = await createCustomerAccountForProduct({
           tx,
           userId: user.id,
@@ -245,6 +271,7 @@ export async function createAccount(
           });
         }
 
+        await completeIdempotencyKey(tx, claim.id, account.id);
         return account.id;
       },
       { maxWait: 10_000, timeout: 30_000 }
@@ -263,6 +290,15 @@ export async function createAccount(
   revalidatePath(`/customers/${customer.id}`);
   revalidatePath("/products");
   revalidatePath(`/products/${productId}`);
+  after(async () => {
+    await createAccountDocument({
+      accountId,
+      templateKey: LEGAL_TEMPLATE_KEYS.TERMS,
+      type: "CUSTOMER_TERMS",
+      createdBy: user.id,
+      dedupeBase: `CUSTOMER_TERMS:${accountId}`,
+    }).catch((error) => console.error("QUEUE_ACCOUNT_TERMS_ERROR", error));
+  });
   redirect(`/accounts/${accountId}?created=account`);
 }
 
@@ -755,6 +791,24 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
   const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
   const nextStatus =
     nextBalance <= 0 ? AccountStatus.COMPLETED : AccountStatus.ACTIVE;
+
+  await createAccountDocument({
+    accountId: account.id,
+    templateKey: LEGAL_TEMPLATE_KEYS.REACTIVATION,
+    type: "REACTIVATION_CALCULATION",
+    createdBy: user.id,
+    dedupeBase: `REACTIVATION_CALCULATION:${account.id}:${Date.now()}`,
+    values: {
+      previousAmountPaid: formatMoney(account.totalPaid),
+      deductionRate: `${Math.round(serviceFeeRate * 100)}%`,
+      reactivationCharge: formatMoney(serviceFee),
+      amountRemainingAfterCharge: formatMoney(nextTotalPaid),
+      newBalance: formatMoney(nextBalance),
+      expectedCompletionDate: account.expectedEndDate.toLocaleDateString("en-GB"),
+    },
+  }).catch((error) =>
+    console.error("QUEUE_REACTIVATION_CALCULATION_ERROR", error)
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.customerAccount.update({

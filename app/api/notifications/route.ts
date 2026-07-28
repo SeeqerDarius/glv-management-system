@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   AccountStatus,
   CreditStatus,
@@ -15,6 +15,7 @@ import { hasPermission, isSuperAdminRole } from "@/lib/roles";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
 import { getSettings } from "@/lib/settings";
+import { dispatchDueCustomerMessages } from "@/lib/customer-communications";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +63,12 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  after(async () => {
+    await dispatchDueCustomerMessages().catch((error) =>
+      console.error("CUSTOMER_MESSAGE_DISPATCH_ERROR", error)
+    );
+  });
 
   const attention: Record<string, AttentionItem> = {};
   try {

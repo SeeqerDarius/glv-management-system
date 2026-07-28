@@ -21,6 +21,7 @@ import {
   reactivateDormantAccount,
   updateAccountDeliveryStatus,
 } from "@/actions/accounts";
+import { generateCustomerDocument } from "@/actions/customer-documents";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { AccountProductCorrectionForm } from "@/components/account-product-correction-form";
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
@@ -120,6 +121,10 @@ export default async function AccountDetailsPage({
             },
           },
         },
+      },
+      documents: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
       },
     },
   });
@@ -346,6 +351,60 @@ export default async function AccountDetailsPage({
             </Button>
           </form>
         </div>
+      ) : null}
+
+      {isAdmin ? (
+        <section className="space-y-4 rounded-lg border border-lime-200 bg-lime-50 p-5">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-950">Customer Legal Documents</h2>
+            <p className="text-sm text-gray-600">Generate an addressed letterhead document, queue it for enabled electronic channels, then print or save it as PDF.</p>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <form action={generateCustomerDocument} className="rounded-md border bg-white p-4">
+              <input type="hidden" name="accountId" value={account.id} />
+              <input type="hidden" name="kind" value="TERMS" />
+              <p className="font-medium">Terms and Conditions</p>
+              <p className="mt-1 text-xs text-gray-500">Create or resend the current approved terms for this account.</p>
+              <Button type="submit" className="mt-4 w-full">Generate Terms</Button>
+            </form>
+            <form action={generateCustomerDocument} className="space-y-3 rounded-md border bg-white p-4">
+              <input type="hidden" name="accountId" value={account.id} />
+              <input type="hidden" name="kind" value="CANCELLATION" />
+              <p className="font-medium">Cancellation Calculation</p>
+              <input name="refundMethod" placeholder="Refund method" defaultValue="Customer credit / original payment channel" className="w-full rounded border p-2 text-sm" />
+              <input name="processingTime" placeholder="Processing time" defaultValue="Within 10 business days after approval" className="w-full rounded border p-2 text-sm" />
+              <Button type="submit" variant="outline" className="w-full">Generate Calculation</Button>
+            </form>
+            <form action={generateCustomerDocument} className="rounded-md border bg-white p-4">
+              <input type="hidden" name="accountId" value={account.id} />
+              <input type="hidden" name="kind" value="REACTIVATION" />
+              <p className="font-medium">Reactivation Calculation</p>
+              <p className="mt-1 text-xs text-gray-500">Show previous payment, service charge, remaining amount, new balance and expected date.</p>
+              <Button type="submit" variant="outline" className="mt-4 w-full">Generate Calculation</Button>
+            </form>
+          </div>
+        </section>
+      ) : null}
+
+      {account.documents.length > 0 ? (
+        <section className="rounded-lg border bg-white">
+          <div className="border-b p-5">
+            <h2 className="text-lg font-semibold">Generated Customer Documents</h2>
+          </div>
+          <div className="divide-y">
+            {account.documents.map((document) => (
+              <div key={document.id} className="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p className="font-medium">{document.title}</p>
+                  <p className="text-xs text-gray-500">{formatDate(document.createdAt)}</p>
+                </div>
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/documents/${document.id}`}>View / PDF</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
 
       {error === "delivery-not-completed" ? (

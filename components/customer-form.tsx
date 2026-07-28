@@ -10,6 +10,10 @@ import { GlvLoading } from "@/components/glv-loading";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { todayDateInputValue } from "@/lib/date-rules";
+import {
+  IdempotencyField,
+  useIdempotencyKey,
+} from "@/components/idempotency-field";
 
 type StaffOption = { id: string; fullName: string; code: string };
 type ProductOption = {
@@ -61,9 +65,11 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
   const submitLabel = selectedProduct
     ? "Create Customer & Account"
     : "Create Customer";
+  const idempotencyKey = useIdempotencyKey();
 
   return (
     <form action={formAction} className="space-y-4 rounded-lg border bg-white p-5">
+      <IdempotencyField value={idempotencyKey} />
       {state.errors?.form ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {state.errors.form}
@@ -96,6 +102,7 @@ export function CustomerForm({ action, staff, products, existingCustomers, canAs
         {state.errors?.fullName ? <p className="text-sm text-red-700">{state.errors.fullName}</p> : null}
       </label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Phone <span className="font-normal text-gray-400">(optional)</span></span><input name="phone" className="w-full rounded border p-3" />{state.errors?.phone ? <p className="text-sm text-red-700">{state.errors.phone}</p> : null}</label>
+      <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Email <span className="font-normal text-gray-400">(optional)</span></span><input name="email" type="email" className="w-full rounded border p-3" /></label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">Address</span><textarea name="address" className="min-h-24 w-full rounded border p-3" /></label>
       <label className="block space-y-1"><span className="text-sm font-medium text-gray-700">National ID <span className="font-normal text-gray-400">(optional)</span></span><input name="nationalId" className="w-full rounded border p-3" /></label>
 

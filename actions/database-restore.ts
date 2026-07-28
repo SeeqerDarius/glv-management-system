@@ -77,6 +77,10 @@ export async function restoreDatabaseBackup(formData: FormData) {
   await prisma.$transaction(
     async (tx) => {
       await tx.auditLog.deleteMany();
+      await tx.customerMessage.deleteMany();
+      await tx.customerDocument.deleteMany();
+      await tx.legalTemplate.deleteMany();
+      await tx.idempotencyKey.deleteMany();
       await tx.loginRateLimit.deleteMany();
       await tx.staffSalaryPayment.deleteMany();
       await tx.staffSalaryHistory.deleteMany();
@@ -159,6 +163,14 @@ export async function restoreDatabaseBackup(formData: FormData) {
           ),
         });
       }
+      if (tables.idempotencyKeys?.length) {
+        await tx.idempotencyKey.createMany({
+          data: reviveBackupRows<Prisma.IdempotencyKeyCreateManyInput>(
+            "idempotencyKeys",
+            tables.idempotencyKeys
+          ),
+        });
+      }
       if (tables.customers?.length) {
         await tx.customer.createMany({
           data: reviveBackupRows<Prisma.CustomerCreateManyInput>(
@@ -188,6 +200,30 @@ export async function restoreDatabaseBackup(formData: FormData) {
           data: reviveBackupRows<Prisma.CustomerCreditCreateManyInput>(
             "customerCredits",
             tables.customerCredits
+          ),
+        });
+      }
+      if (tables.legalTemplates?.length) {
+        await tx.legalTemplate.createMany({
+          data: reviveBackupRows<Prisma.LegalTemplateCreateManyInput>(
+            "legalTemplates",
+            tables.legalTemplates
+          ),
+        });
+      }
+      if (tables.customerDocuments?.length) {
+        await tx.customerDocument.createMany({
+          data: reviveBackupRows<Prisma.CustomerDocumentCreateManyInput>(
+            "customerDocuments",
+            tables.customerDocuments
+          ),
+        });
+      }
+      if (tables.customerMessages?.length) {
+        await tx.customerMessage.createMany({
+          data: reviveBackupRows<Prisma.CustomerMessageCreateManyInput>(
+            "customerMessages",
+            tables.customerMessages
           ),
         });
       }

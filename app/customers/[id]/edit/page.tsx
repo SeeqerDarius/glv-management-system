@@ -92,6 +92,16 @@ export default async function EditCustomerPage({
         </label>
 
         <label className="block space-y-1">
+          <span className="text-sm font-medium text-gray-700">Email</span>
+          <input
+            name="email"
+            type="email"
+            defaultValue={customer.email ?? ""}
+            className="w-full rounded border p-3"
+          />
+        </label>
+
+        <label className="block space-y-1">
           <span className="text-sm font-medium text-gray-700">Address</span>
           <textarea
             name="address"

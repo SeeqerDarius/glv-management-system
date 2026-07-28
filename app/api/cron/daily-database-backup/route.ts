@@ -1,4 +1,5 @@
 import { createAutomatedDatabaseBackup } from "@/lib/automated-database-backup";
+import { dispatchDueCustomerMessages } from "@/lib/customer-communications";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -14,8 +15,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const result = await createAutomatedDatabaseBackup();
-    return Response.json({ ok: true, ...result });
+    const [result, messages] = await Promise.all([
+      createAutomatedDatabaseBackup(),
+      dispatchDueCustomerMessages(100),
+    ]);
+    return Response.json({ ok: true, ...result, messages });
   } catch (error) {
     console.error("Daily database backup failed", error);
     return Response.json(

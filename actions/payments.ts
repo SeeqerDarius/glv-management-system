@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -20,6 +21,14 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
 import { isFutureDate } from "@/lib/date-rules";
+import { createAccountDocument } from "@/lib/customer-documents";
+import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
+import { formatMoney } from "@/lib/accounts";
+import {
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+  readIdempotencyKey,
+} from "@/lib/idempotency";
 
 export type PaymentFormState = {
   success?: {
@@ -146,6 +155,7 @@ export async function recordPayment(
   const paymentDate = parsePaymentDate(paymentDateValue);
   const method = cleanInput(formData.get("method"));
   const notes = cleanInput(formData.get("notes"));
+  const idempotencyKey = readIdempotencyKey(formData);
   const errors: PaymentFormState["errors"] = {};
 
   if (!accountId) errors.accountId = "Please select an account.";
@@ -157,6 +167,9 @@ export async function recordPayment(
     errors.paymentDate = "Payment date cannot be in the future.";
   }
   if (!method) errors.method = "Please select a payment method.";
+  if (!idempotencyKey) {
+    errors.form = "This form has expired. Refresh the page and try again.";
+  }
 
   if (Object.keys(errors).length > 0) {
     return {
@@ -231,13 +244,46 @@ export async function recordPayment(
   }
 
   let createdPayment: {
+    id: string;
     receiptNo: string;
+    amount: number;
+    paymentDate: Date;
+    method: string;
+    createdAt: Date;
   };
-  const receiptPrefix = (await getSettings()).receiptPrefix;
+  const settings = await getSettings();
+  const receiptPrefix = settings.receiptPrefix;
 
   try {
     createdPayment = await prisma.$transaction(
       async (tx) => {
+        const claim = await claimIdempotencyKey({
+          tx,
+          userId: user.id,
+          operation: "RECORD_PAYMENT",
+          key: idempotencyKey!,
+        });
+        if (!claim.claimed) {
+          if (!claim.resourceId) {
+            throw new Error("The original payment request is still processing.");
+          }
+          const existingPayment = await tx.payment.findUnique({
+            where: { id: claim.resourceId },
+            select: {
+              id: true,
+              receiptNo: true,
+              amount: true,
+              paymentDate: true,
+              method: true,
+              createdAt: true,
+            },
+          });
+          if (!existingPayment) {
+            throw new Error("The original payment could not be found.");
+          }
+          return existingPayment;
+        }
+
         const createdPayment = await recordPaymentForAccount({
           tx,
           userId: user.id,
@@ -248,6 +294,7 @@ export async function recordPayment(
           notes,
           receiptPrefix,
         });
+        await completeIdempotencyKey(tx, claim.id, createdPayment.id);
 
         return createdPayment;
       },
@@ -267,6 +314,26 @@ export async function recordPayment(
   revalidatePath("/customers");
   revalidatePath(`/accounts/${account.id}`);
   revalidatePath(`/customers/${account.customer.id}`);
+  const receiptSendAt = new Date(
+    createdPayment.createdAt.getTime() +
+      Number(settings.paymentEditWindowHours ?? 3) * 60 * 60 * 1000
+  );
+  after(async () => {
+    await createAccountDocument({
+      accountId: account.id,
+      templateKey: LEGAL_TEMPLATE_KEYS.PAYMENT_RECEIPT,
+      type: "PAYMENT_RECEIPT",
+      createdBy: user.id,
+      scheduledAt: receiptSendAt,
+      dedupeBase: `PAYMENT_RECEIPT:${createdPayment.id}`,
+      values: {
+        receiptNo: createdPayment.receiptNo,
+        paymentAmount: formatMoney(createdPayment.amount),
+        paymentDate: createdPayment.paymentDate.toLocaleDateString("en-GB"),
+        paymentMethod: createdPayment.method,
+      },
+    }).catch((error) => console.error("QUEUE_PAYMENT_RECEIPT_ERROR", error));
+  });
 
   if (cleanInput(formData.get("inline")) === "true") {
     return {
@@ -488,6 +555,27 @@ export async function updatePayment(
   revalidatePath("/accounts");
   revalidatePath(`/accounts/${payment.accountId}`);
   revalidatePath(`/customers/${payment.account.customerId}`);
+  const updatedReceiptSendAt = new Date(
+    payment.createdAt.getTime() + editWindowHours * 60 * 60 * 1000
+  );
+  after(async () => {
+    await createAccountDocument({
+      accountId: payment.accountId,
+      templateKey: LEGAL_TEMPLATE_KEYS.PAYMENT_RECEIPT,
+      type: "PAYMENT_RECEIPT",
+      createdBy: user.id,
+      scheduledAt: updatedReceiptSendAt,
+      dedupeBase: `PAYMENT_RECEIPT:${payment.id}`,
+      values: {
+        receiptNo: payment.receiptNo,
+        paymentAmount: formatMoney(amount),
+        paymentDate: paymentDate.toLocaleDateString("en-GB"),
+        paymentMethod: method,
+      },
+    }).catch((error) =>
+      console.error("UPDATE_PAYMENT_RECEIPT_QUEUE_ERROR", error)
+    );
+  });
   redirect(`/accounts/${payment.accountId}?updated=payment`);
 }
 
