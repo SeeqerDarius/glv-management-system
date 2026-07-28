@@ -370,8 +370,8 @@ def build_body() -> str:
         ["Dashboard", "/dashboard", "Role-shaped summary: admins see business KPIs; staff see assigned operational metrics."],
         ["Activity", "/activity", "Operational activity and collection trends."],
         ["Customers", "/customers, /customers/new, /customers/[id], /customers/[id]/edit", "Customer CRUD, search/filtering, assignment, profile, account/payment history, and customer-level actions."],
-        ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, status, balance, delivery status, payment entry, corrections, and lifecycle handling."],
-        ["Payments", "/payments, /payments/new", "Payment recording, receipt numbers, grouped history, deletion/recalculation, and staff-safe filtering."],
+        ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, automatic terms, status, balance, delivery, corrections, lifecycle-gated cancellation/reactivation documents, and payment entry."],
+        ["Payments", "/payments, /payments/new", "Payment recording, receipt numbers, customer receipt communication, grouped history, deletion/recalculation, and staff-safe filtering."],
         ["Products", "/products, /products/new, /products/[id], /products/[id]/edit", "Catalog management, product economics, quantity on sale, category badges, and procurement tab."],
         ["Procurement", "/products?tab=procurement", "Readiness list for products with accounts at least 70% paid and still pending delivery."],
         ["Staff", "/staff, /staff/new, /staff/[id], /staff/[id]/edit", "Staff records, permissions, assigned work, salary tracking, deactivation, deletion, and password resets."],
@@ -379,7 +379,7 @@ def build_body() -> str:
         ["Credits & Refunds", "/credits", "Open credits from overpayments or closures and refund tracking."],
         ["Reports", "/reports, /api/reports/weekly-export", "Admin reports, salary tracking, and Excel workbook export including procurement list."],
         ["Audit Logs", "/audit-logs", "Read-only trail of important system actions."],
-        ["Settings", "/settings", "Admin control panel for company, layaway, payroll, security, notifications, theme, and system metadata."],
+        ["Settings", "/settings, /settings/legal", "Admin control panel for company, layaway, payroll, security, legal templates, addressed terms, customer communications, theme, and system metadata."],
         ["Notifications", "/api/notifications", "Attention counts for modules such as procurement; sidebar clears opened notifications locally."],
         ["AI Support", "/api/support/assistant, components/ai-support-chat.tsx", "Admin-only optional OpenAI support assistant for GLV workflows."],
         ["Health/Logout", "/api/system/health, /api/logout", "Basic health check and logout/cookie cleanup."],
@@ -416,7 +416,8 @@ def build_body() -> str:
         ["Flow step", "Server code", "Key controls"],
         ["Create customer", "actions/customers.ts", "Duplicate warning, staff assignment, permission/ownership checks, audit log."],
         ["Create account", "actions/accounts.ts, lib/customer-account-creation.ts", "Uses selected product economics, creates expected end date and opening balance."],
-        ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit."],
+        ["Automatic terms", "lib/customer-documents.ts, lib/customer-communications.ts", "Creates addressed terms after account creation and queues one customer channel when contact details exist."],
+        ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit, and queues one receipt channel."],
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
         ["Confirm delivery", "actions/accounts.ts", "Only after account is completed and balance is zero; revalidates account/customer/product screens."],
@@ -532,8 +533,8 @@ def build_body() -> str:
         ["Procurement sheet", "Products ready to buy with quantity, costs, layaway price, average paid %, and highest paid %."],
     ], [2400, 6960]))
 
-    body.append(section("11. Notifications and AI Support"))
-    body.append(para("Notifications are currently computed attention items, not persisted notification records. The live route checks procurement readiness for users with product-management access. The sidebar badge opens the relevant target and clears that exact notification locally; if the count or label changes later, it can show again."))
+    body.append(section("11. Notifications, Customer Communications, and AI Support"))
+    body.append(para("The system has computed in-app attention items for operators and persisted outbound customer messages. Customer documents and receipts queue exactly one enabled channel. Legal/document messages prefer email, then WhatsApp, then SMS; payment receipts prefer WhatsApp, then SMS, then email. With no email or phone, no outbound row is queued and staff use the in-system receipt/tracking record. Delivery preserves the selected channel and retries provider failures."))
     body.append(code_block("""
     AppShell loads protected page
       |
@@ -556,6 +557,8 @@ def build_body() -> str:
         ["Dismissal storage", "components/app-shell.tsx localStorage key glv-dismissed-attention"],
         ["AI support", "Admin-only floating chat bubble; route calls OpenAI only when OPENAI_API_KEY is configured."],
         ["AI support scope", "Navigation, permissions, payments, accounts, products, procurement, staff, reports, settings, and troubleshooting."],
+        ["Customer message queue", "CustomerMessage records are created by lib/customer-communications.ts and dispatched by the notifications route or daily cron."],
+        ["No-contact handling", "No message is queued; staff explain terms verbally and show the receipt/product tracking information."],
     ], [2300, 7060]))
 
     body.append(section("12. Settings Module"))
@@ -568,7 +571,8 @@ def build_body() -> str:
         ["Payroll", "defaultMonthlySalary, commission fields, payrollDay", "Salary defaults and reporting support."],
         ["IDs and receipts", "receiptPrefix, customerIdPrefix, staffCodeLength", "Receipt generation and ID/code helper logic."],
         ["Security", "passwordLength, sessionTimeoutMinutes, requirePasswordChange, twoFactorEnabled", "Some fields are stored; password-change enforcement is live through Auth.js/session logic."],
-        ["Notifications", "email/sms/WhatsApp toggles", "Stored; current live notification route is procurement attention."],
+        ["Legal documents", "editable terms/cancellation/reactivation/receipt templates", "Terms are generated for new accounts and managed in Settings; lifecycle calculations are account-stage gated."],
+        ["Notifications", "email/sms/WhatsApp toggles", "Controls the live one-channel customer queue. Provider credentials are required for delivery."],
         ["Appearance/status", "theme, colors, loadingAnimation, currentVersion, databaseStatus", "Stored and partly consumed in UI branding/status surfaces."],
     ], [1900, 3000, 4460]))
 
@@ -590,7 +594,7 @@ def build_body() -> str:
         ["npm run lint", "ESLint project check.", "Passed in latest verification."],
         ["npx tsc --noEmit", "TypeScript check without emitting files.", "Passed in latest verification."],
         ["npx next build", "Next production build without migration deploy.", "Passed in latest verification."],
-        ["npm run build", "Runs prisma migrate deploy, prisma generate, next build.", "Can fail when Neon is unreachable before code build starts."],
+        ["npm run build", "Runs prisma migrate deploy, prisma generate, next build.", "Use the Supabase session pooler for migrations; the transaction pooler can stall migration deploy."],
         ["npm run db:deploy", "Deploy migrations to database.", "Requires reachable DATABASE_URL."],
         ["npm run seed", "Run Prisma seed script.", "Use only when intentionally bootstrapping data."],
     ], [1900, 3400, 4060]))
@@ -604,7 +608,7 @@ def build_body() -> str:
         ["Notification persistence", "Notifications clear locally by signature; there is no database notification/read model yet."],
         ["AI support persistence", "Chat state is browser-local and not audited or stored."],
         ["Prisma package config", "Prisma warns that package.json#prisma is deprecated for Prisma 7; not currently blocking."],
-        ["Database reachability", "Full build and migration deploy require Neon connectivity."],
+        ["Database reachability", "Full build and migration deploy require Supabase connectivity through the correct pooler."],
         ["Unstaged local file", "app/page.tsx had an unrelated local edit at the time this documentation was generated; it is not part of the pushed procurement/reporting release."],
     ], [2400, 6960]))
 

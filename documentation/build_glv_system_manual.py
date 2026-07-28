@@ -109,8 +109,8 @@ SECTIONS = [
      "Allows authorised administrators to review pending email and profile-image change requests.",
      "Use it to keep sensitive identity changes controlled rather than immediately self-approved."),
     ("System Settings", "13-settings.png",
-     "Centralises company identity, receipt rules, account controls, security settings, backup, import, and operational configuration.",
-     "Use it for system-wide administration. Changes here can affect all users and workflows."),
+     "Centralises company identity, receipt rules, account controls, security settings, legal templates, customer communications, backup, import, and operational configuration.",
+     "Use it for system-wide administration, including addressed Terms and Conditions. Changes here can affect all users and workflows."),
     ("Weekly Report Import and Recovery", "21-import-recovery.png",
      "Provides a controlled preview-and-import workflow for recovering supported data from exported weekly reports.",
      "Use it only after reviewing the preview and matching recovered records to current staff and products."),
@@ -379,6 +379,10 @@ def build():
          "Correct records through authorised edit or controlled delete workflows. Avoid informal workarounds that leave financial information outside the system."),
         ("Use exports and backups",
          "Weekly Excel exports support analysis and recovery, while database backups provide broader protection. Exports are useful business records but should not be treated as a full substitute for tested database restoration."),
+        ("Issue customer legal documents at the correct stage",
+         "A new product account automatically creates addressed Terms and Conditions. Administrators regenerate terms from Settings. Cancellation calculations are available only for closed or cancelled accounts, while reactivation calculations require lifecycle eligibility. Generated documents remain attached to the account for audit and PDF access."),
+        ("Use the correct customer communication channel",
+         "The system queues only one enabled channel. Legal and document messages prefer email, then WhatsApp, then SMS. Payment receipts prefer WhatsApp, then SMS, then email. If the customer has neither email nor phone, nothing is queued; staff explain the terms verbally and show the in-system receipt and product tracking information."),
     ]:
         doc.add_paragraph(heading, style="Heading 2")
         doc.add_paragraph(body)

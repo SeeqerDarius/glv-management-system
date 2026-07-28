@@ -9,7 +9,7 @@ without rediscovering the system from scratch.
 - Purpose: Manage layaway/installment customers, product accounts, payments,
   staff, procurement signals, credits/refunds, reports, settings, and audit logs.
 - Stack: Next.js App Router on Next 16, React 19, Auth.js v5 credentials auth,
-  Prisma, Neon Postgres, Tailwind CSS, lucide-react.
+  Prisma, Supabase Postgres, Tailwind CSS, lucide-react.
 - Workspace: `C:\Users\andre\glv-management-system`.
 - Main branch: `main`.
 
@@ -75,6 +75,8 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - `/audit-logs`: read-only audit history.
 - `/settings`: broad admin control panel. Important: many fields are stored but
   not fully wired downstream yet. Always distinguish "saved" from "effective".
+- `/settings/legal`: Super Admin legal-template editor and customer selector for
+  generating addressed Terms and Conditions.
 - AI Support: floating chat bubble rendered in the protected app shell for
   admins only. Staff do not see it and are blocked by the support API route to
   avoid paid API usage.
@@ -94,6 +96,15 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - `app/api/support/assistant/route.ts` calls OpenAI server-side only when
   `OPENAI_API_KEY` is configured.
 - `components/ai-support-chat.tsx` renders the floating support chat UI.
+- New accounts automatically create addressed Terms and Conditions. Terms are
+  manually regenerated from Settings, not from ordinary account pages.
+- Cancellation calculations appear only for CLOSED/CANCELLED accounts.
+  Reactivation calculations appear only after the lifecycle eligibility check.
+- Customer communications queue exactly one enabled channel. Legal/document
+  messages prefer email, then WhatsApp, then SMS. Payment receipts prefer
+  WhatsApp, then SMS, then email. If no email or phone exists, no outbound
+  message is queued; staff show the receipt/tracking record and explain terms
+  verbally.
 
 ## AI Support Configuration
 
@@ -127,9 +138,8 @@ claim it has changed records.
 
 ## Good Next Tasks
 
-- Add outbound notification providers only after choosing email/SMS/WhatsApp
-  vendors. Current notifications are in-app attention badges; settings toggles
-  for external channels are stored but do not send messages yet.
+- Configure Resend/Twilio credentials before enabling production email, SMS, or
+  WhatsApp delivery. The queue and retry workflow are live.
 - Decide whether AI Support conversations should be stored in the database for
   auditability.
 - Add support actions only after strict permission checks and confirmation UI.
