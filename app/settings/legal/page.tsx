@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateLegalTemplate } from "@/actions/legal-templates";
 import { Button } from "@/components/ui/button";
+import { CustomerDocumentGenerator } from "@/components/customer-document-generator";
 import { auth } from "@/lib/auth";
 import { ensureDefaultLegalTemplates, PLACEHOLDERS } from "@/lib/legal-templates";
 import { prisma } from "@/lib/prisma";
@@ -19,15 +20,45 @@ export default async function LegalSettingsPage({
     redirect("/dashboard");
   }
   await ensureDefaultLegalTemplates();
-  const [templates, recentMessages, query] = await Promise.all([
+  const [templates, recentMessages, customers, query] = await Promise.all([
     prisma.legalTemplate.findMany({ orderBy: { name: "asc" } }),
     prisma.customerMessage.findMany({
       orderBy: { createdAt: "desc" },
       take: 20,
       include: { customer: { select: { fullName: true } } },
     }),
+    prisma.customer.findMany({
+      orderBy: { fullName: "asc" },
+      select: {
+        id: true,
+        customerId: true,
+        fullName: true,
+        phone: true,
+        email: true,
+        accounts: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            totalPaid: true,
+            balance: true,
+            status: true,
+            product: { select: { name: true } },
+          },
+        },
+      },
+    }),
     searchParams,
   ]);
+  const generatorCustomers = customers.map((customer) => ({
+    ...customer,
+    accounts: customer.accounts.map((account) => ({
+      id: account.id,
+      productName: account.product.name,
+      totalPaid: account.totalPaid,
+      balance: account.balance,
+      status: account.status,
+    })),
+  }));
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
@@ -38,8 +69,10 @@ export default async function LegalSettingsPage({
         <Button asChild variant="outline"><Link href="/settings">Back to Settings</Link></Button>
       </div>
       {query.saved ? <p className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">Template saved.</p> : null}
+      <CustomerDocumentGenerator customers={generatorCustomers} />
       <div className="rounded-lg border bg-white p-4">
-        <p className="text-sm font-semibold">Available live placeholders</p>
+        <p className="text-sm font-semibold">Template fields filled automatically after customer selection</p>
+        <p className="mt-1 text-xs text-gray-500">Keep these fields inside the editable drafts. Staff do not type them when generating a document.</p>
         <div className="mt-2 flex flex-wrap gap-2">{PLACEHOLDERS.map((item) => <code key={item} className="rounded bg-gray-100 px-2 py-1 text-xs">{item}</code>)}</div>
       </div>
       <div className="grid gap-3 rounded-lg border bg-white p-4 sm:grid-cols-3">
