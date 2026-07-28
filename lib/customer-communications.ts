@@ -14,6 +14,41 @@ type RecipientCustomer = {
   phone?: string | null;
 };
 
+type CommunicationSettings = {
+  emailNotificationsEnabled: boolean;
+  smsNotificationsEnabled: boolean;
+  whatsappRemindersEnabled: boolean;
+};
+
+function selectCommunicationChannel({
+  customer,
+  setting,
+  type,
+}: {
+  customer: RecipientCustomer;
+  setting: CommunicationSettings | null;
+  type: string;
+}) {
+  const email =
+    setting?.emailNotificationsEnabled && customer.email
+      ? { channel: "EMAIL", recipient: customer.email }
+      : null;
+  const whatsapp =
+    setting?.whatsappRemindersEnabled && customer.phone
+      ? { channel: "WHATSAPP", recipient: customer.phone }
+      : null;
+  const sms =
+    setting?.smsNotificationsEnabled && customer.phone
+      ? { channel: "SMS", recipient: customer.phone }
+      : null;
+
+  if (type === "PAYMENT_RECEIPT") {
+    return whatsapp || sms || email;
+  }
+
+  return email || whatsapp || sms;
+}
+
 export async function queueCustomerCommunication({
   client = prisma,
   customer,
@@ -44,33 +79,7 @@ export async function queueCustomerCommunication({
       whatsappRemindersEnabled: true,
     },
   });
-  const whatsappReady = Boolean(
-    process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_WHATSAPP_FROM
-  );
-  const smsReady = Boolean(
-    process.env.TWILIO_ACCOUNT_SID &&
-      process.env.TWILIO_AUTH_TOKEN &&
-      process.env.TWILIO_SMS_FROM
-  );
-  const emailReady = Boolean(
-    process.env.RESEND_API_KEY && process.env.CUSTOMER_EMAIL_FROM
-  );
-  const preferred =
-    setting?.whatsappRemindersEnabled && customer.phone && whatsappReady
-      ? { channel: "WHATSAPP", recipient: customer.phone }
-      : setting?.smsNotificationsEnabled && customer.phone && smsReady
-        ? { channel: "SMS", recipient: customer.phone }
-        : setting?.emailNotificationsEnabled && customer.email && emailReady
-          ? { channel: "EMAIL", recipient: customer.email }
-          : setting?.whatsappRemindersEnabled && customer.phone
-            ? { channel: "WHATSAPP", recipient: customer.phone }
-            : setting?.smsNotificationsEnabled && customer.phone
-              ? { channel: "SMS", recipient: customer.phone }
-              : setting?.emailNotificationsEnabled && customer.email
-                ? { channel: "EMAIL", recipient: customer.email }
-          : null;
+  const preferred = selectCommunicationChannel({ customer, setting, type });
   const channels = preferred ? [preferred] : [];
 
   for (const item of channels) {
@@ -206,36 +215,13 @@ export async function dispatchDueCustomerMessages(limit = 20) {
     });
     if (!claimed.count) continue;
     try {
-      const emailReady = Boolean(
-        process.env.RESEND_API_KEY && process.env.CUSTOMER_EMAIL_FROM
-      );
-      const whatsappReady = Boolean(
-        process.env.TWILIO_ACCOUNT_SID &&
-          process.env.TWILIO_AUTH_TOKEN &&
-          process.env.TWILIO_WHATSAPP_FROM
-      );
-      const smsReady = Boolean(
-        process.env.TWILIO_ACCOUNT_SID &&
-          process.env.TWILIO_AUTH_TOKEN &&
-          process.env.TWILIO_SMS_FROM
-      );
-      const delivery =
-        whatsappReady && message.customer.phone
-          ? { ...message, channel: "WHATSAPP", recipient: message.customer.phone }
-          : smsReady && message.customer.phone
-            ? { ...message, channel: "SMS", recipient: message.customer.phone }
-            : emailReady && message.customer.email
-              ? { ...message, channel: "EMAIL", recipient: message.customer.email }
-              : message;
       const providerId =
-        delivery.channel === "EMAIL"
-          ? await sendEmail(delivery)
-          : await sendTwilio(delivery);
+        message.channel === "EMAIL"
+          ? await sendEmail(message)
+          : await sendTwilio(message);
       await prisma.customerMessage.update({
         where: { id: message.id },
         data: {
-          channel: delivery.channel,
-          recipient: delivery.recipient,
           status: "SENT",
           sentAt: new Date(),
           providerId,
