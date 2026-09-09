@@ -1,5 +1,15 @@
 # GLV Management System Operator Handoff
 
+## Dashboard figure reference
+
+- `docs/GLV_Dashboard_and_Business_Overview_Guide.pdf` explains every administrator
+  dashboard figure, the staff dashboard figures, and every Business Overview figure
+  on Reports. It states the record scope, calculation, reporting period, and practical
+  interpretation, including the difference between operational estimates and formal
+  accounting profit.
+- Regenerate the guide with `docs/build_dashboard_figures_guide.py` whenever a card,
+  formula, lifecycle inclusion rule, salary period, or weekly deposit calculation changes.
+
 This file is for AI coding agents and human operators who need to continue work
 without rediscovering the system from scratch.
 
