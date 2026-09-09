@@ -154,6 +154,10 @@ claim it has changed records.
   Never log the API request URL because BMS authenticates using a query parameter.
 - Apply migration `20260909090000_sms_notifications` before enabling SMS in Settings.
   Credential configuration and live activation are separate from implementation.
+- Database migrations are deployed explicitly with `npm run db:deploy` from a trusted
+  operator environment using `DATABASE_URL_UNPOOLED`. Vercel's `npm run build` does
+  not deploy migrations because its runtime database URL uses Supavisor transaction
+  mode on port 6543. Apply and verify migrations before pushing a dependent release.
 - Salary: one SMS per saved salary payment, queued in the payroll transaction.
   Welcome: one SMS per new product payment plan, sent no earlier than its start date.
   Progress: once per account when recorded payments reach or exceed 70% of target;
@@ -179,7 +183,7 @@ claim it has changed records.
   protect concurrent dispatch. Backups include the SMS log; restored PENDING or
   PROCESSING entries become UNKNOWN to prevent re-sending messages accepted since backup.
 - Verification: `npx tsx --test scripts/sms.test.ts`, `npx tsc --noEmit`, `npm run lint`,
-  `npx next build` (not `npm run build`, which deploys database migrations).
+  `npm run build`. Run `npm run db:deploy` separately before releasing schema changes.
   Production migration, authenticated UI and real SMS delivery remain separate gates.
 
 ## Retired Staff Inventory Details

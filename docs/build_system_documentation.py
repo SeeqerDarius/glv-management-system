@@ -594,8 +594,8 @@ def build_body() -> str:
         ["npm run lint", "ESLint project check.", "Passed in latest verification."],
         ["npx tsc --noEmit", "TypeScript check without emitting files.", "Passed in latest verification."],
         ["npx next build", "Next production build without migration deploy.", "Passed in latest verification."],
-        ["npm run build", "Runs prisma migrate deploy, prisma generate, next build.", "Use the Supabase session pooler for migrations; the transaction pooler can stall migration deploy."],
-        ["npm run db:deploy", "Deploy migrations to database.", "Requires reachable DATABASE_URL."],
+        ["npm run build", "Runs prisma generate and next build.", "Does not deploy migrations."],
+        ["npm run db:deploy", "Deploy migrations explicitly before a dependent release.", "Use DATABASE_URL_UNPOOLED from a trusted operator environment; do not use the port 6543 transaction pooler."],
         ["npm run seed", "Run Prisma seed script.", "Use only when intentionally bootstrapping data."],
     ], [1900, 3400, 4060]))
     body.append(para("Environment variable names used by the system include DATABASE_URL, AUTH_SECRET, AUTH_URL, OPENAI_API_KEY, and OPENAI_MODEL. Values are intentionally omitted from this document."))
