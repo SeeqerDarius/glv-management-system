@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test, afterEach, mock } from "node:test";
 import { missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone, WEEK_MS } from "../lib/sms-rules";
 import { sendSms, SmsSendError } from "../lib/sms-provider";
-import { renderSmsTemplate, validateSmsTemplate } from "../lib/sms-templates";
+import { renderSmsTemplate, smsFirstName, validateSmsTemplate } from "../lib/sms-templates";
 
 afterEach(() => mock.restoreAll());
 test("editable SMS templates render allowed placeholders and reject unsafe template syntax", () => {
@@ -10,6 +10,10 @@ test("editable SMS templates render allowed placeholders and reject unsafe templ
   assert.throws(() => validateSmsTemplate("salary", "Hello {{customerName}}"), /not available/);
   assert.throws(() => validateSmsTemplate("welcome", "Hello {{customerName}"), /incomplete placeholder/);
   assert.throws(() => validateSmsTemplate("welcome", " "), /cannot be empty/);
+});
+test("SMS greetings use only the first name", () => {
+  assert.equal(smsFirstName("  Ama Serwaa Mensah  "), "Ama");
+  assert.equal(smsFirstName("Kwame"), "Kwame");
 });
 test("Ghana phones accept local/international formats and reject corrupt input", () => {
   for (const value of ["0241234567", "+233 24 123 4567", "233241234567", "00233241234567"]) assert.equal(normalizeSmsPhone(value), "+233241234567");

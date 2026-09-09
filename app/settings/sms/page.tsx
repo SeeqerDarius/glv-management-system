@@ -27,7 +27,8 @@ export default async function SmsPage() {
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div><p className="text-xs text-gray-500">Provider</p><p className="font-medium">BMS Africa</p></div>
         <div><p className="text-xs text-gray-500">API key</p><p className="font-medium">{process.env.MNOTIFY_API_KEY ? "Configured securely" : "Setup required"}</p></div>
-        <div><p className="text-xs text-gray-500">Approved sender</p><p className="font-medium">{process.env.MNOTIFY_SENDER_ID || "Setup required"}</p></div>
+        <div><p className="text-xs text-gray-500">Approved network sender</p><p className="font-medium">{process.env.MNOTIFY_SENDER_ID || "Setup required"}</p></div>
+        <div><p className="text-xs text-gray-500">Message brand</p><p className="font-medium">Rock Frost Group</p></div>
         <div><p className="text-xs text-gray-500">Daily reminder run</p><p className="font-medium">09:00 Ghana time</p></div>
       </div>
       <form action={updateSmsConfiguration} className="flex flex-wrap items-center gap-3 border-t pt-4">
@@ -41,7 +42,7 @@ export default async function SmsPage() {
     </section>
     <form action={updateSmsTemplates} className="space-y-4 rounded-lg border bg-white p-4">
       <div><h2 className="text-lg font-semibold">Message templates</h2>
-        <p className="mt-1 text-sm text-gray-600">Choose a placeholder to insert live GLV data. Changes apply to notifications queued after you save; messages already in the delivery queue keep their reviewed wording.</p></div>
+        <p className="mt-1 text-sm text-gray-600">Choose a placeholder to insert live GLV data. Staff and customer name placeholders always use the recipient&apos;s first name. Changes apply to notifications queued after you save; messages already in the delivery queue keep their reviewed wording.</p></div>
       <div className="grid gap-4 lg:grid-cols-2">
         <SmsTemplateEditor templateKey="salary" initialValue={smsTemplateValue("salary", settings?.smsSalaryTemplate)} />
         <SmsTemplateEditor templateKey="welcome" initialValue={smsTemplateValue("welcome", settings?.smsWelcomeTemplate)} />

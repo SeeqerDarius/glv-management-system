@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone } from "./sms-rules";
 import { sendSms, SmsSendError, smsProviderConfigured } from "./sms-provider";
-import { renderSmsTemplate } from "./sms-templates";
+import { renderSmsTemplate, smsFirstName } from "./sms-templates";
 
 type Client = Prisma.TransactionClient;
 const money = (value: number, currency = "GHS") => `${currency} ${value.toFixed(2)}`;
@@ -28,13 +28,13 @@ export async function queueAccountSms(tx: Client, accountId: string, type: "WELC
   if (type === "PROGRESS_70" && !reachedSmsMilestone(account.totalPaid, account.targetAmount)) return;
   const body = type === "WELCOME"
     ? renderSmsTemplate("welcome", settings.smsWelcomeTemplate, {
-      customerName: account.customer.fullName, productName: account.product.name,
+      customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
       startDate: account.startDate.toISOString().slice(0, 10),
       targetAmount: money(account.targetAmount, settings.defaultCurrency),
       dailyAmount: money(account.dailyAmount, settings.defaultCurrency),
     })
     : renderSmsTemplate("progress70", settings.smsProgress70Template, {
-      customerName: account.customer.fullName, productName: account.product.name,
+      customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
       paidAmount: money(account.totalPaid, settings.defaultCurrency),
       balance: money(account.balance, settings.defaultCurrency),
     });
@@ -61,7 +61,7 @@ export async function queueSalarySms(tx: Client, paymentId: string) {
   await queue(tx, { type: "SALARY", sourceId: payment.id, dedupeKey: `SALARY:${payment.id}`,
     recipient: payment.staff.phone,
     body: renderSmsTemplate("salary", settings.smsSalaryTemplate, {
-      staffName: payment.staff.fullName, amount: money(payment.amount, settings.defaultCurrency),
+      staffName: smsFirstName(payment.staff.fullName), amount: money(payment.amount, settings.defaultCurrency),
       salaryMonth: payment.salaryMonth.toISOString().slice(0, 7),
       paymentDate: payment.paymentDate.toISOString().slice(0, 10),
     }) });
@@ -88,7 +88,7 @@ export async function queueMissedPaymentSms(now = new Date()) {
       const result = await queue(prisma, { type: "MISSED_WEEK", sourceId: account.id,
         dedupeKey: `MISSED_WEEK:${account.id}:${period}`, recipient: account.customer.phone,
         body: renderSmsTemplate("missedWeek", settings.smsMissedWeekTemplate, {
-          customerName: account.customer.fullName, productName: account.product.name,
+          customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
           balance: money(account.balance, settings.defaultCurrency),
           daysSincePayment: String(Math.max(7, Math.floor((now.getTime() - (account.payments[0]?.createdAt ?? account.startDate).getTime()) / 86_400_000))),
         }) });

@@ -11,30 +11,30 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   salary: {
     label: "Salary payment",
     description: "Sent only to the staff member attached to the recorded salary payment.",
-    defaultTemplate: "GLV: Hello {{staffName}}, your salary payment of {{amount}} for {{salaryMonth}} was recorded on {{paymentDate}}. Thank you for your work.",
+    defaultTemplate: "Rock Frost Group: Hello {{staffName}}, your salary payment of {{amount}} for {{salaryMonth}} was recorded on {{paymentDate}}. Thank you for your work.",
     placeholders: ["staffName", "amount", "salaryMonth", "paymentDate"],
-    previewValues: { staffName: "Ama Mensah", amount: "GHS 1,200.00", salaryMonth: "2026-09", paymentDate: "2026-09-09" },
+    previewValues: { staffName: "Ama", amount: "GHS 1,200.00", salaryMonth: "2026-09", paymentDate: "2026-09-09" },
   },
   welcome: {
     label: "Customer welcome",
     description: "Sent only to the customer attached to the new payment plan.",
-    defaultTemplate: "GLV: Welcome {{customerName}}! Your {{productName}} plan starts {{startDate}}. Target: {{targetAmount}}. Daily payment: {{dailyAmount}}. Pay Small. Own Big.",
+    defaultTemplate: "Rock Frost Group: Welcome {{customerName}}! Your {{productName}} plan starts {{startDate}}. Target: {{targetAmount}}. Daily payment: {{dailyAmount}}. Pay Small. Own Big.",
     placeholders: ["customerName", "productName", "startDate", "targetAmount", "dailyAmount"],
-    previewValues: { customerName: "Kwame Asare", productName: "Television", startDate: "2026-09-09", targetAmount: "GHS 3,500.00", dailyAmount: "GHS 25.00" },
+    previewValues: { customerName: "Kwame", productName: "Television", startDate: "2026-09-09", targetAmount: "GHS 3,500.00", dailyAmount: "GHS 25.00" },
   },
   progress70: {
     label: "70% progress",
     description: "Sent only to the customer whose plan reaches at least 70% paid.",
-    defaultTemplate: "GLV: Well done {{customerName}}! You have paid at least 70% toward {{productName}}. Paid: {{paidAmount}}. Balance: {{balance}}. Thank you!",
+    defaultTemplate: "Rock Frost Group: Well done {{customerName}}! You have paid at least 70% toward {{productName}}. Paid: {{paidAmount}}. Balance: {{balance}}. Thank you!",
     placeholders: ["customerName", "productName", "paidAmount", "balance"],
-    previewValues: { customerName: "Kwame Asare", productName: "Television", paidAmount: "GHS 2,450.00", balance: "GHS 1,050.00" },
+    previewValues: { customerName: "Kwame", productName: "Television", paidAmount: "GHS 2,450.00", balance: "GHS 1,050.00" },
   },
   missedWeek: {
     label: "Missed payment",
     description: "Sent only to the customer whose active or overdue plan has had no payment for seven full days.",
-    defaultTemplate: "GLV: Hello {{customerName}}, we have not recorded a payment on your plan for at least 7 days. Balance: {{balance}}. Please contact your collector to arrange payment. If you have paid, contact GLV to reconcile your record.",
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, we have not recorded a payment on your plan for at least 7 days. Balance: {{balance}}. Please contact your collector to arrange payment. If you have paid, contact GLV to reconcile your record.",
     placeholders: ["customerName", "productName", "balance", "daysSincePayment"],
-    previewValues: { customerName: "Kwame Asare", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7" },
+    previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7" },
   },
 };
 
@@ -60,4 +60,8 @@ export function renderSmsTemplate(key: SmsTemplateKey, template: string | null |
 
 export function smsTemplateValue(key: SmsTemplateKey, value: string | null | undefined) {
   return value?.trim() || SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
+}
+
+export function smsFirstName(fullName: string) {
+  return fullName.trim().split(/\s+/)[0] || "Customer";
 }

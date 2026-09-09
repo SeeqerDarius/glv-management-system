@@ -194,6 +194,10 @@ claim it has changed records.
   resolve only to the staff member on that salary payment; the other three resolve
   only to the customer on the qualifying account. Missing or invalid phone numbers
   fail visibly in the delivery log instead of broadcasting to another recipient.
+- Default message text is branded `Rock Frost Group`, and staff/customer name
+  placeholders render only the first whitespace-delimited name. The BMS handset
+  sender is `Rock Frost`, which fits the provider's 11-character limit and must be
+  approved in the BMS account before `MNOTIFY_SENDER_ID` is changed in production.
 
 ## Retired Staff Inventory Details
 
