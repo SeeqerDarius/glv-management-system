@@ -99,10 +99,62 @@ export async function queueMissedPaymentSms(now = new Date()) {
   return { queued };
 }
 
+function weekRange(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay();
+  start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+export async function queueWeeklyCustomerSummarySms(tx: Client, staffId: string, depositDate: Date) {
+  const settings = await tx.setting.findFirst();
+  if (!settings?.smsNotificationsEnabled) return { queued: 0 };
+  const staff = await tx.staff.findUnique({ where: { id: staffId }, select: { fullName: true } });
+  if (!staff) return { queued: 0 };
+  const { start, end } = weekRange(depositDate);
+  const payments = await tx.payment.findMany({
+    where: { paymentDate: { gte: start, lte: end }, account: { customer: { staffId } } },
+    select: { amount: true, account: { select: { customer: { select: { id: true, fullName: true, phone: true } } } } },
+  });
+  const customers = new Map<string, { fullName: string; phone: string | null; amount: number }>();
+  for (const payment of payments) {
+    const customer = payment.account.customer;
+    const current = customers.get(customer.id);
+    customers.set(customer.id, { fullName: customer.fullName, phone: customer.phone, amount: (current?.amount ?? 0) + payment.amount });
+  }
+  let queued = 0;
+  const weekKey = start.toISOString().slice(0, 10);
+  for (const [customerId, customer] of customers) {
+    const body = renderSmsTemplate("weeklySummary", settings.smsWeeklySummaryTemplate, {
+      customerName: smsFirstName(customer.fullName), weeklyAmount: money(customer.amount, settings.defaultCurrency),
+      weekStart: weekKey, weekEnd: end.toISOString().slice(0, 10), staffName: smsFirstName(staff.fullName),
+    });
+    const dedupeKey = `WEEKLY_SUMMARY:${staffId}:${customerId}:${weekKey}`;
+    const result = await queue(tx, { type: "WEEKLY_SUMMARY", sourceId: customerId, dedupeKey, recipient: customer.phone, body });
+    queued += result.count;
+    const recipient = normalizeSmsPhone(customer.phone);
+    await tx.smsNotification.updateMany({
+      where: { dedupeKey, status: { in: ["PENDING", "FAILED"] } },
+      data: { recipient: recipient ?? "", body, status: recipient ? "PENDING" : "FAILED",
+        lastError: recipient ? null : "Missing or invalid phone number. Correct the record before retrying." },
+    });
+  }
+  return { queued };
+}
+
 async function currentRecipient(message: { type: string; sourceId: string; dedupeKey: string }) {
   if (message.type === "SALARY") {
     const payment = await prisma.staffSalaryPayment.findUnique({ where: { id: message.sourceId }, include: { staff: true } });
     return payment ? { phone: payment.staff.phone } : null;
+  }
+  if (message.type === "WEEKLY_SUMMARY") {
+    const staffId = message.dedupeKey.split(":")[1];
+    const customer = await prisma.customer.findUnique({ where: { id: message.sourceId }, select: { phone: true, staffId: true } });
+    return customer && customer.staffId === staffId ? { phone: customer.phone } : null;
   }
   const account = await prisma.customerAccount.findUnique({ where: { id: message.sourceId }, include: accountInclude });
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return null;

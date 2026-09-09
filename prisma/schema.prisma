@@ -393,6 +393,7 @@ model Setting {
   smsWelcomeTemplate              String?   @db.Text
   smsProgress70Template           String?   @db.Text
   smsMissedWeekTemplate           String?   @db.Text
+  smsWeeklySummaryTemplate        String?   @db.Text
   whatsappRemindersEnabled        Boolean   @default(false)
   theme                           String    @default("light")
   primaryColor                    String    @default("#84cc16")

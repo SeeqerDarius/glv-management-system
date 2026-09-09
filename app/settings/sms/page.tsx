@@ -48,6 +48,7 @@ export default async function SmsPage() {
         <SmsTemplateEditor templateKey="welcome" initialValue={smsTemplateValue("welcome", settings?.smsWelcomeTemplate)} />
         <SmsTemplateEditor templateKey="progress70" initialValue={smsTemplateValue("progress70", settings?.smsProgress70Template)} />
         <SmsTemplateEditor templateKey="missedWeek" initialValue={smsTemplateValue("missedWeek", settings?.smsMissedWeekTemplate)} />
+        <SmsTemplateEditor templateKey="weeklySummary" initialValue={smsTemplateValue("weeklySummary", settings?.smsWeeklySummaryTemplate)} />
       </div>
       <div className="flex flex-wrap gap-3">
         <button type="submit" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</button>
@@ -63,6 +64,7 @@ export default async function SmsPage() {
           ["Customer welcome", "A new product payment plan starts", "Once per account"],
           ["70% progress", "Recorded payments reach at least 70% of target", "Once per account"],
           ["Missed payment", "An active or overdue account has no payment for 7 full days", "Once per further unpaid week"],
+          ["Weekly payment summary", "A staff deposit is recorded for the week", "Once per paying customer assigned to that staff member each week"],
         ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
       </table></div>
     </section>

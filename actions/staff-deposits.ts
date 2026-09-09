@@ -1,5 +1,6 @@
 "use server";
 
+import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -7,6 +8,7 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { dispatchDueSms, queueWeeklyCustomerSummarySms } from "@/lib/sms-notifications";
 import {
   claimIdempotencyKey,
   completeIdempotencyKey,
@@ -108,7 +110,10 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
       },
     });
     await completeIdempotencyKey(tx, claim.id, deposit.id);
+    await queueWeeklyCustomerSummarySms(tx, staff.id, deposit.depositDate);
   });
+
+  after(() => dispatchDueSms().catch(() => console.error("Weekly customer SMS dispatch failed.")));
 
   revalidatePath("/reports");
   redirect(

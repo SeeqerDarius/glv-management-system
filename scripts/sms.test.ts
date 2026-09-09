@@ -15,6 +15,14 @@ test("SMS greetings use only the first name", () => {
   assert.equal(smsFirstName("  Ama Serwaa Mensah  "), "Ama");
   assert.equal(smsFirstName("Kwame"), "Kwame");
 });
+test("weekly summary template identifies the customer total and week", () => {
+  assert.equal(
+    renderSmsTemplate("weeklySummary", "Hello {{customerName}}, paid {{weeklyAmount}} for {{weekStart}} to {{weekEnd}}", {
+      customerName: "Kwame", weeklyAmount: "GHS 175.00", weekStart: "2026-09-07", weekEnd: "2026-09-13",
+    }),
+    "Hello Kwame, paid GHS 175.00 for 2026-09-07 to 2026-09-13",
+  );
+});
 test("Ghana phones accept local/international formats and reject corrupt input", () => {
   for (const value of ["0241234567", "+233 24 123 4567", "233241234567", "00233241234567"]) assert.equal(normalizeSmsPhone(value), "+233241234567");
   for (const value of [null, "", "024123", "call 0241234567", "23324123456789"]) assert.equal(normalizeSmsPhone(value), null);
@@ -64,6 +72,7 @@ test("event queue respects toggle and unique event keys; missing staff phone is 
   // Plain delegate stubs avoid Prisma's dynamic proxy descriptors and any DB connection.
   (globalThis as unknown as { prisma: unknown }).prisma = {
     setting: { findFirst() {} }, customerAccount: { findUnique() {}, findUniqueOrThrow() {} },
+    customer: { findUnique() {} }, staff: { findUnique() {} }, payment: { findMany() {} },
     staffSalaryPayment: { findUnique() {} },
     smsNotification: { createMany() {}, findMany() {}, updateMany() {}, update() {} },
   };
@@ -88,6 +97,23 @@ test("event queue respects toggle and unique event keys; missing staff phone is 
   await queueAccountSms(prisma, "a", "PROGRESS_70"); await queueSalarySms(prisma, "s");
   assert.equal(rows.size, 3); assert.equal(rows.get("SALARY:s")?.status, "FAILED");
   assert.equal(rearm.mock.callCount(), 1);
+});
+test("weekly deposit summary aggregates payments by assigned customer and queues once", async () => {
+  const { prisma } = await import("../lib/prisma");
+  const { queueWeeklyCustomerSummarySms } = await import("../lib/sms-notifications");
+  mock.method(prisma.setting, "findFirst", async () => ({ smsNotificationsEnabled: true, smsWeeklySummaryTemplate: "Hello {{customerName}}, you paid {{weeklyAmount}}.", defaultCurrency: "GHS" }));
+  mock.method(prisma.staff, "findUnique", async () => ({ fullName: "Ama Mensah" }));
+  mock.method(prisma.payment, "findMany", async () => [
+    { amount: 10, account: { customer: { id: "c1", fullName: "Kwame Asare", phone: "0241234567" } } },
+    { amount: 15, account: { customer: { id: "c1", fullName: "Kwame Asare", phone: "0241234567" } } },
+    { amount: 8, account: { customer: { id: "c2", fullName: "Esi Boateng", phone: "0201234567" } } },
+  ]);
+  const bodies: string[] = [];
+  mock.method(prisma.smsNotification, "createMany", async ({ data }: { data: Array<{ body: string }> }) => { bodies.push(data[0].body); return { count: 1 }; });
+  mock.method(prisma.smsNotification, "updateMany", async () => ({ count: 1 }));
+  const result = await queueWeeklyCustomerSummarySms(prisma, "staff-1", new Date("2026-09-11T12:00:00"));
+  assert.equal(result.queued, 2);
+  assert.deepEqual(bodies.sort(), ["Hello Esi, you paid GHS 8.00.", "Hello Kwame, you paid GHS 25.00."]);
 });
 test("dispatch suppresses completed reminders and concurrent duplicate workers", async () => {
   const { prisma } = await import("../lib/prisma");

@@ -1,4 +1,4 @@
-export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek"] as const;
+export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek", "weeklySummary"] as const;
 export type SmsTemplateKey = (typeof SMS_TEMPLATE_KEYS)[number];
 
 export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
@@ -35,6 +35,13 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
     defaultTemplate: "Rock Frost Group: Hello {{customerName}}, we have not recorded a payment on your plan for at least 7 days. Balance: {{balance}}. Please contact your collector to arrange payment. If you have paid, contact GLV to reconcile your record.",
     placeholders: ["customerName", "productName", "balance", "daysSincePayment"],
     previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7" },
+  },
+  weeklySummary: {
+    label: "Weekly payment summary",
+    description: "Sent once to each paying customer assigned to a staff member when that staff member’s weekly deposit is recorded.",
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you paid {{weeklyAmount}} from {{weekStart}} to {{weekEnd}}. Great work this week—keep it up and stay on track!",
+    placeholders: ["customerName", "weeklyAmount", "weekStart", "weekEnd", "staffName"],
+    previewValues: { customerName: "Kwame", weeklyAmount: "GHS 175.00", weekStart: "2026-09-07", weekEnd: "2026-09-13", staffName: "Ama" },
   },
 };
 

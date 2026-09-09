@@ -177,12 +177,20 @@ claim it has changed records.
   Backdated payments reset the interval. At most one reminder per unpaid week.
   Completed, closed, cancelled, suspended, archived, dormant and probation accounts
   are excluded. A payment or lifecycle change suppresses obsolete queued reminders.
+- Weekly payment summary: recording a staff deposit is the end-of-week settlement
+  trigger. GLV totals that staff member's customers' Payment records from Monday
+  through Sunday across all their product accounts, then queues one summary for each
+  customer whose total is greater than zero. The key is unique by staff, customer,
+  and week, so another deposit cannot duplicate an accepted summary. A later deposit
+  can refresh the total only while the summary remains PENDING or FAILED. Customers
+  who paid nothing that week receive no summary, and no customer receives another
+  staff member's totals.
 - `/api/cron/sms-notifications` requires `Authorization: Bearer <CRON_SECRET>`.
   Vercel schedule: daily at 09:00 UTC/Ghana. Dispatches up to 100 messages in groups
   of five. Qualifying mutations and authenticated notification polling also drain
   pending messages. Monitor backlog; larger deployments need a more frequent scheduler.
 - Super administrators open `/settings/sms` from Settings to configure the master
-  SMS enable switch, verify the BMS API/sender status, review all four automatic
+  SMS enable switch, verify the BMS API/sender status, review all five automatic
   notification rules, inspect the latest 100 messages, and retry FAILED entries
   after fixing their cause. ACCEPTED means
   provider acceptance, not handset delivery; check BMS campaign history with its ID.
@@ -196,7 +204,7 @@ claim it has changed records.
   `npm run build`. Run `npm run db:deploy` separately before releasing schema changes.
   Production migration, authenticated UI and real SMS delivery remain separate gates.
 - Super administrators can edit the Salary payment, Customer welcome, 70% progress,
-  and Missed payment templates on Settings > SMS. Each editor lists only the
+  Missed payment, and Weekly payment summary templates on Settings > SMS. Each editor lists only the
   placeholders valid for that message and shows a sample preview. Templates cannot
   be empty, exceed 612 characters, or contain an unavailable/incomplete placeholder.
   Saving affects newly queued notifications only; an existing queue row keeps its

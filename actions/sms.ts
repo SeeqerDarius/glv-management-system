@@ -46,6 +46,7 @@ export async function updateSmsConfiguration(form: FormData) {
 const templateFields: Record<SmsTemplateKey, string> = {
   salary: "smsSalaryTemplate", welcome: "smsWelcomeTemplate",
   progress70: "smsProgress70Template", missedWeek: "smsMissedWeekTemplate",
+  weeklySummary: "smsWeeklySummaryTemplate",
 };
 
 export async function updateSmsTemplates(form: FormData) {
