@@ -32,9 +32,9 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   missedWeek: {
     label: "Missed payment",
     description: "Sent only to the customer whose active or overdue plan has had no payment for seven full days.",
-    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, we have not recorded a payment on your plan for at least 7 days. Balance: {{balance}}. Please contact your collector to arrange payment. If you have paid, contact GLV to reconcile your record.",
-    placeholders: ["customerName", "productName", "balance", "daysSincePayment"],
-    previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7" },
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you have not made payment for your {{productName}} for at least 7 days. Balance: {{balance}}. Please contact {{staffName}} to arrange payment. If you have paid, contact GLV to reconcile your record.",
+    placeholders: ["customerName", "productName", "balance", "daysSincePayment", "staffName"],
+    previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7", staffName: "Ama" },
   },
   weeklySummary: {
     label: "Weekly payment summary",

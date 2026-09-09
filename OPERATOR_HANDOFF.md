@@ -177,6 +177,8 @@ claim it has changed records.
   Backdated payments reset the interval. At most one reminder per unpaid week.
   Completed, closed, cancelled, suspended, archived, dormant and probation accounts
   are excluded. A payment or lifecycle change suppresses obsolete queued reminders.
+  The editable Missed payment template supports `{{staffName}}`, resolved from the
+  customer's assigned staff profile and rendered as that staff member's first name.
 - Weekly payment summary: recording a staff deposit is the end-of-week settlement
   trigger. GLV totals that staff member's customers' Payment records from Monday
   through Sunday across all their product accounts, then queues one summary for each

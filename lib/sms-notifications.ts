@@ -67,7 +67,7 @@ export async function queueSalarySms(tx: Client, paymentId: string) {
     }) });
 }
 
-const accountInclude = { customer: true, product: true, payments: { orderBy: { createdAt: "desc" as const }, take: 1 } };
+const accountInclude = { customer: { include: { staff: true } }, product: true, payments: { orderBy: { createdAt: "desc" as const }, take: 1 } };
 
 export async function queueMissedPaymentSms(now = new Date()) {
   const settings = await prisma.setting.findFirst();
@@ -91,6 +91,7 @@ export async function queueMissedPaymentSms(now = new Date()) {
           customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
           balance: money(account.balance, settings.defaultCurrency),
           daysSincePayment: String(Math.max(7, Math.floor((now.getTime() - (account.payments[0]?.createdAt ?? account.startDate).getTime()) / 86_400_000))),
+          staffName: smsFirstName(account.customer.staff.fullName),
         }) });
       queued += result.count;
     }

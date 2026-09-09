@@ -23,6 +23,12 @@ test("weekly summary template identifies the customer total and week", () => {
     "Hello Kwame, paid GHS 175.00 for 2026-09-07 to 2026-09-13",
   );
 });
+test("missed-payment template supports the assigned staff first name", () => {
+  assert.equal(
+    renderSmsTemplate("missedWeek", "Hello {{customerName}}, contact {{staffName}}.", { customerName: "Kwame", staffName: "Ama" }),
+    "Hello Kwame, contact Ama.",
+  );
+});
 test("Ghana phones accept local/international formats and reject corrupt input", () => {
   for (const value of ["0241234567", "+233 24 123 4567", "233241234567", "00233241234567"]) assert.equal(normalizeSmsPhone(value), "+233241234567");
   for (const value of [null, "", "024123", "call 0241234567", "23324123456789"]) assert.equal(normalizeSmsPhone(value), null);
