@@ -622,6 +622,17 @@ def build_body() -> str:
     body.append(para("The dedicated /settings/sms page lets super administrators enable or pause automatic SMS, verify provider/API/sender configuration, review the five notification rules, inspect the latest 100 queue records, and retry definitive failures. The queue records unique event keys within the business transaction. Conditional claims prevent concurrent workers sending the same item. Before dispatch, source existence, account eligibility and current phone are checked. Correct missing phones or provider errors before Retry. Provider acceptance is labelled ACCEPTED, not confirmed handset delivery. Check BMS campaign history using the saved campaign ID. Rate limits retry after one hour, up to five attempts. Timeouts and interrupted workers become UNKNOWN and require reconciliation rather than blind resending. Restored pending or processing messages become UNKNOWN. Disabling SMS pauses the queue."))
     body.append(para("Implementation checks use mocked provider/database tests in scripts/sms.test.ts, TypeScript, lint and a build without migration deployment. Production migration, credentials, authenticated UI and real delivery must be verified separately before activation is considered complete."))
 
+    body.append(section("17. Integrated Business Management"))
+    body.append(para("The administrator-only /business workspace presents People, Payroll, Accounting and Analytics as four connected sections of one GLV workflow. It uses the existing Staff, Payment and StaffSalaryPayment records and adds leave requests, performance reviews and operating expenses. No module activation or duplicate employee setup is required."))
+    body.append(table([
+        ["Section", "Shared records and behavior"],
+        ["People", "Existing staff directory plus leave requests, approve or reject decisions, and dated performance reviews scored 1 to 5."],
+        ["Payroll", "Existing monthly salary and salary payment history. Recording payment retains validation, audit logging and the staff-only salary SMS."],
+        ["Accounting", "Customer payments are cash inflow. Salary payments and BusinessExpense records are cash outflow. Staff deposits reconcile collections and are not counted twice."],
+        ["Analytics", "Current month revenue, payroll paid and outstanding, expenses, net cash, headcount, pending leave, review average and all-time cash position."],
+    ], [1900, 7460]))
+    body.append(para("Apply migration 20260909183000_integrated_business_management before deploying the page. The version 1 application backup and restore workflow does not yet contain leave, performance review or business expense tables. Retain database-level backups and do not rely on an older application backup to recover these records until a versioned restore upgrade is released."))
+
     body.append(section("Appendix A. Source File Map"))
     body.append(table([
         ["Area", "Representative files"],

@@ -29,7 +29,7 @@ function attentionSignature(key: string, item: AttentionMap[string]) {
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
-  "/staff", "/credits", "/reports", "/audit-logs", "/settings", "/profile",
+  "/staff", "/business", "/credits", "/reports", "/audit-logs", "/settings", "/profile",
 ];
 
 const pageTitles: Array<[string, string]> = [
@@ -41,7 +41,7 @@ const pageTitles: Array<[string, string]> = [
   ["/activity", "Activity"],
   ["/customers", "Customers"], ["/accounts", "Accounts"],
   ["/payments", "Payments"], ["/products", "Products"],
-  ["/staff", "Staff"], ["/reports", "Reports"], ["/settings", "Settings"],
+  ["/staff", "Staff"], ["/business", "Business Management"], ["/reports", "Reports"], ["/settings", "Settings"],
 ];
 
 function Footer() {

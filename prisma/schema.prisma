@@ -70,7 +70,61 @@ model Staff {
   salaryPayments StaffSalaryPayment[]
   salaryHistory  StaffSalaryHistory[]
   deposits       StaffDeposit[]
+  leaveRequests  StaffLeaveRequest[]
+  performanceReviews StaffPerformanceReview[]
   user           User?
+}
+
+model StaffLeaveRequest {
+  id          String   @id @default(cuid())
+  staffId     String
+  leaveType   String
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      String   @default("PENDING")
+  reviewedBy  String?
+  reviewedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, startDate])
+  @@index([status, startDate])
+}
+
+model StaffPerformanceReview {
+  id          String   @id @default(cuid())
+  staffId     String
+  reviewDate  DateTime
+  rating      Int
+  strengths   String?
+  improvements String?
+  notes       String?
+  reviewedBy  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  staff       Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId, reviewDate])
+}
+
+model BusinessExpense {
+  id          String   @id @default(cuid())
+  expenseDate DateTime
+  category    String
+  description String
+  amount      Float
+  method      String?
+  reference   String?
+  notes       String?
+  recordedBy  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([expenseDate])
+  @@index([category, expenseDate])
 }
 
 model StaffApplication {

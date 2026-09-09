@@ -25,6 +25,9 @@ function clean(value: FormDataEntryValue | null) {
 
 export async function recordStaffSalary(formData: FormData): Promise<void> {
   const user = await requireAdmin();
+  const returnToBusiness = clean(formData.get("returnTo")) === "business";
+  const target = returnToBusiness ? "/business" : "/reports";
+  const anchor = returnToBusiness ? "#payroll" : "#salary-tracking";
   const staffId = clean(formData.get("staffId"));
   const amount = Number(clean(formData.get("amount")));
   const dateValue = clean(formData.get("paymentDate"));
@@ -33,25 +36,25 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
   const salaryMonth = parseSalaryMonth(salaryMonthValue);
   const notes = clean(formData.get("notes"));
 
-  if (!staffId) redirect("/reports?salaryError=missing-staff#salary-tracking");
+  if (!staffId) redirect(`${target}?salaryError=missing-staff${anchor}`);
   if (!Number.isFinite(amount) || amount <= 0) {
-    redirect("/reports?salaryError=invalid-amount#salary-tracking");
+    redirect(`${target}?salaryError=invalid-amount${anchor}`);
   }
   if (!dateValue || Number.isNaN(paymentDate.getTime())) {
-    redirect("/reports?salaryError=invalid-date#salary-tracking");
+    redirect(`${target}?salaryError=invalid-date${anchor}`);
   }
   if (isFutureDate(paymentDate)) {
-    redirect("/reports?salaryError=future-date#salary-tracking");
+    redirect(`${target}?salaryError=future-date${anchor}`);
   }
   if (!salaryMonth) {
-    redirect("/reports?salaryError=invalid-salary-month#salary-tracking");
+    redirect(`${target}?salaryError=invalid-salary-month${anchor}`);
   }
   if (isFutureSalaryMonth(salaryMonth)) {
-    redirect("/reports?salaryError=future-salary-month#salary-tracking");
+    redirect(`${target}?salaryError=future-salary-month${anchor}`);
   }
 
   const staff = await prisma.staff.findUnique({ where: { id: staffId } });
-  if (!staff) redirect("/reports?salaryError=missing-staff#salary-tracking");
+  if (!staff) redirect(`${target}?salaryError=missing-staff${anchor}`);
 
   await prisma.$transaction(async (tx) => {
     const payment = await tx.staffSalaryPayment.create({
@@ -85,8 +88,9 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
 
   after(() => dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue.")));
   revalidatePath("/reports");
+  revalidatePath("/business");
   revalidatePath("/dashboard");
-  redirect("/reports?salaryRecorded=1#salary-tracking");
+  redirect(`${target}?${returnToBusiness ? "saved=salary" : "salaryRecorded=1"}${anchor}`);
 }
 
 export async function deleteStaffSalary(formData: FormData): Promise<void> {

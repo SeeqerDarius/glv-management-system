@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BriefcaseBusinessIcon,
   ChartNoAxesCombinedIcon,
   ChartSplineIcon,
   CircleDollarSignIcon,
@@ -28,6 +29,7 @@ const navigation = [
   { href: "/profile", label: "My Profile", icon: UserRoundIcon },
   { href: "/products", label: "Products", icon: PackageIcon, permission: UserPermission.MANAGE_PRODUCTS, adminSection: true },
   { href: "/staff", label: "Staff", icon: UsersIcon, permission: UserPermission.VIEW_STAFF, adminSection: true },
+  { href: "/business", label: "Business Management", icon: BriefcaseBusinessIcon, adminOnly: true, adminSection: true },
   {
     href: "/credits",
     label: "Credits & Refunds",

@@ -221,6 +221,16 @@ claim it has changed records.
 
 ## Retired Staff Inventory Details
 
+## Integrated Business Management
+
+- Administrators open `/business` from the single **Business Management** sidebar item. The page keeps People, Payroll, Accounting, and Analytics together; these are sections of one GLV workflow, not separately activated modules.
+- People uses the existing `Staff` record and adds leave requests with approve/reject decisions plus dated 1-to-5 performance reviews. Every write is administrator-only and audit logged.
+- Payroll uses the existing staff monthly salary and `StaffSalaryPayment` history. Recording salary from Business Management uses the same transaction, validation, and staff-only salary SMS as the detailed Reports workflow.
+- Accounting treats customer `Payment` rows as cash inflow and saved salary payments plus `BusinessExpense` rows as cash outflow. Staff deposits reconcile collections and are not counted again as revenue. Operators can record dated expenses with category, payment method, reference, and notes.
+- Analytics calculates the current month revenue, payroll paid and outstanding, operating expenses, net cash, headcount, pending leave, review average, and all-time cash position directly from those shared records.
+- Apply migration `20260909183000_integrated_business_management` before deploying the route. The legacy version-1 database restore does not yet include leave, review, or expense tables. Do not use an old full-database restore as the recovery method for these records; retain database-level backups until a versioned restore upgrade is released.
+- Verification: Prisma generate, TypeScript, lint, build, explicit migration deployment, authenticated `/business` review, and production error-log review.
+
 - Staff product inventory allocation has been deactivated.
 - Staff, customer, account, product, report, notification, backup, and restore
   flows no longer create, consume, restore, export, or display staff stock.
