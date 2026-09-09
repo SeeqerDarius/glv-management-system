@@ -219,8 +219,6 @@ claim it has changed records.
   sender is `Rock Frost`, which fits the provider's 11-character limit and must be
   approved in the BMS account before `MNOTIFY_SENDER_ID` is changed in production.
 
-## Retired Staff Inventory Details
-
 ## Integrated Business Management
 
 - Administrators open `/business` from the single **Business Management** sidebar item. The page keeps People, Payroll, Accounting, and Analytics together; these are sections of one GLV workflow, not separately activated modules.
@@ -230,6 +228,8 @@ claim it has changed records.
 - Analytics calculates the current month revenue, payroll paid and outstanding, operating expenses, net cash, headcount, pending leave, review average, and all-time cash position directly from those shared records.
 - Apply migration `20260909183000_integrated_business_management` before deploying the route. The legacy version-1 database restore does not yet include leave, review, or expense tables. Do not use an old full-database restore as the recovery method for these records; retain database-level backups until a versioned restore upgrade is released.
 - Verification: Prisma generate, TypeScript, lint, build, explicit migration deployment, authenticated `/business` review, and production error-log review.
+
+## Retired Staff Inventory Details
 
 - Staff product inventory allocation has been deactivated.
 - Staff, customer, account, product, report, notification, backup, and restore
