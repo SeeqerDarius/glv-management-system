@@ -167,8 +167,10 @@ claim it has changed records.
   Vercel schedule: daily at 09:00 UTC/Ghana. Dispatches up to 100 messages in groups
   of five. Qualifying mutations and authenticated notification polling also drain
   pending messages. Monitor backlog; larger deployments need a more frequent scheduler.
-- Super administrators open `/settings/sms` from Settings to inspect the latest
-  100 messages and retry FAILED entries after fixing their cause. ACCEPTED means
+- Super administrators open `/settings/sms` from Settings to configure the master
+  SMS enable switch, verify the BMS API/sender status, review all four automatic
+  notification rules, inspect the latest 100 messages, and retry FAILED entries
+  after fixing their cause. ACCEPTED means
   provider acceptance, not handset delivery; check BMS campaign history with its ID.
   Missing/invalid phones are recorded as FAILED. HTTP 429 retries hourly, up to five
   attempts. UNKNOWN results (timeouts/interrupted workers) require BMS reconciliation

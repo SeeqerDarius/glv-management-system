@@ -21,3 +21,23 @@ export async function retryFailedSms(form: FormData) {
   after(() => dispatchDueSms().catch(() => console.error("SMS retry dispatch failed.")));
   revalidatePath("/settings/sms");
 }
+
+export async function updateSmsConfiguration(form: FormData) {
+  const session = await auth();
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) throw new Error("Unauthorized");
+  const userId = session.user.id;
+  const enabled = form.get("smsNotificationsEnabled") === "on";
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.setting.findFirst({ orderBy: { createdAt: "asc" } });
+    if (!existing) throw new Error("Company settings are not configured.");
+    await tx.setting.update({ where: { id: existing.id }, data: { smsNotificationsEnabled: enabled } });
+    await tx.auditLog.create({ data: {
+      userId, action: enabled ? "ENABLE_SMS_NOTIFICATIONS" : "DISABLE_SMS_NOTIFICATIONS",
+      entity: "Setting", entityId: existing.id,
+      oldValue: JSON.stringify({ smsNotificationsEnabled: existing.smsNotificationsEnabled }),
+      newValue: JSON.stringify({ smsNotificationsEnabled: enabled }),
+    } });
+  });
+  revalidatePath("/settings/sms");
+  revalidatePath("/settings");
+}

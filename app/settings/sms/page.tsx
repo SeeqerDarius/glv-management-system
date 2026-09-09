@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { retryFailedSms } from "@/actions/sms";
+import { retryFailedSms, updateSmsConfiguration } from "@/actions/sms";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
@@ -18,11 +18,40 @@ export default async function SmsPage() {
   ]);
   return <main className="space-y-6 p-4 md:p-6">
     <Link href="/settings" className="text-sm underline">Back to settings</Link>
-    <div><h1 className="text-2xl font-bold">SMS notifications</h1>
-      <p className="mt-2 text-sm text-gray-600">Salary payments, new payment plans, 70% progress and missed weekly payments.</p></div>
+    <div><h1 className="text-2xl font-bold">SMS configuration and delivery</h1>
+      <p className="mt-2 text-sm text-gray-600">Configure GLV alerts and monitor messages sent through BMS Africa.</p></div>
+    <section className="space-y-4 rounded-lg border bg-white p-4">
+      <h2 className="text-lg font-semibold">Provider configuration</h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div><p className="text-xs text-gray-500">Provider</p><p className="font-medium">BMS Africa</p></div>
+        <div><p className="text-xs text-gray-500">API key</p><p className="font-medium">{process.env.MNOTIFY_API_KEY ? "Configured securely" : "Setup required"}</p></div>
+        <div><p className="text-xs text-gray-500">Approved sender</p><p className="font-medium">{process.env.MNOTIFY_SENDER_ID || "Setup required"}</p></div>
+        <div><p className="text-xs text-gray-500">Daily reminder run</p><p className="font-medium">09:00 Ghana time</p></div>
+      </div>
+      <form action={updateSmsConfiguration} className="flex flex-wrap items-center gap-3 border-t pt-4">
+        <label className="flex items-center gap-2">
+          <input type="checkbox" name="smsNotificationsEnabled" defaultChecked={settings?.smsNotificationsEnabled ?? false} className="h-4 w-4" />
+          <span className="font-medium">Enable automatic SMS notifications</span>
+        </label>
+        <button type="submit" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save SMS configuration</button>
+      </form>
+      {!smsProviderConfigured() && <p className="text-sm text-red-700">The server API key and approved sender must be configured before messages can be delivered.</p>}
+    </section>
+    <section className="rounded-lg border bg-white p-4">
+      <h2 className="mb-3 text-lg font-semibold">Automatic notification rules</h2>
+      <div className="overflow-x-auto"><table className="min-w-full text-left text-sm">
+        <thead><tr>{["Notification", "Trigger", "Frequency"].map(label => <th key={label} className="p-2">{label}</th>)}</tr></thead>
+        <tbody>{[
+          ["Salary payment", "A salary payment is recorded", "Once per salary payment"],
+          ["Customer welcome", "A new product payment plan starts", "Once per account"],
+          ["70% progress", "Recorded payments reach at least 70% of target", "Once per account"],
+          ["Missed payment", "An active or overdue account has no payment for 7 full days", "Once per further unpaid week"],
+        ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
+      </table></div>
+    </section>
     <div className="space-y-2 rounded-lg border bg-white p-4">
-      <p>BMS Africa: {smsProviderConfigured() ? "Configured" : "Setup required"} · Notifications: {settings?.smsNotificationsEnabled ? "Enabled" : "Paused"}</p>
-      <p className="text-sm">Sender: {process.env.MNOTIFY_SENDER_ID || "Not configured"}</p>
+      <h2 className="text-lg font-semibold">Delivery status</h2>
+      <p>Notifications: {settings?.smsNotificationsEnabled ? "Enabled" : "Paused"}</p>
       <p className="text-sm">Accepted means BMS accepted the message. Check <a href="https://app.bms.africa/dashboard/sms/campaigns" className="underline" target="_blank" rel="noreferrer">BMS campaign history</a> for delivery confirmation.</p>
       <p className="text-sm">Correct phone numbers or provider setup before retrying failed messages. Unknown results require checking BMS history and operator reconciliation to prevent duplicate texts.</p>
       <p className="text-sm">{counts.map(item => `${item.status}: ${item._count}`).join(" · ") || "No messages yet."}</p>
