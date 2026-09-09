@@ -1,4 +1,5 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
+import { queueAccountSms } from "@/lib/sms-notifications";
 
 export function parseAccountStartDate(value: string) {
   if (!value) return null;
@@ -88,5 +89,6 @@ export async function createCustomerAccountForProduct({
     },
   });
 
+  await queueAccountSms(tx, account.id, "WELCOME");
   return account;
 }

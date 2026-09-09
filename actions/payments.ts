@@ -10,6 +10,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { dispatchDueSms, queueAccountSms } from "@/lib/sms-notifications";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -119,6 +120,7 @@ async function recalculateAccountAfterPaymentChange(
     },
   });
 
+  await queueAccountSms(tx, account.id, "PROGRESS_70");
   return {
     nextTotalPaid,
     nextBalance,
@@ -319,6 +321,7 @@ export async function recordPayment(
       Number(settings.paymentEditWindowHours ?? 3) * 60 * 60 * 1000
   );
   after(async () => {
+    await dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue."));
     await createAccountDocument({
       accountId: account.id,
       templateKey: LEGAL_TEMPLATE_KEYS.PAYMENT_RECEIPT,

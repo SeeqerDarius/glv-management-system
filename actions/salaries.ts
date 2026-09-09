@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { dispatchDueSms, queueSalarySms } from "@/lib/sms-notifications";
 import { auth } from "@/lib/auth";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { prisma } from "@/lib/prisma";
@@ -62,6 +64,7 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
         paidBy: user.id,
       },
     });
+    await queueSalarySms(tx, payment.id);
     await tx.auditLog.create({
       data: {
         userId: user.id,
@@ -80,6 +83,7 @@ export async function recordStaffSalary(formData: FormData): Promise<void> {
     });
   });
 
+  after(() => dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue.")));
   revalidatePath("/reports");
   revalidatePath("/dashboard");
   redirect("/reports?salaryRecorded=1#salary-tracking");

@@ -11,6 +11,7 @@ import {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { dispatchDueSms } from "@/lib/sms-notifications";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -291,6 +292,7 @@ export async function createAccount(
   revalidatePath("/products");
   revalidatePath(`/products/${productId}`);
   after(async () => {
+    await dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue."));
     await createAccountDocument({
       accountId,
       templateKey: LEGAL_TEMPLATE_KEYS.TERMS,

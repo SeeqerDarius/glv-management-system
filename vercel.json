@@ -3,6 +3,10 @@
   "regions": ["dub1"],
   "crons": [
     {
+      "path": "/api/cron/sms-notifications",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/daily-database-backup",
       "schedule": "0 2 * * *"
     }

@@ -146,7 +146,41 @@ claim it has changed records.
 - Continue wiring Settings fields downstream only when the owner asks for those
   business rules to take effect.
 
-## Retired Staff Inventory
+## SMS integration with BMS Africa
+
+- Configure `MNOTIFY_API_KEY`, `MNOTIFY_SENDER_ID=GODS LOVE V`, and `CRON_SECRET`
+  on the server. The sender was verified approved in the signed-in BMS dashboard.
+  API contract: https://developer.bms.africa/#tag/SMS/operation/campaign/sms_quick
+  Never log the API request URL because BMS authenticates using a query parameter.
+- Apply migration `20260909090000_sms_notifications` before enabling SMS in Settings.
+  Credential configuration and live activation are separate from implementation.
+- Salary: one SMS per saved salary payment, queued in the payroll transaction.
+  Welcome: one SMS per new product payment plan, sent no earlier than its start date.
+  Progress: once per account when recorded payments reach or exceed 70% of target;
+  edits also evaluate the threshold. Existing salary/welcome events are not backfilled.
+- Weekly reminder: ACTIVE or OVERDUE accounts with balance > 0, after seven full
+  days since the latest of start date, latest payment date and payment entry time.
+  Backdated payments reset the interval. At most one reminder per unpaid week.
+  Completed, closed, cancelled, suspended, archived, dormant and probation accounts
+  are excluded. A payment or lifecycle change suppresses obsolete queued reminders.
+- `/api/cron/sms-notifications` requires `Authorization: Bearer <CRON_SECRET>`.
+  Vercel schedule: daily at 09:00 UTC/Ghana. Dispatches up to 100 messages in groups
+  of five. Qualifying mutations and authenticated notification polling also drain
+  pending messages. Monitor backlog; larger deployments need a more frequent scheduler.
+- Super administrators open `/settings/sms` from Settings to inspect the latest
+  100 messages and retry FAILED entries after fixing their cause. ACCEPTED means
+  provider acceptance, not handset delivery; check BMS campaign history with its ID.
+  Missing/invalid phones are recorded as FAILED. HTTP 429 retries hourly, up to five
+  attempts. UNKNOWN results (timeouts/interrupted workers) require BMS reconciliation
+  before any manual resend. Turning the SMS setting off pauses sends and new events.
+- Queue events use unique dedupe keys and transactional insertion; conditional claims
+  protect concurrent dispatch. Backups include the SMS log; restored PENDING or
+  PROCESSING entries become UNKNOWN to prevent re-sending messages accepted since backup.
+- Verification: `npx tsx --test scripts/sms.test.ts`, `npx tsc --noEmit`, `npm run lint`,
+  `npx next build` (not `npm run build`, which deploys database migrations).
+  Production migration, authenticated UI and real SMS delivery remain separate gates.
+
+## Retired Staff Inventory Details
 
 - Staff product inventory allocation has been deactivated.
 - Staff, customer, account, product, report, notification, backup, and restore

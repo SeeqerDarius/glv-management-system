@@ -77,6 +77,7 @@ export async function restoreDatabaseBackup(formData: FormData) {
   await prisma.$transaction(
     async (tx) => {
       await tx.auditLog.deleteMany();
+      await tx.smsNotification.deleteMany();
       await tx.customerMessage.deleteMany();
       await tx.customerDocument.deleteMany();
       await tx.legalTemplate.deleteMany();
@@ -217,6 +218,13 @@ export async function restoreDatabaseBackup(formData: FormData) {
             "customerDocuments",
             tables.customerDocuments
           ),
+        });
+      }
+      if (tables.smsNotifications?.length) {
+        await tx.smsNotification.createMany({
+          data: reviveBackupRows<Prisma.SmsNotificationCreateManyInput>("smsNotifications", tables.smsNotifications)
+            .map((row) => ({ ...row, status: ["PENDING", "PROCESSING"].includes(row.status ?? "PENDING") ? "UNKNOWN" : row.status,
+              lastError: ["PENDING", "PROCESSING"].includes(row.status ?? "PENDING") ? "Restored backup. Check BMS history before retrying." : row.lastError })),
         });
       }
       if (tables.customerMessages?.length) {

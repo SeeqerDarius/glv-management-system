@@ -1,4 +1,5 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
+import { queueAccountSms } from "@/lib/sms-notifications";
 
 async function generateReceiptNo(
   tx: Prisma.TransactionClient,
@@ -143,5 +144,6 @@ export async function recordPaymentForAccount({
     },
   });
 
+  await queueAccountSms(tx, account.id, "PROGRESS_70");
   return createdPayment;
 }

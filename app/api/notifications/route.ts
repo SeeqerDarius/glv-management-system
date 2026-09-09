@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { dispatchDueSms } from "@/lib/sms-notifications";
 import {
   AccountStatus,
   CreditStatus,
@@ -65,6 +66,7 @@ export async function GET() {
   }
 
   after(async () => {
+    await dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue."));
     await dispatchDueCustomerMessages().catch((error) =>
       console.error("CUSTOMER_MESSAGE_DISPATCH_ERROR", error)
     );

@@ -282,6 +282,26 @@ model CustomerMessage {
   @@index([customerId, createdAt])
 }
 
+model SmsNotification {
+  id          String   @id @default(cuid())
+  type        String
+  sourceId    String
+  dedupeKey   String   @unique
+  recipient   String
+  body        String
+  status      String   @default("PENDING")
+  attempts    Int      @default(0)
+  scheduledAt DateTime @default(now())
+  providerId  String?
+  lastError   String?
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, scheduledAt])
+  @@index([sourceId])
+}
+
 model Payment {
   id          String          @id @default(cuid())
   receiptNo   String          @unique

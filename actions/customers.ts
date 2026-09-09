@@ -4,6 +4,7 @@ import { Prisma, UserPermission, UserRole } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
+import { dispatchDueSms } from "@/lib/sms-notifications";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
@@ -396,6 +397,7 @@ export async function createCustomer(
   revalidatePath("/customers");
   if (accountId) {
     after(async () => {
+      await dispatchDueSms().catch(() => console.error("SMS dispatch failed; inspect SMS queue."));
       await createAccountDocument({
         accountId,
         templateKey: LEGAL_TEMPLATE_KEYS.TERMS,

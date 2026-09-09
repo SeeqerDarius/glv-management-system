@@ -461,7 +461,8 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
 
         <SettingsSection title="Notifications" description="Outbound channel preferences. These are separate from the in-app sidebar attention badges and need provider setup before messages can be sent.">
           <ToggleField label="Email Notifications" name="emailNotificationsEnabled" defaultChecked={values.emailNotificationsEnabled} description="Queues customer documents and receipts for email when Resend is configured." />
-          <ToggleField label="SMS Notifications" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} description="Queues customer notices for SMS when Twilio is configured." />
+          <ToggleField label="SMS Notifications" name="smsNotificationsEnabled" defaultChecked={values.smsNotificationsEnabled} description="Sends salary, welcome, 70% progress and weekly missed-payment alerts through BMS Africa." />
+          <Link href="/settings/sms" className="text-sm underline">View SMS status and failed messages</Link>
           <ToggleField label="WhatsApp Notifications" name="whatsappRemindersEnabled" defaultChecked={values.whatsappRemindersEnabled} description="Queues customer notices for WhatsApp when Twilio WhatsApp is configured." />
         </SettingsSection>
 
