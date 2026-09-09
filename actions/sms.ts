@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
 import { dispatchDueSms } from "@/lib/sms-notifications";
+import { SMS_TEMPLATE_DEFINITIONS, type SmsTemplateKey, validateSmsTemplate } from "@/lib/sms-templates";
 
 export async function retryFailedSms(form: FormData) {
   const session = await auth();
@@ -40,4 +41,32 @@ export async function updateSmsConfiguration(form: FormData) {
   });
   revalidatePath("/settings/sms");
   revalidatePath("/settings");
+}
+
+const templateFields: Record<SmsTemplateKey, string> = {
+  salary: "smsSalaryTemplate", welcome: "smsWelcomeTemplate",
+  progress70: "smsProgress70Template", missedWeek: "smsMissedWeekTemplate",
+};
+
+export async function updateSmsTemplates(form: FormData) {
+  const session = await auth();
+  if (!session?.user?.id || !isSuperAdminRole(session.user.role)) throw new Error("Unauthorized");
+  const userId = session.user.id;
+  const resetAll = form.get("intent") === "reset";
+  const templates = Object.fromEntries(Object.entries(templateFields).map(([key, field]) => {
+    const templateKey = key as SmsTemplateKey;
+    const value = resetAll ? SMS_TEMPLATE_DEFINITIONS[templateKey].defaultTemplate : String(form.get(`${templateKey}Template`) ?? "");
+    return [field, validateSmsTemplate(templateKey, value)];
+  }));
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.setting.findFirst({ orderBy: { createdAt: "asc" } });
+    if (!existing) throw new Error("Company settings are not configured.");
+    await tx.setting.update({ where: { id: existing.id }, data: templates });
+    await tx.auditLog.create({ data: {
+      userId, action: resetAll ? "RESET_SMS_TEMPLATES" : "UPDATE_SMS_TEMPLATES",
+      entity: "Setting", entityId: existing.id,
+      newValue: JSON.stringify({ templates: Object.keys(templateFields) }),
+    } });
+  });
+  revalidatePath("/settings/sms");
 }

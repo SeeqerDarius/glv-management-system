@@ -389,6 +389,10 @@ model Setting {
   exportDatabaseEnabled           Boolean   @default(true)
   emailNotificationsEnabled       Boolean   @default(false)
   smsNotificationsEnabled         Boolean   @default(false)
+  smsSalaryTemplate               String?   @db.Text
+  smsWelcomeTemplate              String?   @db.Text
+  smsProgress70Template           String?   @db.Text
+  smsMissedWeekTemplate           String?   @db.Text
   whatsappRemindersEnabled        Boolean   @default(false)
   theme                           String    @default("light")
   primaryColor                    String    @default("#84cc16")

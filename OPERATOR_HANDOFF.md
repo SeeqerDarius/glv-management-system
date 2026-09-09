@@ -185,6 +185,15 @@ claim it has changed records.
 - Verification: `npx tsx --test scripts/sms.test.ts`, `npx tsc --noEmit`, `npm run lint`,
   `npm run build`. Run `npm run db:deploy` separately before releasing schema changes.
   Production migration, authenticated UI and real SMS delivery remain separate gates.
+- Super administrators can edit the Salary payment, Customer welcome, 70% progress,
+  and Missed payment templates on Settings > SMS. Each editor lists only the
+  placeholders valid for that message and shows a sample preview. Templates cannot
+  be empty, exceed 612 characters, or contain an unavailable/incomplete placeholder.
+  Saving affects newly queued notifications only; an existing queue row keeps its
+  reviewed message snapshot. Reset all restores GLV's four defaults. Salary messages
+  resolve only to the staff member on that salary payment; the other three resolve
+  only to the customer on the qualifying account. Missing or invalid phone numbers
+  fail visibly in the delivery log instead of broadcasting to another recipient.
 
 ## Retired Staff Inventory Details
 

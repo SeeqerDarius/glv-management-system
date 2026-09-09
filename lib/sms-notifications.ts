@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone } from "./sms-rules";
 import { sendSms, SmsSendError, smsProviderConfigured } from "./sms-provider";
+import { renderSmsTemplate } from "./sms-templates";
 
 type Client = Prisma.TransactionClient;
 const money = (value: number, currency = "GHS") => `${currency} ${value.toFixed(2)}`;
@@ -26,8 +27,17 @@ export async function queueAccountSms(tx: Client, accountId: string, type: "WELC
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return;
   if (type === "PROGRESS_70" && !reachedSmsMilestone(account.totalPaid, account.targetAmount)) return;
   const body = type === "WELCOME"
-    ? `GLV: Welcome ${account.customer.fullName}! Your ${account.product.name} plan starts ${account.startDate.toISOString().slice(0, 10)}. Target: ${money(account.targetAmount, settings.defaultCurrency)}. Daily payment: ${money(account.dailyAmount, settings.defaultCurrency)}. Pay Small. Own Big.`
-    : `GLV: Well done ${account.customer.fullName}! You have paid at least 70% toward ${account.product.name}. Paid: ${money(account.totalPaid, settings.defaultCurrency)}. Balance: ${money(account.balance, settings.defaultCurrency)}. Thank you!`;
+    ? renderSmsTemplate("welcome", settings.smsWelcomeTemplate, {
+      customerName: account.customer.fullName, productName: account.product.name,
+      startDate: account.startDate.toISOString().slice(0, 10),
+      targetAmount: money(account.targetAmount, settings.defaultCurrency),
+      dailyAmount: money(account.dailyAmount, settings.defaultCurrency),
+    })
+    : renderSmsTemplate("progress70", settings.smsProgress70Template, {
+      customerName: account.customer.fullName, productName: account.product.name,
+      paidAmount: money(account.totalPaid, settings.defaultCurrency),
+      balance: money(account.balance, settings.defaultCurrency),
+    });
   await queue(tx, { type, sourceId: account.id, dedupeKey: `${type}:${account.id}`,
     recipient: account.customer.phone, body,
     scheduledAt: type === "WELCOME" ? new Date(Math.max(Date.now(), account.startDate.getTime())) : new Date() });
@@ -50,10 +60,14 @@ export async function queueSalarySms(tx: Client, paymentId: string) {
   if (!payment) return;
   await queue(tx, { type: "SALARY", sourceId: payment.id, dedupeKey: `SALARY:${payment.id}`,
     recipient: payment.staff.phone,
-    body: `GLV: Hello ${payment.staff.fullName}, your salary payment of ${money(payment.amount, settings.defaultCurrency)} for ${payment.salaryMonth.toISOString().slice(0, 7)} was recorded on ${payment.paymentDate.toISOString().slice(0, 10)}. Thank you for your work.` });
+    body: renderSmsTemplate("salary", settings.smsSalaryTemplate, {
+      staffName: payment.staff.fullName, amount: money(payment.amount, settings.defaultCurrency),
+      salaryMonth: payment.salaryMonth.toISOString().slice(0, 7),
+      paymentDate: payment.paymentDate.toISOString().slice(0, 10),
+    }) });
 }
 
-const accountInclude = { customer: true, payments: { orderBy: { createdAt: "desc" as const }, take: 1 } };
+const accountInclude = { customer: true, product: true, payments: { orderBy: { createdAt: "desc" as const }, take: 1 } };
 
 export async function queueMissedPaymentSms(now = new Date()) {
   const settings = await prisma.setting.findFirst();
@@ -73,7 +87,11 @@ export async function queueMissedPaymentSms(now = new Date()) {
       if (!period) continue;
       const result = await queue(prisma, { type: "MISSED_WEEK", sourceId: account.id,
         dedupeKey: `MISSED_WEEK:${account.id}:${period}`, recipient: account.customer.phone,
-        body: `GLV: Hello ${account.customer.fullName}, we have not recorded a payment on your plan for at least 7 days. Balance: ${money(account.balance, settings.defaultCurrency)}. Please contact your collector to arrange payment. If you have paid, contact GLV to reconcile your record.` });
+        body: renderSmsTemplate("missedWeek", settings.smsMissedWeekTemplate, {
+          customerName: account.customer.fullName, productName: account.product.name,
+          balance: money(account.balance, settings.defaultCurrency),
+          daysSincePayment: String(Math.max(7, Math.floor((now.getTime() - (account.payments[0]?.createdAt ?? account.startDate).getTime()) / 86_400_000))),
+        }) });
       queued += result.count;
     }
     cursor = accounts[accounts.length - 1].id;

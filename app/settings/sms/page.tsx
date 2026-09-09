@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { retryFailedSms, updateSmsConfiguration } from "@/actions/sms";
+import { retryFailedSms, updateSmsConfiguration, updateSmsTemplates } from "@/actions/sms";
+import { SmsTemplateEditor } from "@/components/sms-template-editor";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
 import { smsProviderConfigured } from "@/lib/sms-provider";
+import { smsTemplateValue } from "@/lib/sms-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,20 @@ export default async function SmsPage() {
       </form>
       {!smsProviderConfigured() && <p className="text-sm text-red-700">The server API key and approved sender must be configured before messages can be delivered.</p>}
     </section>
+    <form action={updateSmsTemplates} className="space-y-4 rounded-lg border bg-white p-4">
+      <div><h2 className="text-lg font-semibold">Message templates</h2>
+        <p className="mt-1 text-sm text-gray-600">Choose a placeholder to insert live GLV data. Changes apply to notifications queued after you save; messages already in the delivery queue keep their reviewed wording.</p></div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <SmsTemplateEditor templateKey="salary" initialValue={smsTemplateValue("salary", settings?.smsSalaryTemplate)} />
+        <SmsTemplateEditor templateKey="welcome" initialValue={smsTemplateValue("welcome", settings?.smsWelcomeTemplate)} />
+        <SmsTemplateEditor templateKey="progress70" initialValue={smsTemplateValue("progress70", settings?.smsProgress70Template)} />
+        <SmsTemplateEditor templateKey="missedWeek" initialValue={smsTemplateValue("missedWeek", settings?.smsMissedWeekTemplate)} />
+      </div>
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</button>
+        <button type="submit" name="intent" value="reset" className="rounded border px-4 py-2 font-medium">Reset all to defaults</button>
+      </div>
+    </form>
     <section className="rounded-lg border bg-white p-4">
       <h2 className="mb-3 text-lg font-semibold">Automatic notification rules</h2>
       <div className="overflow-x-auto"><table className="min-w-full text-left text-sm">
