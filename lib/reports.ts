@@ -276,7 +276,11 @@ export async function getAdminReportSummary() {
   };
 }
 
-export async function getWeeklyCollectionTrend(weeks: number, now = new Date()) {
+export async function getWeeklyCollectionTrend(
+  weeks: number,
+  now = new Date(),
+  staffId?: string
+) {
   const { start: selectedWeekStart } = getCurrentWeekRange(now);
   const earliestWeekStart = new Date(selectedWeekStart);
   earliestWeekStart.setDate(earliestWeekStart.getDate() - (weeks - 1) * 7);
@@ -285,7 +289,10 @@ export async function getWeeklyCollectionTrend(weeks: number, now = new Date()) 
   rangeEnd.setHours(23, 59, 59, 999);
 
   const payments = await prisma.payment.findMany({
-    where: { paymentDate: { gte: earliestWeekStart, lte: rangeEnd } },
+    where: {
+      paymentDate: { gte: earliestWeekStart, lte: rangeEnd },
+      ...(staffId ? { account: { customer: { staffId } } } : {}),
+    },
     select: { amount: true, paymentDate: true },
   });
 
@@ -309,6 +316,97 @@ export async function getWeeklyCollectionTrend(weeks: number, now = new Date()) 
       isSelected: weekStart.getTime() === selectedWeekStart.getTime(),
     };
   });
+}
+
+const DASHBOARD_TREND_WEEKS = 8;
+
+function previousWeekRange(now: Date) {
+  const { start, end } = getCurrentWeekRange(now);
+  const previousStart = new Date(start);
+  previousStart.setDate(previousStart.getDate() - 7);
+  const previousEnd = new Date(end);
+  previousEnd.setDate(previousEnd.getDate() - 7);
+  return { start: previousStart, end: previousEnd };
+}
+
+/**
+ * Week-over-week counts only cover entities whose creation date can't move
+ * (customers, staff, accounts aren't retroactively backdated), so the count
+ * "as of last week" is safely reconstructed from createdAt. Status-based
+ * figures (active/overdue/etc.) aren't included here because the current
+ * status field has no history to reconstruct a past snapshot from.
+ */
+export async function getAdminDashboardTrend(now = new Date()) {
+  const { start: weekStart, end: weekEnd } = getCurrentWeekRange(now);
+  const { start: prevWeekStart, end: prevWeekEnd } = previousWeekRange(now);
+
+  const [
+    collectionTrend,
+    newCustomersThisWeek,
+    newCustomersLastWeek,
+    newStaffThisWeek,
+    newStaffLastWeek,
+    newAccountsThisWeek,
+    newAccountsLastWeek,
+  ] = await Promise.all([
+    getWeeklyCollectionTrend(DASHBOARD_TREND_WEEKS, now),
+    prisma.customer.count({ where: { createdAt: { gte: weekStart, lte: weekEnd } } }),
+    prisma.customer.count({ where: { createdAt: { gte: prevWeekStart, lte: prevWeekEnd } } }),
+    prisma.staff.count({ where: { createdAt: { gte: weekStart, lte: weekEnd } } }),
+    prisma.staff.count({ where: { createdAt: { gte: prevWeekStart, lte: prevWeekEnd } } }),
+    prisma.customerAccount.count({ where: { createdAt: { gte: weekStart, lte: weekEnd } } }),
+    prisma.customerAccount.count({ where: { createdAt: { gte: prevWeekStart, lte: prevWeekEnd } } }),
+  ]);
+
+  const collectedThisWeek = collectionTrend.at(-1)?.collected ?? 0;
+  const collectedLastWeek = collectionTrend.at(-2)?.collected ?? 0;
+
+  return {
+    collectionTrend,
+    collectedThisWeek,
+    collectedLastWeek,
+    newCustomersThisWeek,
+    newCustomersLastWeek,
+    newStaffThisWeek,
+    newStaffLastWeek,
+    newAccountsThisWeek,
+    newAccountsLastWeek,
+  };
+}
+
+export async function getStaffDashboardTrend(staffId: string, now = new Date()) {
+  const dayStart = new Date(now);
+  dayStart.setHours(0, 0, 0, 0);
+  const yesterdayStart = new Date(dayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const yesterdayEnd = new Date(dayStart.getTime() - 1);
+  const { start: prevWeekStart, end: prevWeekEnd } = previousWeekRange(now);
+
+  const [collectionTrend, collectedYesterdayAgg, newCustomersLastWeek] =
+    await Promise.all([
+      getWeeklyCollectionTrend(DASHBOARD_TREND_WEEKS, now, staffId),
+      prisma.payment.aggregate({
+        where: {
+          paymentDate: { gte: yesterdayStart, lte: yesterdayEnd },
+          account: { customer: { staffId } },
+        },
+        _sum: { amount: true },
+      }),
+      prisma.customer.count({
+        where: { staffId, createdAt: { gte: prevWeekStart, lte: prevWeekEnd } },
+      }),
+    ]);
+
+  const collectedThisWeek = collectionTrend.at(-1)?.collected ?? 0;
+  const collectedLastWeek = collectionTrend.at(-2)?.collected ?? 0;
+
+  return {
+    collectionTrend,
+    collectedThisWeek,
+    collectedLastWeek,
+    collectedYesterday: collectedYesterdayAgg._sum.amount ?? 0,
+    newCustomersLastWeek,
+  };
 }
 
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
