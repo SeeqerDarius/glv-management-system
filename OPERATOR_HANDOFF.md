@@ -151,6 +151,30 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   database access in this sandbox to render the live page); the manual's
   description text was updated to match the new page, but the embedded image
   is now stale until someone regenerates it from a real environment.
+- The four dashboard KPI cards that have a real previous-period value
+  (Total Customers, Total Staff, New Accounts This Week, Collected This
+  Week for admins; My Customers, Collected Today, Collected This Week for
+  staff) now render as an animated analog meter
+  (`components/reports/meter-gauge.tsx` `AnimatedMeter`, composed into
+  `components/dashboard-analytics.tsx` `GaugeMetricCard`) instead of a
+  static number. Per the dataviz skill's form table ("a single ratio
+  against a limit -> Meter, same-ramp track"), each is a semicircular
+  progress arc in one hue. On page load the arc animates from last week's
+  position to this week's (a `requestAnimationFrame`-delayed CSS
+  transition on `stroke-dashoffset`, double-buffered so the browser paints
+  the starting position before the transition fires; skipped when
+  `prefers-reduced-motion` is set), and a static tick mark stays on the
+  track at the previous position so both ends of the movement are still
+  visible after it settles — growth visibly advances the arc, decline
+  visibly pulls it back. The numeric value is always shown beneath the arc
+  (never color/position alone). For Total Customers/Total Staff/My
+  Customers, whose headline number is a cumulative total rather than a
+  weekly count, the previous-week total is reconstructed as
+  `current total - this week's new count` — valid because those records
+  are effectively immutable (not backdated or bulk-deleted), the same
+  integrity standard already used for the `TrendBadge` deltas. Metrics
+  without an honest previous value (Active/Overdue Accounts, cash
+  position, etc.) were intentionally left as plain `MetricCard`s.
 - New accounts automatically create addressed Terms and Conditions. Terms are
   manually regenerated from Settings, not from ordinary account pages.
 - Cancellation calculations appear only for CLOSED/CANCELLED accounts.

@@ -20,9 +20,9 @@ import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import {
   AdminDashboardCharts,
+  GaugeMetricCard,
   StaffDashboardTrendChart,
 } from "@/components/dashboard-analytics";
-import { TrendBadge } from "@/components/reports/chart-primitives";
 import { formatMoney } from "@/lib/accounts";
 import {
   getAdminDashboardTrend,
@@ -63,14 +63,12 @@ function MetricCard({
   icon: Icon,
   accent,
   mode = "standard",
-  delta,
 }: {
   label: string;
   value: string | number;
   icon: LucideIcon;
   accent: string;
   mode?: "compact" | "standard" | "detailed";
-  delta?: { current: number; previous: number; suffix?: string };
 }) {
   const compact = mode === "compact";
   const detailed = mode === "detailed";
@@ -85,11 +83,6 @@ function MetricCard({
         <div>
           <p className={`${compact ? "text-xs" : "text-sm"} font-medium text-gray-500`}>{label}</p>
           <p className={`${compact ? "mt-1 text-xl" : "mt-2 text-2xl"} font-semibold text-gray-950`}>{value}</p>
-          {delta ? (
-            <div className="mt-1.5">
-              <TrendBadge current={delta.current} previous={delta.previous} suffix={delta.suffix ?? "vs last week"} />
-            </div>
-          ) : null}
           {detailed ? (
             <p className="mt-3 text-xs text-gray-500">Updated from the latest operational records.</p>
           ) : null}
@@ -163,30 +156,40 @@ export default async function DashboardPage() {
       {report ? (
         <div className="space-y-6">
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              label="Total Customers"
-              value={report.totalCustomers}
-              icon={UserRoundIcon}
-              accent={appearance.primaryColor}
-              mode={dashboardCards}
-              delta={
-                trend
-                  ? { current: trend.newCustomersThisWeek, previous: trend.newCustomersLastWeek }
-                  : undefined
-              }
-            />
-            <MetricCard
-              label="Total Staff"
-              value={report.totalStaff}
-              icon={UsersIcon}
-              accent={appearance.secondaryColor}
-              mode={dashboardCards}
-              delta={
-                trend
-                  ? { current: trend.newStaffThisWeek, previous: trend.newStaffLastWeek }
-                  : undefined
-              }
-            />
+            {trend ? (
+              <GaugeMetricCard
+                label="Total Customers"
+                value={report.totalCustomers}
+                previousValue={Math.max(0, report.totalCustomers - trend.newCustomersThisWeek)}
+                icon={UserRoundIcon}
+                accent={appearance.primaryColor}
+              />
+            ) : (
+              <MetricCard
+                label="Total Customers"
+                value={report.totalCustomers}
+                icon={UserRoundIcon}
+                accent={appearance.primaryColor}
+                mode={dashboardCards}
+              />
+            )}
+            {trend ? (
+              <GaugeMetricCard
+                label="Total Staff"
+                value={report.totalStaff}
+                previousValue={Math.max(0, report.totalStaff - trend.newStaffThisWeek)}
+                icon={UsersIcon}
+                accent={appearance.secondaryColor}
+              />
+            ) : (
+              <MetricCard
+                label="Total Staff"
+                value={report.totalStaff}
+                icon={UsersIcon}
+                accent={appearance.secondaryColor}
+                mode={dashboardCards}
+              />
+            )}
             <MetricCard
               label="Active Accounts"
               value={report.activeAccounts}
@@ -194,18 +197,23 @@ export default async function DashboardPage() {
               accent="#3b8d62"
               mode={dashboardCards}
             />
-            <MetricCard
-              label="New Accounts"
-              value={trend?.newAccountsThisWeek ?? 0}
-              icon={CirclePlusIcon}
-              accent="#2a78d6"
-              mode={dashboardCards}
-              delta={
-                trend
-                  ? { current: trend.newAccountsThisWeek, previous: trend.newAccountsLastWeek }
-                  : undefined
-              }
-            />
+            {trend ? (
+              <GaugeMetricCard
+                label="New Accounts This Week"
+                value={trend.newAccountsThisWeek}
+                previousValue={trend.newAccountsLastWeek}
+                icon={CirclePlusIcon}
+                accent="#2a78d6"
+              />
+            ) : (
+              <MetricCard
+                label="New Accounts"
+                value={0}
+                icon={CirclePlusIcon}
+                accent="#2a78d6"
+                mode={dashboardCards}
+              />
+            )}
             <MetricCard
               label="Completed & Delivered"
               value={report.completedDeliveredAccounts}
@@ -234,18 +242,24 @@ export default async function DashboardPage() {
               accent="#846ab3"
               mode={dashboardCards}
             />
-            <MetricCard
-              label="Collected This Week"
-              value={formatMoney(trend?.collectedThisWeek ?? 0)}
-              icon={HandCoinsIcon}
-              accent="#846ab3"
-              mode={dashboardCards}
-              delta={
-                trend
-                  ? { current: trend.collectedThisWeek, previous: trend.collectedLastWeek }
-                  : undefined
-              }
-            />
+            {trend ? (
+              <GaugeMetricCard
+                label="Collected This Week"
+                value={trend.collectedThisWeek}
+                previousValue={trend.collectedLastWeek}
+                format={formatMoney}
+                icon={HandCoinsIcon}
+                accent="#846ab3"
+              />
+            ) : (
+              <MetricCard
+                label="Collected This Week"
+                value={formatMoney(0)}
+                icon={HandCoinsIcon}
+                accent="#846ab3"
+                mode={dashboardCards}
+              />
+            )}
             <MetricCard
               label="Expected Receivables"
               value={formatMoney(report.expectedReceivables)}
@@ -319,45 +333,45 @@ export default async function DashboardPage() {
       ) : staffReport ? (
         <div className="space-y-6">
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              mode={dashboardCards}
-              label="My Customers"
-              value={staffReport.totalCustomers}
-              icon={UserRoundIcon}
-              accent={appearance.primaryColor}
-              delta={
-                staffTrend
-                  ? { current: staffReport.customersAddedThisWeek, previous: staffTrend.newCustomersLastWeek }
-                  : undefined
-              }
-            />
+            {staffTrend ? (
+              <GaugeMetricCard
+                label="My Customers"
+                value={staffReport.totalCustomers}
+                previousValue={Math.max(0, staffReport.totalCustomers - staffReport.customersAddedThisWeek)}
+                icon={UserRoundIcon}
+                accent={appearance.primaryColor}
+              />
+            ) : (
+              <MetricCard mode={dashboardCards} label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent={appearance.primaryColor} />
+            )}
             <MetricCard mode={dashboardCards} label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent={appearance.secondaryColor} />
             <MetricCard mode={dashboardCards} label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
             <MetricCard mode={dashboardCards} label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
-            <MetricCard
-              mode={dashboardCards}
-              label="Collected Today"
-              value={formatMoney(staffReport.totalCollectedToday)}
-              icon={BadgeDollarSignIcon}
-              accent="#317f9d"
-              delta={
-                staffTrend
-                  ? { current: staffReport.totalCollectedToday, previous: staffTrend.collectedYesterday, suffix: "vs yesterday" }
-                  : undefined
-              }
-            />
-            <MetricCard
-              mode={dashboardCards}
-              label="Collected This Week"
-              value={formatMoney(staffReport.totalCollectedThisWeek)}
-              icon={TrendingUpIcon}
-              accent={appearance.primaryColor}
-              delta={
-                staffTrend
-                  ? { current: staffTrend.collectedThisWeek, previous: staffTrend.collectedLastWeek }
-                  : undefined
-              }
-            />
+            {staffTrend ? (
+              <GaugeMetricCard
+                label="Collected Today"
+                value={staffReport.totalCollectedToday}
+                previousValue={staffTrend.collectedYesterday}
+                format={formatMoney}
+                icon={BadgeDollarSignIcon}
+                accent="#317f9d"
+                suffix="vs yesterday"
+              />
+            ) : (
+              <MetricCard mode={dashboardCards} label="Collected Today" value={formatMoney(staffReport.totalCollectedToday)} icon={BadgeDollarSignIcon} accent="#317f9d" />
+            )}
+            {staffTrend ? (
+              <GaugeMetricCard
+                label="Collected This Week"
+                value={staffTrend.collectedThisWeek}
+                previousValue={staffTrend.collectedLastWeek}
+                format={formatMoney}
+                icon={TrendingUpIcon}
+                accent={appearance.primaryColor}
+              />
+            ) : (
+              <MetricCard mode={dashboardCards} label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent={appearance.primaryColor} />
+            )}
           </section>
 
           {staffTrend ? (
