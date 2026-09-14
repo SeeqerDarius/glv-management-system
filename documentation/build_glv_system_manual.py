@@ -383,6 +383,8 @@ def build():
          "A new product account automatically creates addressed Terms and Conditions. Administrators regenerate terms from Settings. Cancellation calculations are available only for closed or cancelled accounts, while reactivation calculations require lifecycle eligibility. Generated documents remain attached to the account for audit and PDF access."),
         ("Use the correct customer communication channel",
          "The system queues only one enabled channel. Legal and document messages prefer email, then WhatsApp, then SMS. Payment receipts prefer WhatsApp, then SMS, then email. If the customer has neither email nor phone, nothing is queued; staff explain the terms verbally and show the in-system receipt and product tracking information."),
+        ("Wait for the button to finish saving",
+         "Every Save, Record, Approve, Reject, and Delete button shows a brief loading state and disables itself while GLV processes the request. Wait for that state to clear before moving on. Clicking the same button again while it is disabled does not start a second request, so it no longer creates duplicate payments, deposits, or other records."),
     ]:
         doc.add_paragraph(heading, style="Heading 2")
         doc.add_paragraph(body)

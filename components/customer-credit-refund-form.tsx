@@ -5,6 +5,7 @@ import { RotateCcw } from "lucide-react";
 import { markCustomerCreditRefunded } from "@/actions/payments";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { formatMoney } from "@/lib/accounts";
 
 type CustomerCreditRefundFormProps = {
@@ -67,7 +68,7 @@ export function CustomerCreditRefundForm({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Mark refunded</Button>
+                <SubmitButton pendingLabel="Marking">Mark refunded</SubmitButton>
               </div>
             </form>
           </div>

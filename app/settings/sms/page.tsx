@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { retryFailedSms, updateSmsConfiguration, updateSmsTemplates } from "@/actions/sms";
 import { SmsTemplateEditor } from "@/components/sms-template-editor";
+import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
@@ -36,7 +37,7 @@ export default async function SmsPage() {
           <input type="checkbox" name="smsNotificationsEnabled" defaultChecked={settings?.smsNotificationsEnabled ?? false} className="h-4 w-4" />
           <span className="font-medium">Enable automatic SMS notifications</span>
         </label>
-        <button type="submit" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save SMS configuration</button>
+        <PlainSubmitButton pendingLabel="Saving" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save SMS configuration</PlainSubmitButton>
       </form>
       {!smsProviderConfigured() && <p className="text-sm text-red-700">The server API key and approved sender must be configured before messages can be delivered.</p>}
     </section>
@@ -51,8 +52,8 @@ export default async function SmsPage() {
         <SmsTemplateEditor templateKey="weeklySummary" initialValue={smsTemplateValue("weeklySummary", settings?.smsWeeklySummaryTemplate)} />
       </div>
       <div className="flex flex-wrap gap-3">
-        <button type="submit" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</button>
-        <button type="submit" name="intent" value="reset" className="rounded border px-4 py-2 font-medium">Reset all to defaults</button>
+        <PlainSubmitButton pendingLabel="Saving" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</PlainSubmitButton>
+        <PlainSubmitButton name="intent" value="reset" pendingLabel="Resetting" className="rounded border px-4 py-2 font-medium">Reset all to defaults</PlainSubmitButton>
       </div>
     </form>
     <section className="rounded-lg border bg-white p-4">
@@ -85,7 +86,7 @@ export default async function SmsPage() {
           <td className="p-3">{message.status}<p className="mt-1 text-xs">Attempts: {message.attempts}</p></td>
           <td className="min-w-64 max-w-lg p-3"><p>{message.body}</p>{message.lastError && <p className="mt-2 text-red-700">{message.lastError}</p>}
             {message.providerId && <p className="mt-2 break-all text-xs">BMS campaign: {message.providerId}</p>}</td>
-          <td className="p-3">{message.status === "FAILED" && <form action={retryFailedSms}><input type="hidden" name="id" value={message.id}/><button className="rounded border px-3 py-2 font-medium">Retry</button></form>}</td>
+          <td className="p-3">{message.status === "FAILED" && <form action={retryFailedSms}><input type="hidden" name="id" value={message.id}/><PlainSubmitButton pendingLabel="Retrying" className="rounded border px-3 py-2 font-medium">Retry</PlainSubmitButton></form>}</td>
         </tr>)}</tbody>
       </table>
       {!messages.length && <p className="p-4 text-gray-600">Messages will appear here when SMS is enabled and a qualifying event occurs.</p>}

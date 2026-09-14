@@ -6,6 +6,7 @@ import { updateAccountProduct } from "@/actions/accounts";
 import { PasswordInput } from "@/components/password-input";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { formatMoney } from "@/lib/accounts";
 
 type ProductOption = {
@@ -178,7 +179,7 @@ export function AccountProductCorrectionForm({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Correct product</Button>
+                <SubmitButton pendingLabel="Correcting">Correct product</SubmitButton>
               </div>
             </form>
           </div>

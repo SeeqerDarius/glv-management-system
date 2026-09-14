@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PencilLine } from "lucide-react";
 import { updateAccountPrice } from "@/actions/accounts";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { PasswordInput } from "@/components/password-input";
 
 type AccountPriceOverrideFormProps = {
@@ -83,7 +84,7 @@ export function AccountPriceOverrideForm({
                 >
                   Cancel
                 </Button>
-                <Button type="submit">Save price</Button>
+                <SubmitButton pendingLabel="Saving">Save price</SubmitButton>
               </div>
             </form>
           </div>

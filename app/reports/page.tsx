@@ -13,6 +13,7 @@ import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
 import { todayDateInputValue } from "@/lib/date-rules";
@@ -281,7 +282,7 @@ export default async function ReportsPage({
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Channel</span><select name="channel" className="w-full rounded border p-3"><option value="Cash Deposit">Cash Deposit</option><option value="Bank Transfer">Bank Transfer</option><option value="Mobile Money">Mobile Money</option><option value="Cheque">Cheque</option><option value="Other">Other</option></select></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Reference</span><input name="reference" className="w-full rounded border p-3" placeholder="Slip or transaction ID" /></label>
             <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
-            <div className="flex items-end"><Button type="submit" className="w-full">Record Deposit</Button></div>
+            <div className="flex items-end"><SubmitButton className="w-full" pendingLabel="Recording">Record Deposit</SubmitButton></div>
           </form>
         ) : null}
         <div className="overflow-hidden rounded-lg border bg-white">
@@ -305,7 +306,7 @@ export default async function ReportsPage({
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Salary Month</span><input name="salaryMonth" type="month" defaultValue={defaultSalaryMonth} max={maxSalaryMonth} className="w-full rounded border p-3" required /></label>
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Payment Date</span><input name="paymentDate" type="date" defaultValue={today} max={today} className="w-full rounded border p-3" required /></label>
           <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
-          <div className="flex items-end"><Button type="submit" className="w-full">Record Salary</Button></div>
+          <div className="flex items-end"><SubmitButton className="w-full" pendingLabel="Recording">Record Salary</SubmitButton></div>
         </form>
         <div className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="min-w-[920px] text-sm"><thead><tr><th className="p-3">Payment Date</th><th className="p-3">Salary Month</th><th className="p-3">Staff</th><th className="p-3">Amount</th><th className="p-3">Paid By</th><th className="p-3">Notes</th><th className="p-3 text-right">Action</th></tr></thead><tbody>{report.salaryPayments.map((payment) => <tr key={payment.id} className="border-t"><td className="p-3">{formatDate(payment.paymentDate)}</td><td className="p-3">{formatMonth(payment.salaryMonth)}</td><td className="p-3">{payment.staff.code} - {payment.staff.fullName}</td><td className="p-3">{formatMoney(payment.amount)}</td><td className="p-3">{payment.paidByName}</td><td className="p-3">{payment.notes || "-"}</td><td className="p-3 text-right"><div className="flex justify-end"><ConfirmDeleteForm action={deleteStaffSalary} id={payment.id} title="Delete salary payment?" description="This removes a financial salary record and creates an audit entry." triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" /></ConfirmDeleteForm></div></td></tr>)}</tbody></table></div>{report.salaryPayments.length === 0 ? <p className="border-t p-6 text-center text-sm text-gray-500">No salary payments recorded.</p> : null}</div>
       </section>

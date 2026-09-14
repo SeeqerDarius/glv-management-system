@@ -25,6 +25,7 @@ import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-fo
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { PaymentModal } from "@/components/payment-modal";
+import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
@@ -465,14 +466,14 @@ export default async function CustomerProfilePage({
                             name="deliveryStatus"
                             value={DeliveryStatus.DELIVERED}
                           />
-                          <button
-                            type="submit"
+                          <PlainSubmitButton
+                            iconOnly
                             aria-label={`Mark ${account.product.name} as delivered`}
                             title="Mark delivered"
                             className="group/delivered flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-green-50 hover:text-green-700"
                           >
                             <PackageCheck className="size-4 transition-transform duration-200 group-hover/delivered:scale-125 group-hover/delivered:-translate-y-0.5" />
-                          </button>
+                          </PlainSubmitButton>
                         </form>
                       ) : null}
                       {isAdmin ? (

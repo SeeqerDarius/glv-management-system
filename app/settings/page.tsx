@@ -11,6 +11,7 @@ import { restoreDatabaseBackup } from "@/actions/database-restore";
 import { updateSettings } from "@/actions/settings";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/auth";
@@ -308,9 +309,9 @@ function AppearanceSection({
       <SettingsSection title={title} description={description}>
         <AppearanceFields values={values} />
         <div className="flex items-end">
-          <Button type="submit" className="w-full">
+          <SubmitButton className="w-full" pendingLabel="Saving">
             {submitLabel}
-          </Button>
+          </SubmitButton>
         </div>
       </SettingsSection>
     </form>
@@ -475,9 +476,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </SettingsSection>
 
         <div className="sticky bottom-4 z-10 flex justify-end rounded-xl border border-gray-200 bg-white/90 p-3 shadow-lg backdrop-blur">
-          <Button type="submit" size="lg">
+          <SubmitButton size="lg" pendingLabel="Saving">
             Save Settings
-          </Button>
+          </SubmitButton>
         </div>
       </form>
       ) : null}
@@ -568,9 +569,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 className="bg-white"
                 required
               />
-              <Button type="submit" variant="destructive">
+              <SubmitButton variant="destructive" pendingLabel="Restoring">
                 Restore Backup
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
@@ -600,10 +601,10 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                 className="h-10 bg-white sm:w-56"
                 required
               />
-              <Button type="submit" className="gap-2">
+              <SubmitButton className="gap-2" pendingLabel="Adding">
                 <Plus className="size-4" />
                 Add
-              </Button>
+              </SubmitButton>
             </form>
           </div>
 
@@ -632,9 +633,9 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                               className="h-9 bg-white"
                               required
                             />
-                            <Button type="submit" variant="outline" size="sm">
+                            <SubmitButton variant="outline" size="sm" pendingLabel="Saving">
                               Save
-                            </Button>
+                            </SubmitButton>
                           </form>
                         </td>
                         <td className="px-3 py-3 text-right tabular-nums text-gray-700">

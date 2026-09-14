@@ -6,6 +6,7 @@ import { deactivateStaff, deleteStaff } from "@/actions/staff";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { StaffPasswordResetForm } from "@/components/staff-password-reset-form";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -421,12 +422,12 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               {canManageStaff && member.active && (
                 <form action={deactivateStaff}>
                   <input type="hidden" name="id" value={member.id} />
-                  <button
-                    type="submit"
+                  <PlainSubmitButton
+                    pendingLabel="Deactivating"
                     className="inline-flex h-9 items-center justify-center rounded-md border border-amber-200 px-3 text-sm font-medium text-amber-700 hover:bg-amber-50"
                   >
                     Deactivate
-                  </button>
+                  </PlainSubmitButton>
                 </form>
               )}
 
@@ -613,14 +614,14 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
                       {canManageStaff && member.active && (
                         <form action={deactivateStaff}>
                           <input type="hidden" name="id" value={member.id} />
-                          <button
-                            type="submit"
+                          <PlainSubmitButton
+                            iconOnly
                             aria-label={`Deactivate ${member.fullName}`}
                             title="Deactivate"
                             className="group/deact flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-amber-50 hover:text-amber-700"
                           >
                             <UserX className="size-4 transition-transform duration-200 group-hover/deact:scale-125 group-hover/deact:-translate-y-0.5" />
-                          </button>
+                          </PlainSubmitButton>
                         </form>
                       )}
 

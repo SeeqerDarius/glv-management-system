@@ -8,6 +8,7 @@ import {
   type ApprovalState,
 } from "@/actions/applications";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 const initialState: ApprovalState = {};
 
@@ -68,9 +69,9 @@ export function StaffApplicationsList({
                     <ApprovalForm application={application} />
                     <form action={rejectStaffApplication}>
                       <input type="hidden" name="id" value={application.id} />
-                      <Button type="submit" variant="destructive" size="sm">
+                      <SubmitButton variant="destructive" size="sm" pendingLabel="Rejecting">
                         Reject
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </div>
                 ) : null}

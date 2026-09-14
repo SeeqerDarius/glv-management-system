@@ -106,6 +106,20 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - `app/api/support/assistant/route.ts` calls OpenAI server-side only when
   `OPENAI_API_KEY` is configured.
 - `components/ai-support-chat.tsx` renders the floating support chat UI.
+- Every form submit control across the app now shows a pending/loading state
+  and disables itself while its server action is in flight, closing the gap
+  where a slow request let staff click Save/Record/Approve/Reject/Delete
+  repeatedly and create duplicate records. `components/ui/submit-button.tsx`
+  wraps the shadcn `Button`; `components/ui/plain-submit-button.tsx` covers
+  bespoke `<button>` markup (icon-only actions, inline table buttons). Both
+  read `useFormStatus`, so they work inside Server Component forms without
+  those pages needing `useActionState`. Client components that already
+  manage their own submission (`useActionState`/local `pending` state, e.g.
+  payment, customer, account, product, staff forms) were left as-is. Native
+  GET filter/sort forms (Accounts, Customers, Payments, Products, Staff,
+  Credits, Audit Logs) were intentionally left alone: they do not call a
+  server action, so `useFormStatus` cannot see them, and the route's
+  `loading.tsx` already covers the navigation.
 - New accounts automatically create addressed Terms and Conditions. Terms are
   manually regenerated from Settings, not from ordinary account pages.
 - Cancellation calculations appear only for CLOSED/CANCELLED accounts.
@@ -143,6 +157,18 @@ claim it has changed records.
 - Browser-based visual checks may fail in some Codex Windows sessions because
   the in-app browser connector can fail before opening. If that happens, state
   the limitation and rely on code audit plus lint/type/build gates.
+- `documentation/build_glv_system_manual.py` and `docs/build_system_documentation.py`
+  were updated and re-run to regenerate both DOCX deliverables after the
+  loading-state change below. `soffice --headless --convert-to pdf` could not
+  regenerate the matching PDFs in this sandbox: it fails to load even a
+  trivial one-paragraph test document (`Error: source file could not be
+  loaded`, no PDF written, before it touches either GLV file), so this is a
+  broken LibreOffice install/sandbox limitation, not a content problem. The
+  two `.pdf` files under `docs/` and `documentation/` are therefore stale
+  relative to their `.docx`/generator sources until someone re-runs
+  `soffice --headless --convert-to pdf --outdir <dir> <file>.docx` (or opens
+  and exports each `.docx` from Word/LibreOffice) on a machine with a working
+  install.
 - Prisma `package.json#prisma` config emits a deprecation warning during build.
   It is not currently blocking.
 

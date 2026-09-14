@@ -5,7 +5,8 @@ import {
   approveProfileChange,
   rejectProfileChange,
 } from "@/actions/profile";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
@@ -128,9 +129,9 @@ export default async function ProfileApprovalsPage({
                     <div className="flex flex-wrap justify-end gap-2">
                       <form action={approveProfileChange}>
                         <input type="hidden" name="id" value={request.id} />
-                        <Button type="submit" size="sm">
+                        <SubmitButton size="sm" pendingLabel="Approving">
                           Approve
-                        </Button>
+                        </SubmitButton>
                       </form>
                       <form action={rejectProfileChange} className="flex gap-2">
                         <input type="hidden" name="id" value={request.id} />
@@ -139,9 +140,9 @@ export default async function ProfileApprovalsPage({
                           placeholder="Reason"
                           className="h-9 w-36 rounded border px-2 text-sm"
                         />
-                        <Button type="submit" size="sm" variant="outline">
+                        <SubmitButton size="sm" variant="outline" pendingLabel="Rejecting">
                           Reject
-                        </Button>
+                        </SubmitButton>
                       </form>
                     </div>
                   </td>

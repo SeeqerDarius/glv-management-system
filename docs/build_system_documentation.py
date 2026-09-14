@@ -586,6 +586,7 @@ def build_body() -> str:
         ["Transactions", "Payments, account corrections, staff/customer/product destructive flows, lifecycle closure"],
         ["Audit logs", "Create/update/delete/payment/lifecycle/settings/staff actions"],
         ["Credential safety", "Secrets are environment variables; documentation must never print values."],
+        ["Duplicate-submission prevention", "Every form submit control disables itself and shows a pending state while its server action runs (components/ui/submit-button.tsx for shadcn Button, components/ui/plain-submit-button.tsx for bespoke button markup, both backed by useFormStatus), so a slow request can no longer be triggered twice by repeated clicks. Payment, customer, and account creation additionally carry a client-generated Idempotency-Key so a resubmitted request cannot create a second record server-side."],
     ], [2200, 7160]))
 
     body.append(section("14. Deployment, Verification, and Operations"))

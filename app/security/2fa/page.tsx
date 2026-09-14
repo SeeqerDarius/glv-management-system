@@ -6,7 +6,7 @@ import {
   generateTwoFactorSecret,
   refreshTwoFactorSession,
 } from "@/actions/two-factor";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
@@ -90,7 +90,7 @@ export default async function TwoFactorPage({
               browser session is refreshed.
             </p>
             <form action={refreshTwoFactorSession}>
-              <Button type="submit">Continue to Sign In</Button>
+              <SubmitButton pendingLabel="Continuing">Continue to Sign In</SubmitButton>
             </form>
           </div>
         ) : (
@@ -107,7 +107,7 @@ export default async function TwoFactorPage({
 
             {!twoFactor.secret ? (
               <form action={generateTwoFactorSecret}>
-                <Button type="submit">Generate 2FA Setup Key</Button>
+                <SubmitButton pendingLabel="Generating">Generate 2FA Setup Key</SubmitButton>
               </form>
             ) : (
               <div className="space-y-5">
@@ -171,16 +171,16 @@ export default async function TwoFactorPage({
                     />
                   </label>
                   <div className="flex items-end">
-                    <Button type="submit" className="w-full sm:w-auto">
+                    <SubmitButton className="w-full sm:w-auto" pendingLabel="Enabling">
                       Enable 2FA
-                    </Button>
+                    </SubmitButton>
                   </div>
                 </form>
 
                 <form action={generateTwoFactorSecret}>
-                  <Button type="submit" variant="outline">
+                  <SubmitButton variant="outline" pendingLabel="Generating">
                     Generate New Setup Key
-                  </Button>
+                  </SubmitButton>
                 </form>
               </div>
             )}
