@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { PasswordInput } from "@/components/password-input";
 
 type ConfirmDeleteFormProps = {
@@ -116,9 +117,13 @@ export function ConfirmDeleteForm({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" variant="destructive" disabled={!canSubmit}>
+                <SubmitButton
+                  variant="destructive"
+                  disabled={!canSubmit}
+                  pendingLabel="Deleting"
+                >
                   Delete
-                </Button>
+                </SubmitButton>
               </div>
             </form>
           </div>

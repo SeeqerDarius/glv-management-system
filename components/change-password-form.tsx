@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
+import { GlvLoading } from "@/components/glv-loading";
 import { PasswordInput } from "@/components/password-input";
 
 const errorMessages: Record<string, string> = {
@@ -14,6 +15,7 @@ const errorMessages: Record<string, string> = {
 
 export function ChangePasswordForm({ error }: { error?: string }) {
   const [clientError, setClientError] = useState<string>();
+  const [submitting, setSubmitting] = useState(false);
   const serverError = error ? errorMessages[error] : undefined;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -28,6 +30,7 @@ export function ChangePasswordForm({ error }: { error?: string }) {
     }
 
     setClientError(undefined);
+    setSubmitting(true);
   }
 
   return (
@@ -84,8 +87,8 @@ export function ChangePasswordForm({ error }: { error?: string }) {
         />
       </label>
 
-      <Button type="submit" className="w-full">
-        Update Password
+      <Button type="submit" className="w-full" disabled={submitting}>
+        {submitting ? <GlvLoading compact label="Updating" /> : "Update Password"}
       </Button>
     </form>
   );

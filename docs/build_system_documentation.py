@@ -367,7 +367,7 @@ def build_body() -> str:
         ["Forgot Password", "/forgot-password", "Password reset request UI."],
         ["Signup", "/signup", "Staff application submission before admin approval."],
         ["Change Password", "/change-password, /api/change-password", "First-login or forced password change; clears stale auth cookies after success."],
-        ["Dashboard", "/dashboard", "Role-shaped summary: admins see business KPIs; staff see assigned operational metrics."],
+        ["Dashboard", "/dashboard", "Role-shaped summary: admins see business KPIs plus a weekly collections trend chart, an account status breakdown chart, and week-over-week up/down badges on KPI cards backed by createdAt/paymentDate history (lib/reports.ts getAdminDashboardTrend); staff see assigned operational metrics plus their own scoped weekly collections trend and today/this-week deltas (getStaffDashboardTrend)."],
         ["Activity", "/activity", "Operational activity and collection trends."],
         ["Customers", "/customers, /customers/new, /customers/[id], /customers/[id]/edit", "Customer CRUD, search/filtering, assignment, profile, account/payment history, and customer-level actions."],
         ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, automatic terms, status, balance, delivery, corrections, lifecycle-gated cancellation/reactivation documents, and payment entry."],
@@ -586,6 +586,7 @@ def build_body() -> str:
         ["Transactions", "Payments, account corrections, staff/customer/product destructive flows, lifecycle closure"],
         ["Audit logs", "Create/update/delete/payment/lifecycle/settings/staff actions"],
         ["Credential safety", "Secrets are environment variables; documentation must never print values."],
+        ["Duplicate-submission prevention", "Every form submit control disables itself and shows a pending state while its server action runs (components/ui/submit-button.tsx for shadcn Button, components/ui/plain-submit-button.tsx for bespoke button markup, both backed by useFormStatus), so a slow request can no longer be triggered twice by repeated clicks. Payment, customer, and account creation additionally carry a client-generated Idempotency-Key so a resubmitted request cannot create a second record server-side."],
     ], [2200, 7160]))
 
     body.append(section("14. Deployment, Verification, and Operations"))
@@ -639,7 +640,7 @@ def build_body() -> str:
         ["Pages", "app/dashboard/page.tsx; app/customers/page.tsx; app/accounts/page.tsx; app/payments/page.tsx; app/products/page.tsx; app/staff/page.tsx; app/reports/page.tsx; app/settings/page.tsx"],
         ["Server actions", "actions/customers.ts; actions/accounts.ts; actions/payments.ts; actions/products.ts; actions/staff.ts; actions/settings.ts; actions/salaries.ts; actions/applications.ts"],
         ["Domain libraries", "lib/auth.config.ts; lib/reports.ts; lib/weekly-excel-report.ts; lib/procurement.ts; lib/payment-recording.ts; lib/customer-account-creation.ts; lib/account-lifecycle.ts"],
-        ["UI components", "components/app-shell.tsx; components/dashboard-nav.tsx; components/customer-form.tsx; components/account-form.tsx; components/payment-form.tsx; components/product-form.tsx"],
+        ["UI components", "components/app-shell.tsx; components/dashboard-nav.tsx; components/customer-form.tsx; components/account-form.tsx; components/payment-form.tsx; components/product-form.tsx; components/dashboard-analytics.tsx; components/reports/chart-primitives.tsx (shared dependency-free SVG chart building blocks: TrendChart, HorizontalBarChart, TrendBadge, ChartCard); components/reports/analytics-charts.tsx"],
         ["API routes", "app/api/notifications/route.ts; app/api/reports/weekly-export/route.ts; app/api/support/assistant/route.ts; app/api/change-password/route.ts; app/api/system/health/route.ts"],
         ["Data model", "prisma/schema.prisma; prisma/migrations/*"],
     ], [2000, 7360]))

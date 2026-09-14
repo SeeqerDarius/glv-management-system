@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { updateStaff } from "@/actions/staff";
 import { StaffProfileImageField } from "@/components/staff-profile-image-field";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { auth } from "@/lib/auth";
 import {
   assistantAdminPermissions,
@@ -219,7 +220,7 @@ export default async function EditStaffPage({
         ) : null}
 
         <div className="flex gap-3">
-          <Button type="submit">Save Changes</Button>
+          <SubmitButton pendingLabel="Saving">Save Changes</SubmitButton>
           <Button asChild type="button" variant="outline">
             <Link href="/staff">Cancel</Link>
           </Button>

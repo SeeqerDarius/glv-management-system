@@ -27,6 +27,7 @@ import { AccountProductCorrectionForm } from "@/components/account-product-corre
 import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { ProductImagePreview } from "@/components/product-image-preview";
@@ -295,10 +296,10 @@ export default async function AccountDetailsPage({
                     : DeliveryStatus.DELIVERED
                 }
               />
-              <Button
-                type="submit"
+              <SubmitButton
                 variant={isDelivered ? "outline" : "default"}
                 className="w-full gap-2 sm:w-auto"
+                pendingLabel="Updating"
               >
                 {isDelivered ? (
                   <>
@@ -311,7 +312,7 @@ export default async function AccountDetailsPage({
                     Mark delivered
                   </>
                 )}
-              </Button>
+              </SubmitButton>
             </form>
           ) : null}
         </div>
@@ -350,9 +351,9 @@ export default async function AccountDetailsPage({
                 required
               />
             </label>
-            <Button type="submit" className="shrink-0">
+            <SubmitButton className="shrink-0" pendingLabel="Reactivating">
               Reactivate
-            </Button>
+            </SubmitButton>
           </form>
         </div>
       ) : null}
@@ -371,7 +372,7 @@ export default async function AccountDetailsPage({
                 <p className="font-medium">Cancellation Calculation</p>
                 <input name="refundMethod" aria-label="Expected refund method" placeholder="Refund method" defaultValue="Customer credit / original payment channel" className="w-full rounded border p-2 text-sm" />
                 <input name="processingTime" aria-label="Expected processing time" placeholder="Processing time" defaultValue="Within 10 business days after approval" className="w-full rounded border p-2 text-sm" />
-                <Button type="submit" variant="outline" className="w-full">Generate Calculation</Button>
+                <SubmitButton variant="outline" className="w-full" pendingLabel="Generating">Generate Calculation</SubmitButton>
               </form>
             ) : null}
             {canReactivateDormant ? (
@@ -380,7 +381,7 @@ export default async function AccountDetailsPage({
                 <input type="hidden" name="kind" value="REACTIVATION" />
                 <p className="font-medium">Reactivation Calculation</p>
                 <p className="mt-1 text-xs text-gray-500">Show previous payment, service charge, remaining amount, new balance and expected date.</p>
-                <Button type="submit" variant="outline" className="mt-4 w-full">Generate Calculation</Button>
+                <SubmitButton variant="outline" className="mt-4 w-full" pendingLabel="Generating">Generate Calculation</SubmitButton>
               </form>
             ) : null}
           </div>

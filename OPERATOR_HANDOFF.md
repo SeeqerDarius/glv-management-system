@@ -106,6 +106,51 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - `app/api/support/assistant/route.ts` calls OpenAI server-side only when
   `OPENAI_API_KEY` is configured.
 - `components/ai-support-chat.tsx` renders the floating support chat UI.
+- Every form submit control across the app now shows a pending/loading state
+  and disables itself while its server action is in flight, closing the gap
+  where a slow request let staff click Save/Record/Approve/Reject/Delete
+  repeatedly and create duplicate records. `components/ui/submit-button.tsx`
+  wraps the shadcn `Button`; `components/ui/plain-submit-button.tsx` covers
+  bespoke `<button>` markup (icon-only actions, inline table buttons). Both
+  read `useFormStatus`, so they work inside Server Component forms without
+  those pages needing `useActionState`. Client components that already
+  manage their own submission (`useActionState`/local `pending` state, e.g.
+  payment, customer, account, product, staff forms) were left as-is. Native
+  GET filter/sort forms (Accounts, Customers, Payments, Products, Staff,
+  Credits, Audit Logs) were intentionally left alone: they do not call a
+  server action, so `useFormStatus` cannot see them, and the route's
+  `loading.tsx` already covers the navigation.
+- The dashboard (`app/dashboard/page.tsx`) replaced its wall of plain numbers
+  with real charts and week-over-week trend indicators. The admin view now
+  has a "Trends" section (`components/dashboard-analytics.tsx`
+  `AdminDashboardCharts`) with a weekly collections line/area chart and an
+  account-status breakdown bar chart; the staff view gets its own scoped
+  weekly collections chart (`StaffDashboardTrendChart`). The existing
+  hand-rolled dependency-free SVG chart system from the Reports page
+  (`components/reports/analytics-charts.tsx`) was extracted into
+  `components/reports/chart-primitives.tsx` (`ChartCard`, `TrendChart`,
+  `HorizontalBarChart`, `Tooltip`, plus a new `TrendBadge`) so both Reports
+  and Dashboard share one implementation instead of duplicating ~300 lines
+  of SVG. `TrendBadge` shows a green up-arrow / red down-arrow / grey dash
+  comparing this week to last week; per the dataviz skill's contrast rule it
+  colors only the icon and keeps the label text in the neutral
+  `--chart-ink-secondary` token, since `--chart-good` green fails 4.5:1 text
+  contrast on white at small sizes (icon-only color use only needs 3:1,
+  which it passes).
+  `lib/reports.ts` gained `getAdminDashboardTrend`/`getStaffDashboardTrend`
+  and `getWeeklyCollectionTrend` gained an optional `staffId` filter. Deltas
+  are only computed for flow metrics that are safely reconstructible from
+  immutable `createdAt`/`paymentDate` history (new customers/staff/accounts
+  this week vs last week, collected this week/today vs the prior period).
+  Status-based snapshot figures (Active/Overdue/Completed accounts, cash
+  position) intentionally show no arrow: the `status` column has no history
+  table, so there is no honest way to reconstruct "as it was last week" for
+  those — showing a fabricated delta there would be worse than showing none.
+  The Business Dashboard screenshot in the training manual
+  (`documentation/screenshots/01-dashboard.png`) was not recaptured (no
+  database access in this sandbox to render the live page); the manual's
+  description text was updated to match the new page, but the embedded image
+  is now stale until someone regenerates it from a real environment.
 - New accounts automatically create addressed Terms and Conditions. Terms are
   manually regenerated from Settings, not from ordinary account pages.
 - Cancellation calculations appear only for CLOSED/CANCELLED accounts.
@@ -143,6 +188,18 @@ claim it has changed records.
 - Browser-based visual checks may fail in some Codex Windows sessions because
   the in-app browser connector can fail before opening. If that happens, state
   the limitation and rely on code audit plus lint/type/build gates.
+- `documentation/build_glv_system_manual.py` and `docs/build_system_documentation.py`
+  were updated and re-run to regenerate both DOCX deliverables after the
+  loading-state change below. `soffice --headless --convert-to pdf` could not
+  regenerate the matching PDFs in this sandbox: it fails to load even a
+  trivial one-paragraph test document (`Error: source file could not be
+  loaded`, no PDF written, before it touches either GLV file), so this is a
+  broken LibreOffice install/sandbox limitation, not a content problem. The
+  two `.pdf` files under `docs/` and `documentation/` are therefore stale
+  relative to their `.docx`/generator sources until someone re-runs
+  `soffice --headless --convert-to pdf --outdir <dir> <file>.docx` (or opens
+  and exports each `.docx` from Word/LibreOffice) on a machine with a working
+  install.
 - Prisma `package.json#prisma` config emits a deprecation warning during build.
   It is not currently blocking.
 

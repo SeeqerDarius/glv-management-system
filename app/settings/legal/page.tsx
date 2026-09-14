@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { updateLegalTemplate } from "@/actions/legal-templates";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { CustomerDocumentGenerator } from "@/components/customer-document-generator";
 import { auth } from "@/lib/auth";
 import { ensureDefaultLegalTemplates, PLACEHOLDERS } from "@/lib/legal-templates";
@@ -88,7 +89,7 @@ export default async function LegalSettingsPage({
             <label className="space-y-1"><span className="text-sm font-medium">Subject</span><input name="subject" defaultValue={template.subject} className="w-full rounded border p-3" required /></label>
           </div>
           <label className="space-y-1"><span className="text-sm font-medium">Document/message draft</span><textarea name="body" defaultValue={template.body} className="min-h-80 w-full rounded border p-3 font-mono text-sm" required /></label>
-          <div className="flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={template.active} /> Active</label><Button type="submit">Save template</Button></div>
+          <div className="flex items-center justify-between"><label className="flex items-center gap-2 text-sm"><input type="checkbox" name="active" defaultChecked={template.active} /> Active</label><SubmitButton pendingLabel="Saving">Save template</SubmitButton></div>
         </form>
       ))}
       <section className="rounded-lg border bg-white">

@@ -28,8 +28,8 @@ RED = RGBColor(153, 27, 27)
 
 SECTIONS = [
     ("Business Dashboard", "01-dashboard.png",
-     "Provides an executive view of customers, staff, accounts, collections, receivables, product exposure, payroll, refunds, and projected profitability.",
-     "Use it as the daily starting point for assessing business position and identifying areas that need attention."),
+     "Provides an executive view of customers, staff, accounts, collections, receivables, product exposure, payroll, refunds, and projected profitability, with a weekly collections trend chart, an account status breakdown chart, and week-over-week up/down indicators on the KPI cards that support them.",
+     "Use it as the daily starting point for assessing business position and identifying areas that need attention. A green up arrow means that figure grew since last week; a red down arrow means it shrank; figures without an arrow (account status counts, cash position) reflect the current moment rather than a week-over-week change."),
     ("Activity Monitoring", "02-activity.png",
      "Summarises recent customer, account, and payment activity so administrators can see what changed and when.",
      "Use it for operational awareness, follow-up, and quick investigation of newly recorded work."),
@@ -383,6 +383,10 @@ def build():
          "A new product account automatically creates addressed Terms and Conditions. Administrators regenerate terms from Settings. Cancellation calculations are available only for closed or cancelled accounts, while reactivation calculations require lifecycle eligibility. Generated documents remain attached to the account for audit and PDF access."),
         ("Use the correct customer communication channel",
          "The system queues only one enabled channel. Legal and document messages prefer email, then WhatsApp, then SMS. Payment receipts prefer WhatsApp, then SMS, then email. If the customer has neither email nor phone, nothing is queued; staff explain the terms verbally and show the in-system receipt and product tracking information."),
+        ("Wait for the button to finish saving",
+         "Every Save, Record, Approve, Reject, and Delete button shows a brief loading state and disables itself while GLV processes the request. Wait for that state to clear before moving on. Clicking the same button again while it is disabled does not start a second request, so it no longer creates duplicate payments, deposits, or other records."),
+        ("Read the dashboard trend arrows correctly",
+         "The Total Customers, Total Staff, New Accounts, and Collected This Week cards on the dashboard show a small arrow comparing this week to last week: a green up arrow is growth, a red down arrow is a decline, and a flat dash means no change. These week-over-week comparisons only appear on figures that can be safely measured over time; current-status figures such as Active Accounts, Overdue Accounts, and cash position are shown as a snapshot without an arrow because there is no historical status record to compare against."),
     ]:
         doc.add_paragraph(heading, style="Heading 2")
         doc.add_paragraph(body)

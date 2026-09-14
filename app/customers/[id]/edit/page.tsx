@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { updateCustomer } from "@/actions/customers";
 import { UserPermission } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 import { PasswordInput } from "@/components/password-input";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -157,7 +158,7 @@ export default async function EditCustomerPage({
         ) : null}
 
         <div className="flex gap-3">
-          <Button type="submit">Save Changes</Button>
+          <SubmitButton pendingLabel="Saving">Save Changes</SubmitButton>
           <Button asChild type="button" variant="outline">
             <Link href={`/customers/${customer.id}`}>Cancel</Link>
           </Button>

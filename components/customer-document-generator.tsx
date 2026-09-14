@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { generateCustomerDocument } from "@/actions/customer-documents";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type AccountOption = {
   id: string;
@@ -114,9 +114,9 @@ export function CustomerDocumentGenerator({
         </div>
       ) : null}
 
-      <Button type="submit" disabled={!account}>
+      <SubmitButton disabled={!account} pendingLabel="Generating">
         Generate Addressed Terms
-      </Button>
+      </SubmitButton>
     </form>
   );
 }
