@@ -161,7 +161,7 @@ export default async function DashboardPage() {
                 label="Total Customers"
                 value={report.totalCustomers}
                 previousValue={Math.max(0, report.totalCustomers - trend.newCustomersThisWeek)}
-                icon={UserRoundIcon}
+                icon={<UserRoundIcon className="size-5" />}
                 accent={appearance.primaryColor}
               />
             ) : (
@@ -178,7 +178,7 @@ export default async function DashboardPage() {
                 label="Total Staff"
                 value={report.totalStaff}
                 previousValue={Math.max(0, report.totalStaff - trend.newStaffThisWeek)}
-                icon={UsersIcon}
+                icon={<UsersIcon className="size-5" />}
                 accent={appearance.secondaryColor}
               />
             ) : (
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
                 label="New Accounts This Week"
                 value={trend.newAccountsThisWeek}
                 previousValue={trend.newAccountsLastWeek}
-                icon={CirclePlusIcon}
+                icon={<CirclePlusIcon className="size-5" />}
                 accent="#2a78d6"
               />
             ) : (
@@ -247,8 +247,8 @@ export default async function DashboardPage() {
                 label="Collected This Week"
                 value={trend.collectedThisWeek}
                 previousValue={trend.collectedLastWeek}
-                format={formatMoney}
-                icon={HandCoinsIcon}
+                formatAs="money"
+                icon={<HandCoinsIcon className="size-5" />}
                 accent="#846ab3"
               />
             ) : (
@@ -338,7 +338,7 @@ export default async function DashboardPage() {
                 label="My Customers"
                 value={staffReport.totalCustomers}
                 previousValue={Math.max(0, staffReport.totalCustomers - staffReport.customersAddedThisWeek)}
-                icon={UserRoundIcon}
+                icon={<UserRoundIcon className="size-5" />}
                 accent={appearance.primaryColor}
               />
             ) : (
@@ -352,8 +352,8 @@ export default async function DashboardPage() {
                 label="Collected Today"
                 value={staffReport.totalCollectedToday}
                 previousValue={staffTrend.collectedYesterday}
-                format={formatMoney}
-                icon={BadgeDollarSignIcon}
+                formatAs="money"
+                icon={<BadgeDollarSignIcon className="size-5" />}
                 accent="#317f9d"
                 suffix="vs yesterday"
               />
@@ -365,8 +365,8 @@ export default async function DashboardPage() {
                 label="Collected This Week"
                 value={staffTrend.collectedThisWeek}
                 previousValue={staffTrend.collectedLastWeek}
-                format={formatMoney}
-                icon={TrendingUpIcon}
+                formatAs="money"
+                icon={<TrendingUpIcon className="size-5" />}
                 accent={appearance.primaryColor}
               />
             ) : (
