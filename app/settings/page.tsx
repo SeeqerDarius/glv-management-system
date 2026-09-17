@@ -13,6 +13,7 @@ import type { SettingsSection } from "@/lib/settings-sections";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
+import { TabsNav } from "@/components/ui/tabs-nav";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { auth } from "@/lib/auth";
@@ -486,36 +487,17 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </div>
       </div>
 
-      {visibleTabs.length > 1 ? (
-        <nav
-          aria-label="Settings sections"
-          className="overflow-x-auto rounded-xl border border-gray-200 bg-white p-1.5"
-        >
-          <ul className="flex min-w-max items-center gap-1">
-            {visibleTabs.map((item) => {
-              const Icon = item.icon;
-              const isActive = item.key === activeTab;
+      <TabsNav
+        label="Settings sections"
+        activeKey={activeTab}
+        items={visibleTabs.map((item) => ({
+          key: item.key,
+          label: item.label,
+          href: `/settings?tab=${item.key}`,
+          icon: item.icon,
+        }))}
+      />
 
-              return (
-                <li key={item.key}>
-                  <Link
-                    href={`/settings?tab=${item.key}`}
-                    aria-current={isActive ? "page" : undefined}
-                    className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                      isActive
-                        ? "bg-green-950 text-white"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                    }`}
-                  >
-                    <Icon className="size-4" />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      ) : null}
 
       {saved ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
