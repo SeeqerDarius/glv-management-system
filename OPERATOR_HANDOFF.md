@@ -451,31 +451,31 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 
 - The procurement list is still a computed view. A product appears once at least
   one of its pending-delivery accounts is at or above the configured threshold.
-- Operators now confirm what they actually bought. Enter the quantity on the
-  procurement tab (`/products?tab=procurement`) or on the product procurement page
-  (`/products/procurement/[productId]`) and press **Confirm procured**. That many
-  units leave the list immediately.
-- Confirmation is recorded per account, not per product: `CustomerAccount.procuredAt`
-  and `procuredBy` (migration `20260917091000_procurement_confirmation`). Units are
-  consumed starting with the customers closest to finishing their plan, which is the
-  order GLV buys in. A partial purchase therefore reduces the outstanding count by
-  exactly the quantity entered and leaves the rest on the list.
-- Single units can be confirmed individually from the product procurement page,
-  which is the safer route when a specific customer's unit was bought out of order.
-- Confirming does not change delivery. A confirmed unit moves to the **Bought,
-  awaiting delivery** table on the product procurement page and stays there until
-  delivery is confirmed on the account. That table has an **Undo** action that puts
-  the unit back on the buying list, for confirmations entered in error.
+- To confirm a purchase, press the procured icon on the product's row in
+  `/products?tab=procurement`. A small dialog asks how many units were bought;
+  the list reduces by that quantity. A partial purchase leaves the rest listed.
+- Keep this flow as small as it is. An earlier version put a number box and a
+  full button inside every table row, which added a column, widened the table
+  and buried the figures the list exists to show. It also grew a second
+  "bought, awaiting delivery" table and an undo action that nobody asked for.
+  All of that was removed. Confirm quantity, list reduces — nothing else.
+- Under the hood the confirmation is recorded per account
+  (`CustomerAccount.procuredAt` / `procuredBy`, migration
+  `20260917091000_procurement_confirmation`), consuming the customers closest to
+  finishing their plan first. That is an implementation detail: operators only
+  see a quantity.
+- Confirming does not change delivery. Delivery is still confirmed on the
+  account when the customer receives the product.
 - `procuredAt: null` is part of the shared procurement query, so every consumer
-  reduces together: the products tab, the sidebar attention badge, the procurement
-  Excel export, the weekly report sheet, and the reports module. There is no second
-  source of truth to keep in step.
-- Confirming requires `MANAGE_PRODUCTS` (admins have it implicitly). Both confirm
-  and undo are audit logged as `CONFIRM_PROCUREMENT` and
-  `UNDO_CONFIRM_PROCUREMENT`, recording the requested quantity, the confirmed
-  quantity and the account IDs. Two operators confirming at once cannot consume the
-  same unit twice: the update is guarded on `procuredAt` still being null, and the
-  redirect reports the quantity actually confirmed.
+  reduces together: the products tab, the sidebar attention badge, the
+  procurement Excel export, the weekly report sheet and the reports module.
+- Confirming requires `MANAGE_PRODUCTS` (admins have it implicitly) and is audit
+  logged as `CONFIRM_PROCUREMENT` with the requested quantity, the confirmed
+  quantity and the account IDs. Two operators confirming at once cannot consume
+  the same unit twice: the update is guarded on `procuredAt` still being null,
+  and the redirect reports the quantity actually confirmed.
+- The product procurement page (`/products/procurement/[productId]`) is a
+  read-only breakdown of the accounts driving demand. Do not add actions to it.
 
 ## Delivery with an outstanding balance
 
