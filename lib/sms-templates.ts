@@ -1,4 +1,4 @@
-export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek", "weeklySummary"] as const;
+export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek", "weeklySummary", "weeklySummaryShort"] as const;
 export type SmsTemplateKey = (typeof SMS_TEMPLATE_KEYS)[number];
 
 export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
@@ -31,17 +31,24 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   },
   missedWeek: {
     label: "Missed payment",
-    description: "Sent only to the customer whose active or overdue plan has had no payment for seven full days.",
-    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you have not made payment for your {{productName}} for at least 7 days. Balance: {{balance}}. Please contact {{staffName}} to arrange payment. If you have paid, contact GLV to reconcile your record.",
+    description: "Sent only to the customer whose active or overdue plan has had no payment for two full weeks (14 days).",
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you have not made payment for your {{productName}} for at least 2 weeks. Balance: {{balance}}. Please contact {{staffName}} to arrange payment. If you have paid, contact GLV to reconcile your record.",
     placeholders: ["customerName", "productName", "balance", "daysSincePayment", "staffName"],
-    previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "7", staffName: "Ama" },
+    previewValues: { customerName: "Kwame", productName: "Television", balance: "GHS 1,050.00", daysSincePayment: "14", staffName: "Ama" },
   },
   weeklySummary: {
-    label: "Weekly payment summary",
-    description: "Sent once to each paying customer assigned to a staff member when that staff member’s weekly deposit is recorded.",
-    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you paid {{weeklyAmount}} from {{weekStart}} to {{weekEnd}}. Great work this week—keep it up and stay on track!",
-    placeholders: ["customerName", "weeklyAmount", "weekStart", "weekEnd", "staffName"],
-    previewValues: { customerName: "Kwame", weeklyAmount: "GHS 175.00", weekStart: "2026-09-07", weekEnd: "2026-09-13", staffName: "Ama" },
+    label: "Weekly summary — target met",
+    description: "Sent when the customer paid at least their expected weekly amount. Use encouraging wording here.",
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you paid {{weeklyAmount}} from {{weekStart}} to {{weekEnd}} and met your weekly target of {{expectedAmount}}. Great work this week—keep it up and stay on track!",
+    placeholders: ["customerName", "weeklyAmount", "expectedAmount", "weekStart", "weekEnd", "staffName"],
+    previewValues: { customerName: "Kwame", weeklyAmount: "GHS 175.00", expectedAmount: "GHS 175.00", weekStart: "2026-09-07", weekEnd: "2026-09-13", staffName: "Ama" },
+  },
+  weeklySummaryShort: {
+    label: "Weekly summary — below target",
+    description: "Sent instead of the encouraging message when the customer paid less than their expected weekly amount. Use a respectful reminder, not praise.",
+    defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you paid {{weeklyAmount}} from {{weekStart}} to {{weekEnd}}. Your weekly target is {{expectedAmount}}, so {{shortfallAmount}} is still short. Please contact {{staffName}} to catch up and protect your plan.",
+    placeholders: ["customerName", "weeklyAmount", "expectedAmount", "shortfallAmount", "weekStart", "weekEnd", "staffName"],
+    previewValues: { customerName: "Kwame", weeklyAmount: "GHS 90.00", expectedAmount: "GHS 175.00", shortfallAmount: "GHS 85.00", weekStart: "2026-09-07", weekEnd: "2026-09-13", staffName: "Ama" },
   },
 };
 

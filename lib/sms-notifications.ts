@@ -1,21 +1,27 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone } from "./sms-rules";
+import {
+  expectedWeeklyAmount, hasSmsRecipient, metWeeklyTarget, MISSED_PAYMENT_WINDOW_DAYS,
+  missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone,
+} from "./sms-rules";
 import { sendSms, SmsSendError, smsProviderConfigured } from "./sms-provider";
 import { renderSmsTemplate, smsFirstName } from "./sms-templates";
 
 type Client = Prisma.TransactionClient;
 const money = (value: number, currency = "GHS") => `${currency} ${value.toFixed(2)}`;
 
+const NO_RECIPIENT_REASON = "No usable phone number on the record. Nothing was sent.";
+
 async function queue(tx: Client, data: {
   type: string; sourceId: string; dedupeKey: string; recipient: string | null; body: string;
   scheduledAt?: Date;
 }) {
   const recipient = normalizeSmsPhone(data.recipient);
+  // A customer or staff member without a usable number is skipped outright, so
+  // nothing is queued and the provider is never called on their behalf.
+  if (!recipient) return { count: 0 };
   return tx.smsNotification.createMany({
-    data: [{ ...data, recipient: recipient ?? data.recipient ?? "",
-      status: recipient ? "PENDING" : "FAILED",
-      lastError: recipient ? null : "Missing or invalid phone number. Correct the record before retrying." }],
+    data: [{ ...data, recipient, status: "PENDING", lastError: null }],
     skipDuplicates: true,
   });
 }
@@ -45,11 +51,12 @@ export async function queueAccountSms(tx: Client, accountId: string, type: "WELC
     // A corrected payment can drop below 70% before dispatch, cancelling the notice.
     // Permit a later real crossing to re-arm it; accepted/unknown messages stay untouched.
     const recipient = normalizeSmsPhone(account.customer.phone);
-    await tx.smsNotification.updateMany({
-      where: { dedupeKey: `${type}:${account.id}`, status: "CANCELLED" },
-      data: { status: recipient ? "PENDING" : "FAILED", recipient: recipient ?? "", body,
-        attempts: 0, scheduledAt: new Date(), lastError: recipient ? null : "Missing or invalid phone number." },
-    });
+    if (recipient) {
+      await tx.smsNotification.updateMany({
+        where: { dedupeKey: `${type}:${account.id}`, status: "CANCELLED" },
+        data: { status: "PENDING", recipient, body, attempts: 0, scheduledAt: new Date(), lastError: null },
+      });
+    }
   }
 }
 
@@ -85,12 +92,15 @@ export async function queueMissedPaymentSms(now = new Date()) {
     for (const account of accounts) {
       const period = missedPaymentPeriod(account, now);
       if (!period) continue;
+      // No number means the reminder is skipped entirely, never queued.
+      if (!hasSmsRecipient(account.customer.phone)) continue;
       const result = await queue(prisma, { type: "MISSED_WEEK", sourceId: account.id,
         dedupeKey: `MISSED_WEEK:${account.id}:${period}`, recipient: account.customer.phone,
         body: renderSmsTemplate("missedWeek", settings.smsMissedWeekTemplate, {
           customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
           balance: money(account.balance, settings.defaultCurrency),
-          daysSincePayment: String(Math.max(7, Math.floor((now.getTime() - (account.payments[0]?.createdAt ?? account.startDate).getTime()) / 86_400_000))),
+          daysSincePayment: String(Math.max(MISSED_PAYMENT_WINDOW_DAYS,
+            Math.floor((now.getTime() - (account.payments[0]?.createdAt ?? account.startDate).getTime()) / 86_400_000))),
           staffName: smsFirstName(account.customer.staff.fullName),
         }) });
       queued += result.count;
@@ -127,21 +137,52 @@ export async function queueWeeklyCustomerSummarySms(tx: Client, staffId: string,
     const current = customers.get(customer.id);
     customers.set(customer.id, { fullName: customer.fullName, phone: customer.phone, amount: (current?.amount ?? 0) + payment.amount });
   }
+
+  // The expected weekly amount is the daily amount of every plan the customer is
+  // still collecting on, so a customer with two plans is measured against both.
+  const collectingAccounts = customers.size
+    ? await tx.customerAccount.findMany({
+      where: {
+        customerId: { in: Array.from(customers.keys()) },
+        status: { in: ["ACTIVE", "OVERDUE", "PROBATION"] },
+        balance: { gt: 0 },
+        startDate: { lte: end },
+      },
+      select: { customerId: true, dailyAmount: true },
+    })
+    : [];
+  const dailyAmounts = new Map<string, number[]>();
+  for (const account of collectingAccounts) {
+    const current = dailyAmounts.get(account.customerId) ?? [];
+    current.push(account.dailyAmount);
+    dailyAmounts.set(account.customerId, current);
+  }
+
   let queued = 0;
   const weekKey = start.toISOString().slice(0, 10);
   for (const [customerId, customer] of customers) {
-    const body = renderSmsTemplate("weeklySummary", settings.smsWeeklySummaryTemplate, {
-      customerName: smsFirstName(customer.fullName), weeklyAmount: money(customer.amount, settings.defaultCurrency),
+    // Skipped before any work: no number means no message at all.
+    const recipient = normalizeSmsPhone(customer.phone);
+    if (!recipient) continue;
+
+    const expected = expectedWeeklyAmount(dailyAmounts.get(customerId) ?? []);
+    const onTarget = metWeeklyTarget(customer.amount, expected);
+    const templateKey = onTarget ? "weeklySummary" : "weeklySummaryShort";
+    const body = renderSmsTemplate(templateKey,
+      onTarget ? settings.smsWeeklySummaryTemplate : settings.smsWeeklySummaryShortTemplate, {
+      customerName: smsFirstName(customer.fullName),
+      weeklyAmount: money(customer.amount, settings.defaultCurrency),
+      expectedAmount: money(expected, settings.defaultCurrency),
+      shortfallAmount: money(Math.max(expected - customer.amount, 0), settings.defaultCurrency),
       weekStart: weekKey, weekEnd: end.toISOString().slice(0, 10), staffName: smsFirstName(staff.fullName),
     });
     const dedupeKey = `WEEKLY_SUMMARY:${staffId}:${customerId}:${weekKey}`;
     const result = await queue(tx, { type: "WEEKLY_SUMMARY", sourceId: customerId, dedupeKey, recipient: customer.phone, body });
     queued += result.count;
-    const recipient = normalizeSmsPhone(customer.phone);
+    // A later deposit in the same week refreshes the amount and the wording.
     await tx.smsNotification.updateMany({
-      where: { dedupeKey, status: { in: ["PENDING", "FAILED"] } },
-      data: { recipient: recipient ?? "", body, status: recipient ? "PENDING" : "FAILED",
-        lastError: recipient ? null : "Missing or invalid phone number. Correct the record before retrying." },
+      where: { dedupeKey, status: "PENDING" },
+      data: { recipient, body, lastError: null },
     });
   }
   return { queued };
@@ -191,7 +232,13 @@ export async function dispatchDueSms(limit = 20) {
         return;
       }
       const phone = normalizeSmsPhone(recipient.phone);
-      if (!phone) throw new SmsSendError("Missing or invalid phone number.", "FAILED");
+      // The number can be cleared after queueing. Retire the message instead of
+      // attempting a send that cannot reach anyone.
+      if (!phone) {
+        await prisma.smsNotification.update({ where: { id: message.id },
+          data: { status: "CANCELLED", lastError: NO_RECIPIENT_REASON } });
+        return;
+      }
       // Refresh financial amounts immediately before dispatch, after corrections.
       let body = message.body;
       if (message.type === "PROGRESS_70" || message.type === "MISSED_WEEK") {

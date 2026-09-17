@@ -1,4 +1,10 @@
-export const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+export const DAY_MS = 24 * 60 * 60 * 1000;
+export const WEEK_MS = 7 * DAY_MS;
+
+// Missed-payment reminders start only after two full weeks without a payment,
+// then repeat once for every further two-week gap.
+export const MISSED_PAYMENT_WINDOW_MS = 2 * WEEK_MS;
+export const MISSED_PAYMENT_WINDOW_DAYS = 14;
 
 export function normalizeSmsPhone(value: string | null | undefined) {
   if (!value || !/^[+\d\s().-]+$/.test(value)) return null;
@@ -11,9 +17,31 @@ export function normalizeSmsPhone(value: string | null | undefined) {
   return `+${digits}`;
 }
 
+// A record with no usable number is never queued and never dispatched, so the
+// provider is not called and no failed row is left behind for it.
+export function hasSmsRecipient(value: string | null | undefined) {
+  return normalizeSmsPhone(value) !== null;
+}
+
 export function reachedSmsMilestone(totalPaid: number, targetAmount: number) {
   return targetAmount > 0 && Number.isFinite(targetAmount) &&
     Number.isFinite(totalPaid) && Math.round(totalPaid * 100) * 10 >= Math.round(targetAmount * 100) * 7;
+}
+
+/** Weekly amount a customer is expected to pay across their collecting accounts. */
+export function expectedWeeklyAmount(dailyAmounts: Array<number | null | undefined>) {
+  const daily = dailyAmounts.reduce<number>((total, amount) => {
+    return total + (typeof amount === "number" && Number.isFinite(amount) ? Math.max(amount, 0) : 0);
+  }, 0);
+  return daily * 7;
+}
+
+/** True when the customer paid at least the expected weekly amount. */
+export function metWeeklyTarget(paidAmount: number, expectedAmount: number) {
+  if (!Number.isFinite(expectedAmount) || expectedAmount <= 0) return true;
+  if (!Number.isFinite(paidAmount)) return false;
+  // Compare in pesewas so float noise never turns an exact week into a shortfall.
+  return Math.round(paidAmount * 100) >= Math.round(expectedAmount * 100);
 }
 
 export function missedPaymentPeriod(account: {
@@ -25,6 +53,6 @@ export function missedPaymentPeriod(account: {
   // A backdated payment entered today also resets reminders.
   const anchor = Math.max(account.startDate.getTime(), latest?.paymentDate.getTime() ?? 0,
     latest?.createdAt.getTime() ?? 0);
-  const week = Math.floor((now.getTime() - anchor) / WEEK_MS);
-  return week >= 1 ? `${latest?.id ?? account.startDate.toISOString()}:${week}` : null;
+  const period = Math.floor((now.getTime() - anchor) / MISSED_PAYMENT_WINDOW_MS);
+  return period >= 1 ? `${latest?.id ?? account.startDate.toISOString()}:${period}` : null;
 }

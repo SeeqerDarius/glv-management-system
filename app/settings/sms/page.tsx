@@ -50,6 +50,7 @@ export default async function SmsPage() {
         <SmsTemplateEditor templateKey="progress70" initialValue={smsTemplateValue("progress70", settings?.smsProgress70Template)} />
         <SmsTemplateEditor templateKey="missedWeek" initialValue={smsTemplateValue("missedWeek", settings?.smsMissedWeekTemplate)} />
         <SmsTemplateEditor templateKey="weeklySummary" initialValue={smsTemplateValue("weeklySummary", settings?.smsWeeklySummaryTemplate)} />
+        <SmsTemplateEditor templateKey="weeklySummaryShort" initialValue={smsTemplateValue("weeklySummaryShort", settings?.smsWeeklySummaryShortTemplate)} />
       </div>
       <div className="flex flex-wrap gap-3">
         <PlainSubmitButton pendingLabel="Saving" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</PlainSubmitButton>
@@ -64,8 +65,9 @@ export default async function SmsPage() {
           ["Salary payment", "A salary payment is recorded", "Once per salary payment"],
           ["Customer welcome", "A new product payment plan starts", "Once per account"],
           ["70% progress", "Recorded payments reach at least 70% of target", "Once per account"],
-          ["Missed payment", "An active or overdue account has no payment for 7 full days", "Once per further unpaid week"],
-          ["Weekly payment summary", "A staff deposit is recorded for the week", "Once per paying customer assigned to that staff member each week"],
+          ["Missed payment", "An active or overdue account has no payment for 14 full days (2 weeks)", "Once per further unpaid two-week period"],
+          ["Weekly summary — target met", "A staff deposit is recorded and the customer paid at least their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
+          ["Weekly summary — below target", "A staff deposit is recorded and the customer paid less than their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
         ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
       </table></div>
     </section>
@@ -73,7 +75,7 @@ export default async function SmsPage() {
       <h2 className="text-lg font-semibold">Delivery status</h2>
       <p>Notifications: {settings?.smsNotificationsEnabled ? "Enabled" : "Paused"}</p>
       <p className="text-sm">Accepted means BMS accepted the message. Check <a href="https://app.bms.africa/dashboard/sms/campaigns" className="underline" target="_blank" rel="noreferrer">BMS campaign history</a> for delivery confirmation.</p>
-      <p className="text-sm">Correct phone numbers or provider setup before retrying failed messages. Unknown results require checking BMS history and operator reconciliation to prevent duplicate texts.</p>
+      <p className="text-sm">Customers and staff without a usable phone number are skipped entirely, so no message is queued or attempted for them. Correct phone numbers or provider setup before retrying failed messages. Unknown results require checking BMS history and operator reconciliation to prevent duplicate texts.</p>
       <p className="text-sm">{counts.map(item => `${item.status}: ${item._count}`).join(" · ") || "No messages yet."}</p>
     </div>
     <div className="overflow-x-auto rounded-lg border bg-white">

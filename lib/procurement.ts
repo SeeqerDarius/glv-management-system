@@ -44,6 +44,10 @@ export type ProcurementAccountItem = {
   progress: number;
 };
 
+export type ProcuredAccountItem = ProcurementAccountItem & {
+  procuredAt: Date;
+};
+
 export async function getProcurementAccounts(productId?: string) {
   const settings = await getSettings();
   const configuredThreshold = Number(
@@ -58,6 +62,8 @@ export async function getProcurementAccounts(productId?: string) {
     where: {
       ...(productId ? { productId } : {}),
       deliveryStatus: DeliveryStatus.PENDING,
+      // A unit that has already been bought leaves the buying list.
+      procuredAt: null,
       status: {
         in: procurementStatuses,
       },
@@ -194,4 +200,83 @@ export async function getProcurementList() {
     totalQuantity: items.reduce((total, item) => total + item.quantity, 0),
     totalCost: items.reduce((total, item) => total + item.totalCost, 0),
   };
+}
+
+/** Units already bought for a product but not yet handed to the customer. */
+export async function getProcuredAwaitingDelivery(productId?: string) {
+  const accounts = await prisma.customerAccount.findMany({
+    where: {
+      ...(productId ? { productId } : {}),
+      deliveryStatus: DeliveryStatus.PENDING,
+      procuredAt: { not: null },
+      status: {
+        in: procurementStatuses,
+      },
+    },
+    select: {
+      id: true,
+      targetAmount: true,
+      totalPaid: true,
+      balance: true,
+      procuredAt: true,
+      customer: {
+        select: {
+          id: true,
+          customerId: true,
+          fullName: true,
+          staff: {
+            select: {
+              code: true,
+              fullName: true,
+            },
+          },
+        },
+      },
+      product: {
+        select: {
+          id: true,
+          name: true,
+          category: true,
+          costPrice: true,
+          transportCost: true,
+          layawayPrice: true,
+        },
+      },
+    },
+    orderBy: {
+      procuredAt: "desc",
+    },
+  });
+
+  const items: ProcuredAccountItem[] = [];
+
+  for (const account of accounts) {
+    if (!account.procuredAt) {
+      continue;
+    }
+
+    items.push({
+      accountId: account.id,
+      customerId: account.customer.id,
+      customerCode: account.customer.customerId,
+      customerName: account.customer.fullName,
+      staffCode: account.customer.staff.code,
+      staffName: account.customer.staff.fullName,
+      productId: account.product.id,
+      productName: account.product.name,
+      category: account.product.category,
+      unitCost: account.product.costPrice,
+      transportCost: account.product.transportCost,
+      landedUnitCost: account.product.costPrice + account.product.transportCost,
+      layawayPrice: account.product.layawayPrice,
+      targetAmount: account.targetAmount,
+      totalPaid: account.totalPaid,
+      balance: account.balance,
+      progress:
+        account.targetAmount > 0 ? account.totalPaid / account.targetAmount : 0,
+      procuredAt: account.procuredAt,
+    });
+  }
+
+  return items;
 }

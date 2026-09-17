@@ -260,7 +260,7 @@ def build_body() -> str:
         ["Area", "What it does"],
         ["Customer operations", "Registers customers, assigns staff, creates product accounts, records payments, tracks balances, and keeps customer/account histories together."],
         ["Financial operations", "Records payments, generates receipt numbers, recalculates balances, creates overpayment credits, tracks salaries, and exports weekly Excel reports."],
-        ["Procurement operations", "Shows products that should be bought when linked accounts reach at least 70% paid, including fully paid but undelivered accounts."],
+        ["Procurement operations", "Shows products that should be bought when linked accounts reach at least 70% paid, including fully paid but undelivered accounts. Operators confirm the quantity actually bought and those units leave the list."],
         ["Staff operations", "Manages staff records, applications, salaries, permissions, login accounts, password reset, and staff-specific dashboards."],
         ["Control and governance", "Uses role/permission gates, audit logs, admin confirmations, settings, lifecycle rules, and protected server actions."],
     ], [2100, 7260]))
@@ -284,14 +284,14 @@ def build_body() -> str:
        |
        +--> AuditLog records important business changes
        +--> Weekly Excel export composes data with ExcelJS
-       +--> AI Support route optionally calls OpenAI when configured
+       +--> AI Support route optionally calls Groq when configured
     """, "Diagram 1: System Architecture"))
     body.append(table([
         ["Layer", "Key files", "Responsibility"],
-        ["Presentation shell", "app/layout.tsx, components/app-shell.tsx, components/dashboard-nav.tsx", "Protected layout, sidebar navigation, role-specific menu visibility, notification badges, admin AI support bubble."],
+        ["Presentation shell", "app/layout.tsx, components/app-shell.tsx, components/dashboard-nav.tsx", "Protected layout, sidebar navigation, role-specific menu visibility, notification badges, admin AI support bubble. The former floating calculator widget has been removed."],
         ["Pages", "app/**/page.tsx", "Server-rendered module screens for dashboard, customers, accounts, payments, products, staff, reports, settings, activity, credits, and audit logs."],
         ["Mutations", "actions/*.ts", "Server Actions for authenticated business writes and audit logging."],
-        ["Domain services", "lib/*.ts", "Shared business logic for auth config, reports, lifecycle, procurement, account creation, payment recording, settings, permissions, and utilities."],
+        ["Domain services", "lib/*.ts", "Shared business logic for auth config, reports, lifecycle, procurement, account creation, payment recording, settings, permissions, and utilities. lib/prisma.ts exports a lazy proxy so a build needs no database credentials."],
         ["Persistence", "prisma/schema.prisma, prisma/migrations", "Data model and migration history for Neon Postgres."],
         ["API routes", "app/api/**/route.ts", "Auth route, change-password, logout, notifications, weekly export, system health, and AI support."],
     ], [1900, 3100, 4360]))
@@ -318,7 +318,7 @@ def build_body() -> str:
         ["StaffApplication", "Public staff signup request awaiting admin review.", "fullName, email, phone, status, reviewedBy, reviewedAt"],
         ["Customer", "Person buying products through layaway.", "customerId, fullName, phone, address, nationalId, staffId"],
         ["Product", "Sellable product or combo.", "name, category, costPrice, transportCost, layawayPrice, dailyAmount, duration, quantityOnSale, active"],
-        ["CustomerAccount", "A customer's product layaway contract.", "targetAmount, dailyAmount, totalPaid, balance, status, deliveryStatus, deliveredAt"],
+        ["CustomerAccount", "A customer's product layaway contract.", "targetAmount, dailyAmount, totalPaid, balance, status, deliveryStatus, deliveredAt, deliveredWithBalance, balanceAtDelivery, deliveryNote, procuredAt, procuredBy"],
         ["Payment", "Installment payment record with generated receipt.", "receiptNo, accountId, amount, paymentDate, method, receivedBy"],
         ["CustomerCredit", "Overpayment or closure refund credit.", "amount, remainingAmount, status, source, accountId, paymentId"],
         ["StaffSalaryPayment", "Payroll payment tracking.", "staffId, amount, paymentDate, notes, paidBy"],
@@ -334,10 +334,10 @@ def build_body() -> str:
         ["ADMIN", "Administrative access, including settings and privileged modules."],
         ["STAFF", "Operational access to dashboard, activity, assigned customers/accounts/payments, and change-password."],
         ["MANAGE_CUSTOMERS", "Allows broader customer management beyond assigned staff ownership."],
-        ["MANAGE_ACCOUNTS", "Allows account creation/correction/delivery operations beyond assigned ownership."],
+        ["MANAGE_ACCOUNTS", "Allows account creation/correction/delivery operations beyond assigned ownership. Delivering before a plan is fully paid additionally requires an admin role."],
         ["MANAGE_PAYMENTS", "Allows payment management, credits/refunds, and privileged payment workflows."],
         ["VIEW_REPORTS", "Allows access to reports and weekly export."],
-        ["MANAGE_PRODUCTS", "Allows product catalog and procurement module access."],
+        ["MANAGE_PRODUCTS", "Allows product catalog access, the procurement module, and confirming procured quantities."],
         ["MANAGE_STAFF", "Allows staff records, applications, salaries, and password resets."],
         ["VIEW_AUDIT_LOGS", "Allows read-only audit log access."],
     ], [2300, 7060]))
@@ -373,15 +373,15 @@ def build_body() -> str:
         ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, automatic terms, status, balance, delivery, corrections, lifecycle-gated cancellation/reactivation documents, and payment entry."],
         ["Payments", "/payments, /payments/new", "Payment recording, receipt numbers, customer receipt communication, grouped history, deletion/recalculation, and staff-safe filtering."],
         ["Products", "/products, /products/new, /products/[id], /products/[id]/edit", "Catalog management, product economics, quantity on sale, category badges, and procurement tab."],
-        ["Procurement", "/products?tab=procurement", "Readiness list for products with accounts at least 70% paid and still pending delivery."],
+        ["Procurement", "/products?tab=procurement and /products/procurement/[productId]", "Buying list for products with accounts at least 70% paid and still pending delivery, with per-quantity procurement confirmation and an undo path."],
         ["Staff", "/staff, /staff/new, /staff/[id], /staff/[id]/edit", "Staff records, permissions, assigned work, salary tracking, deactivation, deletion, and password resets."],
         ["Staff Applications", "/staff/applications", "Admin review queue for signup requests."],
         ["Credits & Refunds", "/credits", "Open credits from overpayments or closures and refund tracking."],
         ["Reports", "/reports, /api/reports/weekly-export", "Admin reports, salary tracking, and Excel workbook export including procurement list."],
         ["Audit Logs", "/audit-logs", "Read-only trail of important system actions."],
-        ["Settings", "/settings, /settings/legal", "Admin control panel for company, layaway, payroll, security, legal templates, addressed terms, customer communications, theme, and system metadata."],
+        ["Settings", "/settings?tab=..., /settings/legal, /settings/sms", "Super Admin control panel organised as tabs (Company, Business Rules, Payroll, Notifications, Security, Appearance, Product Categories, Data and System). Each tab saves only its own fields."],
         ["Notifications", "/api/notifications", "Attention counts for modules such as procurement; sidebar clears opened notifications locally."],
-        ["AI Support", "/api/support/assistant, components/ai-support-chat.tsx", "Admin-only optional OpenAI support assistant for GLV workflows."],
+        ["AI Support", "/api/support/assistant, lib/ai-support.ts, components/ai-support-chat.tsx", "Admin-only Groq-backed support assistant for GLV workflows, with model fallback when a hosted model is retired."],
         ["Health/Logout", "/api/system/health, /api/logout", "Basic health check and logout/cookie cleanup."],
     ], [1700, 2600, 5060]))
 
@@ -407,10 +407,14 @@ def build_body() -> str:
       +--> write AuditLog
       |
       v
-    Confirm delivery after account is completed
+    Confirm delivery
+      |
+      +--> fully paid account: any account manager may confirm
+      +--> balance still owing: admin only, reason required,
+      |      balanceAtDelivery recorded, account stays open and collectible
       |
       +--> deliveryStatus becomes DELIVERED
-      +--> procurement list quantity decreases or clears
+      +--> account leaves the procurement list
     """, "Diagram 4: Customer Account Lifecycle"))
     body.append(table([
         ["Flow step", "Server code", "Key controls"],
@@ -420,16 +424,18 @@ def build_body() -> str:
         ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit, and queues one receipt channel."],
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
-        ["Confirm delivery", "actions/accounts.ts", "Only after account is completed and balance is zero; revalidates account/customer/product screens."],
+        ["Confirm delivery", "actions/accounts.ts", "Fully paid accounts are confirmed by any account manager. Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Revalidates account/customer/product screens."],
     ], [2200, 3100, 4060]))
 
     body.append(section("7. Product and Procurement Module"))
-    body.append(para("The procurement list is a computed view, not a separate table. It groups pending-delivery customer accounts by product when their payment progress reaches the effective procurement threshold. The current rule is at least 70% paid, including fully paid accounts that are not yet delivered. Once delivery is confirmed, the account stops contributing to procurement quantity."))
+    body.append(para("The procurement list is a computed view, not a separate table. It groups pending-delivery customer accounts by product when their payment progress reaches the effective procurement threshold. The current rule is at least 70% paid, including fully paid accounts that are not yet delivered. An account stops contributing to procurement quantity once procurement is confirmed for it, or once delivery is confirmed."))
+    body.append(para("Procurement confirmation records what was actually bought. An operator enters a quantity on the procurement tab or the product procurement page, and that many units are consumed from the queue, starting with the customers closest to finishing their plan. Confirmation is stored per account as procuredAt and procuredBy, so a partial purchase reduces the outstanding count by exactly the quantity entered and leaves the remainder on the list. Because procuredAt is part of the shared procurement query, the products tab, the sidebar attention badge, the procurement Excel export, the weekly report sheet and the reports module all reduce together. Confirming requires MANAGE_PRODUCTS, is audit logged with the requested and confirmed quantities, and is guarded so two operators cannot consume the same unit twice. Confirmed units appear under Bought, awaiting delivery on the product procurement page, where a mistaken confirmation can be undone."))
     body.append(code_block("""
     CustomerAccount
       |
       +--> status in ACTIVE / COMPLETED / OVERDUE / DORMANT / PROBATION
       +--> deliveryStatus is PENDING
+      +--> procuredAt is null
       +--> totalPaid / targetAmount >= 70%
       |
       v
@@ -443,9 +449,17 @@ def build_body() -> str:
     Products procurement tab + sidebar notification + weekly report sheet
       |
       v
-    Confirm delivery
+    Confirm procured quantity
       |
-      +--> remove or reduce product from procurement list
+      +--> consumes that many units, highest paid % first
+      +--> sets procuredAt / procuredBy on those accounts
+      +--> reduces the buying list by exactly that quantity
+      |
+      v
+    Bought, awaiting delivery
+      |
+      +--> Undo returns the unit to the buying list
+      +--> Confirm delivery on the account completes the handover
     """, "Diagram 5: Procurement Readiness Flow"))
     body.append(table([
         ["Procurement field", "Meaning"],
@@ -454,7 +468,9 @@ def build_body() -> str:
         ["Estimated total cost", "Sum of landed product cost for all units to buy."],
         ["Average paid", "Average payment progress across eligible accounts for that product."],
         ["Highest paid", "Highest payment progress across eligible accounts, used for sorting."],
-        ["Clearing rule", "Delivery confirmation changes deliveryStatus to DELIVERED; the account is excluded from procurement."],
+        ["Confirm procured", "Operator enters the quantity actually bought. Units are consumed highest paid % first and leave the list immediately."],
+        ["Clearing rule", "An account leaves procurement when procuredAt is set, or when delivery confirmation changes deliveryStatus to DELIVERED."],
+        ["Undo", "Clears procuredAt/procuredBy and returns the unit to the buying list, for confirmations entered in error."],
     ], [2300, 7060]))
 
     body.append(section("8. Staff, Applications, Salary, and Password Management"))
@@ -555,7 +571,7 @@ def build_body() -> str:
         ["Notification source", "app/api/notifications/route.ts"],
         ["Badge rendering", "components/dashboard-nav.tsx"],
         ["Dismissal storage", "components/app-shell.tsx localStorage key glv-dismissed-attention"],
-        ["AI support", "Admin-only floating chat bubble; route calls OpenAI only when OPENAI_API_KEY is configured."],
+        ["AI support", "Admin-only floating chat bubble; route calls Groq chat completions only when GROQ_API_KEY is configured."],
         ["AI support scope", "Navigation, permissions, payments, accounts, products, procurement, staff, reports, settings, and troubleshooting."],
         ["Customer message queue", "CustomerMessage records are created by lib/customer-communications.ts and dispatched by the notifications route or daily cron."],
         ["No-contact handling", "No message is queued; staff explain terms verbally and show the receipt/product tracking information."],
@@ -599,7 +615,7 @@ def build_body() -> str:
         ["npm run db:deploy", "Deploy migrations explicitly before a dependent release.", "Use DATABASE_URL_UNPOOLED from a trusted operator environment; do not use the port 6543 transaction pooler."],
         ["npm run seed", "Run Prisma seed script.", "Use only when intentionally bootstrapping data."],
     ], [1900, 3400, 4060]))
-    body.append(para("Environment variable names used by the system include DATABASE_URL, AUTH_SECRET, AUTH_URL, OPENAI_API_KEY, and OPENAI_MODEL. Values are intentionally omitted from this document."))
+    body.append(para("Environment variable names used by the system include DATABASE_URL, AUTH_SECRET, AUTH_URL, GROQ_API_KEY, GROQ_MODEL, MNOTIFY_API_KEY, MNOTIFY_SENDER_ID, and CRON_SECRET. Values are intentionally omitted from this document."))
 
     body.append(section("15. Important Caveats and Known Follow-Ups"))
     body.append(table([
@@ -615,11 +631,12 @@ def build_body() -> str:
 
     body.append(section("16. Automatic SMS Notifications"))
     body.append(para("BMS Africa provides SMS using the mNotify Quick Bulk SMS API. Configure MNOTIFY_API_KEY, MNOTIFY_SENDER_ID (approved GLV sender GODS LOVE V), and CRON_SECRET server-side. Apply the SmsNotification migration before enabling SMS Notifications in Settings. Never expose the API key or log request URLs containing it."))
-    body.append(para("Super administrators configure five database-backed message templates on Settings > SMS: Salary payment, Customer welcome, 70% progress, Missed payment, and Weekly payment summary. The page lists the placeholders permitted for each event, renders a sample preview, validates a 612-character maximum, and can restore all defaults. Saved templates apply to newly queued messages; existing queue rows keep their original message snapshot. Salary resolves to the staff member on the salary payment. Customer templates resolve to the qualifying customer. Invalid or missing phone numbers fail visibly and are never sent to a fallback recipient."))
+    body.append(para("Super administrators configure six database-backed message templates on Settings > SMS: Salary payment, Customer welcome, 70% progress, Missed payment, Weekly summary - target met, and Weekly summary - below target. The page lists the placeholders permitted for each event, renders a sample preview, validates a 612-character maximum, and can restore all defaults. Saved templates apply to newly queued messages; existing queue rows keep their original message snapshot. Salary resolves to the staff member on the salary payment. Customer templates resolve to the qualifying customer. A customer or staff member with no usable phone number is skipped entirely: no message is queued, none is attempted, and nothing is sent to a fallback recipient."))
+    body.append(para("The weekly summary has two wordings and the system picks one per customer. The expected weekly amount is the daily amount of every plan that customer is still collecting on, multiplied by seven. Paying at or above that amount sends the target-met wording. Paying less sends the below-target wording, which carries the expected amount and the shortfall and refers the customer to their assigned staff member. The praise wording is therefore never sent to a customer who fell short. The comparison is performed in pesewas so floating-point noise cannot turn an exact week into a shortfall, and a customer with no collecting plan counts as on target."))
     body.append(para("Default message text is branded Rock Frost Group, while every staff/customer name placeholder renders only the first whitespace-delimited name. The BMS handset sender is Rock Frost, which fits the provider's 11-character limit and must be approved in the BMS account before production configuration."))
     body.append(para("A saved salary payment queues one staff SMS. A new product account queues one welcome SMS at its start date. Payment totals at or above 70 percent queue one milestone SMS per account. Payment edits also check the milestone. No historical salary or welcome messages are backfilled. These alerts always use SMS, independently of the existing document and receipt channel preference."))
     body.append(para("Recording a staff deposit triggers the weekly customer summary. For that staff member, GLV totals each customer's Payment records from Monday through Sunday across all product accounts and queues one summary only for customers whose total is greater than zero. The dedupe key combines staff, customer and week. Another deposit cannot duplicate an accepted message, but it can refresh a summary that is still Pending or Failed. Customers never receive another staff member's totals."))
-    body.append(para("Active and overdue accounts with a positive balance qualify for reminders after seven full days without payment, and at most once per unpaid week thereafter. The later of account start, latest payment date and latest payment entry time anchors the interval. Backdated entries restart it. Other lifecycle statuses are excluded. The Missed payment template supports staffName, resolved to the first name of the staff member assigned to that customer. The protected /api/cron/sms-notifications job runs at 09:00 UTC daily, queues reminders and dispatches up to 100 messages in groups of five. Authenticated activity and qualifying mutations also dispatch pending messages. Monitor backlog and schedule more frequent runs if volume requires it."))
+    body.append(para("Active and overdue accounts with a positive balance qualify for reminders after fourteen full days (two weeks) without payment, and at most once per further two-week period thereafter, so the sequence is day 14, day 28, day 42. The later of account start, latest payment date and latest payment entry time anchors the interval. Backdated entries restart it. Other lifecycle statuses are excluded. The Missed payment template supports staffName, resolved to the first name of the staff member assigned to that customer. The protected /api/cron/sms-notifications job runs at 09:00 UTC daily, queues reminders and dispatches up to 100 messages in groups of five. Authenticated activity and qualifying mutations also dispatch pending messages. Monitor backlog and schedule more frequent runs if volume requires it."))
     body.append(para("The dedicated /settings/sms page lets super administrators enable or pause automatic SMS, verify provider/API/sender configuration, review the five notification rules, inspect the latest 100 queue records, and retry definitive failures. The queue records unique event keys within the business transaction. Conditional claims prevent concurrent workers sending the same item. Before dispatch, source existence, account eligibility and current phone are checked. Correct missing phones or provider errors before Retry. Provider acceptance is labelled ACCEPTED, not confirmed handset delivery. Check BMS campaign history using the saved campaign ID. Rate limits retry after one hour, up to five attempts. Timeouts and interrupted workers become UNKNOWN and require reconciliation rather than blind resending. Restored pending or processing messages become UNKNOWN. Disabling SMS pauses the queue."))
     body.append(para("Implementation checks use mocked provider/database tests in scripts/sms.test.ts, TypeScript, lint and a build without migration deployment. Production migration, credentials, authenticated UI and real delivery must be verified separately before activation is considered complete."))
 

@@ -47,6 +47,7 @@ const templateFields: Record<SmsTemplateKey, string> = {
   salary: "smsSalaryTemplate", welcome: "smsWelcomeTemplate",
   progress70: "smsProgress70Template", missedWeek: "smsMissedWeekTemplate",
   weeklySummary: "smsWeeklySummaryTemplate",
+  weeklySummaryShort: "smsWeeklySummaryShortTemplate",
 };
 
 export async function updateSmsTemplates(form: FormData) {

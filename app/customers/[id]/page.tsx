@@ -410,8 +410,12 @@ export default async function CustomerProfilePage({
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">{status}</td>
                   <td className="p-3">
-                    {status === AccountStatus.COMPLETED ? (
-                      <DeliveryStatusIcon status={account.deliveryStatus} />
+                    {status === AccountStatus.COMPLETED ||
+                    account.deliveryStatus === DeliveryStatus.DELIVERED ? (
+                      <DeliveryStatusIcon
+                        status={account.deliveryStatus}
+                        withBalance={account.deliveredWithBalance}
+                      />
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

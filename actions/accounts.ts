@@ -647,6 +647,11 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     nextStatusValue === DeliveryStatus.DELIVERED
       ? DeliveryStatus.DELIVERED
       : DeliveryStatus.PENDING;
+  // Handing over a product that is not fully paid is a deliberate trust
+  // decision, so it has to be asked for explicitly rather than inferred.
+  const allowOutstandingBalance =
+    cleanInput(formData.get("allowOutstandingBalance")) === "yes";
+  const deliveryNote = cleanInput(formData.get("deliveryNote")).slice(0, 500);
 
   const account = await prisma.customerAccount.findUnique({
     where: {
@@ -661,6 +666,9 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
       deliveryStatus: true,
       deliveredAt: true,
       deliveredBy: true,
+      deliveredWithBalance: true,
+      balanceAtDelivery: true,
+      deliveryNote: true,
       customer: {
         select: {
           staffId: true,
@@ -682,8 +690,38 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     throw new Error("Unauthorized");
   }
 
-  if (account.status !== AccountStatus.COMPLETED || account.balance > 0) {
-    redirect(`/accounts/${account.id}?error=delivery-not-completed`);
+  const fullyPaid =
+    account.status === AccountStatus.COMPLETED && account.balance <= 0;
+  const withBalance =
+    nextStatus === DeliveryStatus.DELIVERED && !fullyPaid;
+
+  if (withBalance) {
+    // A plan that is cancelled, closed, suspended or archived is not a plan the
+    // customer is still paying off, so early delivery does not apply to it.
+    const collectible = ([
+      AccountStatus.ACTIVE,
+      AccountStatus.OVERDUE,
+      AccountStatus.PROBATION,
+      AccountStatus.COMPLETED,
+    ] as AccountStatus[]).includes(account.status);
+
+    if (!collectible) {
+      redirect(`/accounts/${account.id}?error=delivery-not-collectible`);
+    }
+
+    if (!allowOutstandingBalance) {
+      redirect(`/accounts/${account.id}?error=delivery-not-completed`);
+    }
+
+    // Writing off the remaining balance is an owner-level call, so only admins
+    // may release a product before it is paid for.
+    if (!isAdminRole(user.role)) {
+      redirect(`/accounts/${account.id}?error=delivery-requires-admin`);
+    }
+
+    if (!deliveryNote) {
+      redirect(`/accounts/${account.id}?error=delivery-reason-required`);
+    }
   }
 
   const deliveredAt =
@@ -700,29 +738,46 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
               deliveryStatus: DeliveryStatus.DELIVERED,
               deliveredAt,
               deliveredBy: user.id,
+              deliveredWithBalance: withBalance,
+              // The balance owed at handover is frozen here so later payments
+              // never hide how much credit was extended.
+              balanceAtDelivery: withBalance ? account.balance : null,
+              deliveryNote: withBalance ? deliveryNote : null,
             }
           : {
               deliveryStatus: DeliveryStatus.PENDING,
               deliveredAt: null,
               deliveredBy: null,
+              deliveredWithBalance: false,
+              balanceAtDelivery: null,
+              deliveryNote: null,
             },
     });
 
     await tx.auditLog.create({
       data: {
         userId: user.id,
-        action: "UPDATE_ACCOUNT_DELIVERY_STATUS",
+        action: withBalance
+          ? "DELIVER_ACCOUNT_WITH_OUTSTANDING_BALANCE"
+          : "UPDATE_ACCOUNT_DELIVERY_STATUS",
         entity: "CustomerAccount",
         entityId: account.id,
         oldValue: JSON.stringify({
           deliveryStatus: account.deliveryStatus,
           deliveredAt: account.deliveredAt,
           deliveredBy: account.deliveredBy,
+          deliveredWithBalance: account.deliveredWithBalance,
+          balanceAtDelivery: account.balanceAtDelivery,
+          deliveryNote: account.deliveryNote,
         }),
         newValue: JSON.stringify({
           deliveryStatus: nextStatus,
           deliveredAt: deliveredAt?.toISOString() ?? null,
           deliveredBy: nextStatus === DeliveryStatus.DELIVERED ? user.id : null,
+          deliveredWithBalance: withBalance,
+          balanceAtDelivery: withBalance ? account.balance : null,
+          deliveryNote: withBalance ? deliveryNote : null,
+          accountStatus: account.status,
         }),
       },
     });
@@ -821,14 +876,18 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
         totalPaid: nextTotalPaid,
         balance: nextBalance,
         status: nextStatus,
-        deliveryStatus:
-          nextStatus === AccountStatus.COMPLETED
-            ? account.deliveryStatus
-            : DeliveryStatus.PENDING,
-        deliveredAt:
-          nextStatus === AccountStatus.COMPLETED ? account.deliveredAt : null,
-        deliveredBy:
-          nextStatus === AccountStatus.COMPLETED ? account.deliveredBy : null,
+        // A product already handed over stays delivered. Only an undelivered
+        // plan falls back to pending when it is reactivated.
+        ...(nextStatus === AccountStatus.COMPLETED || account.deliveredWithBalance
+          ? {}
+          : {
+              deliveryStatus: DeliveryStatus.PENDING,
+              deliveredAt: null,
+              deliveredBy: null,
+              deliveredWithBalance: false,
+              balanceAtDelivery: null,
+              deliveryNote: null,
+            }),
       },
     });
 

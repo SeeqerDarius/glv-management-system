@@ -26,7 +26,7 @@ async function requireSuperAdminWithPassword(formData: FormData) {
   }
 
   if (!adminPassword) {
-    redirect("/settings?error=admin-password-required");
+    redirect("/settings?tab=data&error=admin-password-required");
   }
 
   const user = await prisma.user.findUnique({
@@ -38,7 +38,7 @@ async function requireSuperAdminWithPassword(formData: FormData) {
     : false;
 
   if (!passwordValid) {
-    redirect("/settings?error=invalid-admin-password");
+    redirect("/settings?tab=data&error=invalid-admin-password");
   }
 
   return session.user.id;
@@ -54,12 +54,12 @@ export async function restoreDatabaseBackup(formData: FormData) {
   const confirmationText = clean(formData.get("confirmationText"));
 
   if (confirmationText !== "RESTORE GLV DATABASE") {
-    redirect("/settings?error=restore-confirmation-required");
+    redirect("/settings?tab=data&error=restore-confirmation-required");
   }
 
   const file = getBackupFile(formData);
   if (!file) {
-    redirect("/settings?error=missing-backup-file");
+    redirect("/settings?tab=data&error=missing-backup-file");
   }
 
   let backup: DatabaseBackup;
@@ -67,11 +67,11 @@ export async function restoreDatabaseBackup(formData: FormData) {
   try {
     backup = JSON.parse(await file.text()) as DatabaseBackup;
   } catch {
-    redirect("/settings?error=invalid-backup-file");
+    redirect("/settings?tab=data&error=invalid-backup-file");
   }
 
   if (backup.kind !== "GLV_DATABASE_BACKUP" || backup.version !== 1) {
-    redirect("/settings?error=invalid-backup-file");
+    redirect("/settings?tab=data&error=invalid-backup-file");
   }
 
   await prisma.$transaction(
@@ -291,5 +291,5 @@ export async function restoreDatabaseBackup(formData: FormData) {
   );
 
   revalidatePath("/", "layout");
-  redirect("/settings?restored=database");
+  redirect("/settings?tab=data&restored=database");
 }

@@ -178,6 +178,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     status: AccountStatus;
     deliveryStatus: DeliveryStatus;
     deliveredAt: Date | null;
+    deliveredWithBalance: boolean;
     customer: {
       id: string;
       fullName: string;
@@ -215,6 +216,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         status: true,
         deliveryStatus: true,
         deliveredAt: true,
+        deliveredWithBalance: true,
         customer: {
           select: {
             id: true,
@@ -470,8 +472,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">
-                    {status === AccountStatus.COMPLETED ? (
-                      <DeliveryStatusIcon status={account.deliveryStatus} />
+                    {status === AccountStatus.COMPLETED ||
+                    account.deliveryStatus === DeliveryStatus.DELIVERED ? (
+                      <DeliveryStatusIcon
+                        status={account.deliveryStatus}
+                        withBalance={account.deliveredWithBalance}
+                      />
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

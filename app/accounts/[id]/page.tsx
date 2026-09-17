@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/ui/submit-button";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
+import { DeliverWithBalanceForm } from "@/components/deliver-with-balance-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { PaymentModal } from "@/components/payment-modal";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
@@ -164,6 +165,16 @@ export default async function AccountDetailsPage({
     account.status !== AccountStatus.ARCHIVED;
   const isCompleted = status === "COMPLETED" && account.balance <= 0;
   const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
+  // Trusted customers can receive the product before the plan is paid off.
+  // Only an admin may release it, and only while the plan is still collectible.
+  const canDeliverWithBalance =
+    isAdmin &&
+    !isDelivered &&
+    account.balance > 0 &&
+    (status === AccountStatus.ACTIVE ||
+      status === AccountStatus.OVERDUE ||
+      status === AccountStatus.PROBATION ||
+      status === AccountStatus.COMPLETED);
   const canReactivateDormant =
     isAdmin && isDormantReactivationEligible(account);
   const canGenerateCancellation =
@@ -269,6 +280,78 @@ export default async function AccountDetailsPage({
               Create Another Account
             </Link>
           </Button>
+        </div>
+      ) : null}
+
+      {isDelivered && account.deliveredWithBalance ? (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+          <p className="font-medium">
+            Delivered before the plan was fully paid.
+          </p>
+          <p className="mt-1 text-blue-800">
+            {account.balanceAtDelivery !== null
+              ? `${formatMoney(account.balanceAtDelivery)} was still owed at handover`
+              : "A balance was still owed at handover"}
+            {account.deliveredAt
+              ? ` on ${formatDate(account.deliveredAt)}`
+              : ""}
+            . Outstanding balance now: {formatMoney(account.balance)}.
+          </p>
+          {account.deliveryNote ? (
+            <p className="mt-2 text-blue-800">
+              <span className="font-medium">Reason:</span>{" "}
+              {account.deliveryNote}
+            </p>
+          ) : null}
+          {account.balance > 0 ? (
+            <p className="mt-2 text-blue-800">
+              Keep collecting until the balance reaches zero.
+            </p>
+          ) : (
+            <p className="mt-2 text-blue-800">
+              The balance has since been cleared in full.
+            </p>
+          )}
+          {isAdmin ? (
+            <form action={updateAccountDeliveryStatus} className="mt-3">
+              <input type="hidden" name="id" value={account.id} />
+              <input
+                type="hidden"
+                name="deliveryStatus"
+                value={DeliveryStatus.PENDING}
+              />
+              <SubmitButton
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                pendingLabel="Updating"
+              >
+                <RotateCcw className="size-4" />
+                Mark pending
+              </SubmitButton>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
+
+      {canDeliverWithBalance ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-medium">
+              Release the product before the plan is paid off?
+            </p>
+            <p className="mt-1 text-blue-800">
+              {formatMoney(account.balance)} is still owed. Consistent
+              customers can receive the product now and keep paying the
+              balance. The amount owed at handover is recorded.
+            </p>
+          </div>
+          <DeliverWithBalanceForm
+            accountId={account.id}
+            customerName={account.customer.fullName}
+            productName={account.product.name}
+            balanceLabel={formatMoney(account.balance)}
+          />
         </div>
       ) : null}
 
@@ -411,7 +494,29 @@ export default async function AccountDetailsPage({
 
       {error === "delivery-not-completed" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          Product delivery can only be changed after the account is fully paid.
+          This account is not fully paid. Use &quot;Deliver with balance
+          owing&quot; to release the product early, or record the remaining
+          payments first.
+        </div>
+      ) : null}
+
+      {error === "delivery-requires-admin" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Only an Admin or Super Admin can release a product before the plan is
+          fully paid. Ask an admin to confirm this delivery.
+        </div>
+      ) : null}
+
+      {error === "delivery-reason-required" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Give a reason before delivering a product that is not fully paid.
+        </div>
+      ) : null}
+
+      {error === "delivery-not-collectible" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This account is not being collected on any more, so it cannot be
+          delivered with a balance owing.
         </div>
       ) : null}
 
@@ -664,11 +769,23 @@ export default async function AccountDetailsPage({
         <div className="rounded-lg border bg-white p-5">
           <p className="text-sm text-gray-500">Delivery</p>
           <div className="mt-2">
-            <DeliveryStatusIcon status={account.deliveryStatus} />
+            <DeliveryStatusIcon
+              status={account.deliveryStatus}
+              withBalance={account.deliveredWithBalance}
+            />
           </div>
           {account.deliveredAt ? (
             <p className="mt-2 text-xs text-gray-500">
               Delivered {formatDate(account.deliveredAt)}
+            </p>
+          ) : null}
+          {account.deliveredWithBalance ? (
+            <p className="mt-1 text-xs text-blue-700">
+              Handed over with{" "}
+              {account.balanceAtDelivery !== null
+                ? formatMoney(account.balanceAtDelivery)
+                : "a balance"}{" "}
+              still owing
             </p>
           ) : null}
         </div>
