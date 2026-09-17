@@ -255,40 +255,108 @@ textarea:focus {
   box-shadow: var(--glv-glow-lime);
 }
 
-/* ─── Scrollbar ─────────────────────────────────────────────────────────────── */
+/* ─── Scrollbars and scrolling ───────────────────────────────────────────────── */
 
-* {
-  scrollbar-color: #9db5a4 #eef3ef;
+:root {
+  --glv-scroll-thumb: #b3c6ba;
+  --glv-scroll-thumb-hover: #8aa694;
+  --glv-scroll-thumb-active: #6b8b78;
+}
+
+html[data-theme="dark"] {
+  --glv-scroll-thumb: #35513f;
+  --glv-scroll-thumb-hover: #476b55;
+  --glv-scroll-thumb-active: #5d8a6e;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] {
+    --glv-scroll-thumb: #35513f;
+    --glv-scroll-thumb-hover: #476b55;
+    --glv-scroll-thumb-active: #5d8a6e;
+  }
+}
+
+/* Firefox. `thin` plus a transparent track reads as an overlay bar rather than
+   the heavy grooved gutter the old fixed track colour produced. */
+html {
+  scrollbar-color: var(--glv-scroll-thumb) transparent;
   scrollbar-width: thin;
 }
 
+/* 10px is wide enough to grab with a mouse. The transparent border plus
+   background-clip keeps the visible thumb at 6px, so it reads slim while
+   staying a comfortable target. */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #eef3ef;
-  border-radius: 999px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #9db5a4;
+  background-color: var(--glv-scroll-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #7a9e8a;
+  background-color: var(--glv-scroll-thumb-hover);
 }
 
-.glv-top-scrollbar {
-  margin-bottom: 0.375rem;
-  min-height: 0.875rem;
-  scrollbar-width: thin;
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--glv-scroll-thumb-active);
 }
 
-.glv-top-scrollbar::-webkit-scrollbar {
-  height: 0.75rem;
+/* Where both axes scroll, the little square where the bars meet is otherwise
+   rendered as a grey block. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html {
+  /* Anchors and focused elements would otherwise land under the sticky header. */
+  scroll-padding-top: 5.5rem;
+  /* Reserve the gutter so the whole layout stops jumping sideways by a
+     scrollbar's width the moment a page grows past one screen. */
+  scrollbar-gutter: stable;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Scrolling a table or a dialog to its end should not then start scrolling the
+   page behind it. */
+main .overflow-x-auto,
+main .overflow-y-auto,
+main .overflow-auto {
+  overscroll-behavior: contain;
+}
+
+
+/* The tab strip scrolls on narrow screens, but it is navigation rather than
+   content, so it hides its own scrollbar: a visible bar under a row of tabs
+   reads as a stray artefact. It stays keyboard and touch scrollable either
+   way, and snapping keeps a tab from being left half cut off. */
+.glv-tabs {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+
+.glv-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.glv-tabs > li {
+  scroll-snap-align: start;
 }
 
 /* ─── App Shell ─────────────────────────────────────────────────────────────── */
@@ -558,8 +626,10 @@ main table {
   width: 100%;
 }
 
+/* This wrapper keeps its own `overflow-hidden` so the inner `.overflow-x-auto`
+   is the single horizontal scroller. Making this one scrollable too nested one
+   scroller inside another and produced two stacked scrollbars per table. */
 main .overflow-hidden:has(table) {
-  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--glv-shadow);

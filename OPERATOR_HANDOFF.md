@@ -34,6 +34,18 @@ without rediscovering the system from scratch.
   UI; gate or shape it server-side too.
 - For GLV UI responsiveness, prefer horizontal scroll wrappers around dense
   operational tables using `overflow-x-auto` plus stable `min-w-[...]` values.
+  Keep the outer wrapper `overflow-hidden` so the inner `.overflow-x-auto` stays
+  the single horizontal scroller. Nesting two scrollers stacks two scrollbars on
+  one table, which is what the old `:has(table)` override did.
+- Tabbed pages use the shared `components/ui/tabs-nav.tsx`. Do not hand-roll a
+  tab row: Settings and Products each had their own filled-pill version and they
+  did not match. The control is underline-style on purpose, so it does not
+  compete with the page's primary buttons.
+- Scrollbars are styled once, globally, in `app/globals.css`. There is no
+  per-component scrollbar CSS and no JavaScript involved. An earlier build
+  cloned a second scrollbar above every table from the app shell, driven by a
+  `MutationObserver` on `document.body`; that is removed and should not come
+  back. A tab strip hides its own bar via `.glv-tabs`.
 
 ## Verification Gates
 
