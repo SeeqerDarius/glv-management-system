@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { TabsNav } from "@/components/ui/tabs-nav";
 import { ProcurementConfirmForm } from "@/components/procurement-confirm-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
@@ -185,30 +186,26 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-2">
-        <Link
-          href="/products"
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
-            activeTab === "products"
-              ? "bg-green-900 text-lime-300"
-              : "bg-white text-gray-600 hover:bg-gray-50"
-          }`}
-        >
-          <ListChecksIcon className="size-4" />
-          Product List
-        </Link>
-        <Link
-          href="/products?tab=procurement"
-          className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition ${
-            activeTab === "procurement"
-              ? "bg-green-900 text-lime-300"
-              : "bg-white text-gray-600 hover:bg-gray-50"
-          }`}
-        >
-          <PackageCheckIcon className="size-4" />
-          Procurement List
-        </Link>
-      </div>
+      <TabsNav
+        label="Product views"
+        activeKey={activeTab}
+        items={[
+          {
+            key: "products",
+            label: "Product List",
+            href: "/products",
+            icon: ListChecksIcon,
+            badge: products.length,
+          },
+          {
+            key: "procurement",
+            label: "Procurement List",
+            href: "/products?tab=procurement",
+            icon: PackageCheckIcon,
+            badge: procurement.items.length,
+          },
+        ]}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
