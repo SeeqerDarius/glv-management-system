@@ -68,7 +68,7 @@ export async function updateMyAppearance(formData: FormData): Promise<void> {
   });
 
   revalidateAppearancePaths();
-  redirect("/settings?appearance=personal");
+  redirect("/settings?tab=appearance&appearance=personal");
 }
 
 export async function updateGlobalAppearance(formData: FormData): Promise<void> {
@@ -120,5 +120,5 @@ export async function updateGlobalAppearance(formData: FormData): Promise<void> 
   });
 
   revalidateAppearancePaths();
-  redirect("/settings?appearance=global");
+  redirect("/settings?tab=appearance&appearance=global");
 }

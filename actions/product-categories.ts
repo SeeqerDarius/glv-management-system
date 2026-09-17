@@ -31,7 +31,7 @@ export async function createProductCategory(formData: FormData): Promise<void> {
   const name = clean(formData.get("name"));
 
   if (!name) {
-    redirect("/settings?error=missing-category");
+    redirect("/settings?tab=catalog&error=missing-category");
   }
 
   const existing = await prisma.productCategory.findFirst({
@@ -44,7 +44,7 @@ export async function createProductCategory(formData: FormData): Promise<void> {
       data: { name, active: true },
     });
     revalidateProductCategoryPaths();
-    redirect("/settings?category=restored");
+    redirect("/settings?tab=catalog&category=restored");
   }
 
   const maxSort = await prisma.productCategory.aggregate({
@@ -69,7 +69,7 @@ export async function createProductCategory(formData: FormData): Promise<void> {
   });
 
   revalidateProductCategoryPaths();
-  redirect("/settings?category=created");
+  redirect("/settings?tab=catalog&category=created");
 }
 
 export async function updateProductCategory(formData: FormData): Promise<void> {
@@ -78,12 +78,12 @@ export async function updateProductCategory(formData: FormData): Promise<void> {
   const name = clean(formData.get("name"));
 
   if (!id || !name) {
-    redirect("/settings?error=missing-category");
+    redirect("/settings?tab=catalog&error=missing-category");
   }
 
   const existing = await prisma.productCategory.findUnique({ where: { id } });
   if (!existing) {
-    redirect("/settings?error=category-not-found");
+    redirect("/settings?tab=catalog&error=category-not-found");
   }
 
   const duplicate = await prisma.productCategory.findFirst({
@@ -94,7 +94,7 @@ export async function updateProductCategory(formData: FormData): Promise<void> {
   });
 
   if (duplicate) {
-    redirect("/settings?error=duplicate-category");
+    redirect("/settings?tab=catalog&error=duplicate-category");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -123,7 +123,7 @@ export async function updateProductCategory(formData: FormData): Promise<void> {
   });
 
   revalidateProductCategoryPaths();
-  redirect("/settings?category=updated");
+  redirect("/settings?tab=catalog&category=updated");
 }
 
 export async function deleteProductCategory(formData: FormData): Promise<void> {
@@ -132,11 +132,11 @@ export async function deleteProductCategory(formData: FormData): Promise<void> {
 
   const existing = await prisma.productCategory.findUnique({ where: { id } });
   if (!existing) {
-    redirect("/settings?error=category-not-found");
+    redirect("/settings?tab=catalog&error=category-not-found");
   }
 
   if (existing.name === "Other") {
-    redirect("/settings?error=delete-other-category");
+    redirect("/settings?tab=catalog&error=delete-other-category");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -169,5 +169,5 @@ export async function deleteProductCategory(formData: FormData): Promise<void> {
   });
 
   revalidateProductCategoryPaths();
-  redirect("/settings?category=deleted");
+  redirect("/settings?tab=catalog&category=deleted");
 }
