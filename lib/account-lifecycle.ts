@@ -228,8 +228,14 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
       let closureRefundAmount = 0;
       let closureServiceFee = 0;
 
+      // A customer already holding the product is not owed a closure refund.
+      // What remains on such an account is a receivable, not a deposit.
+      const alreadyHoldsProduct =
+        account.deliveryStatus === DeliveryStatus.DELIVERED;
+
       if (
         nextStatus === AccountStatus.CLOSED &&
+        !alreadyHoldsProduct &&
         account.totalPaid > 0 &&
         account.credits.length === 0
       ) {
@@ -276,7 +282,10 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
       });
     });
 
-    if (nextStatus === AccountStatus.CLOSED) {
+    if (
+      nextStatus === AccountStatus.CLOSED &&
+      account.deliveryStatus !== DeliveryStatus.DELIVERED
+    ) {
       const { refundAmount, serviceFee, serviceFeeRate } =
         getClosureRefundAmounts(account.totalPaid);
       await createAccountDocument({

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { ProcurementConfirmForm } from "@/components/procurement-confirm-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -27,6 +28,8 @@ type ProductsPageProps = {
     sort?: string;
     error?: string;
     deleted?: string;
+    procured?: string;
+    procurement?: string;
   }>;
 };
 
@@ -76,7 +79,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     redirect("/dashboard");
   }
 
-  const { q, tab, sort, error, deleted } = await searchParams;
+  const { q, tab, sort, error, deleted, procured, procurement: procurementNotice } = await searchParams;
   const query = q?.trim() ?? "";
   const activeTab = tab === "procurement" ? "procurement" : "products";
   const sortParam = sort ?? "";
@@ -262,6 +265,39 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           Product and all related accounts and payments were permanently deleted.
         </div>
       )}
+      {procured && (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-3.5 text-sm text-lime-900">
+          {procured} unit{procured === "1" ? "" : "s"} confirmed as procured and
+          removed from the procurement list. Confirm delivery on each account
+          once the customer receives the product.
+        </div>
+      )}
+      {procurementNotice === "reopened" && (
+        <div className="rounded-lg border border-lime-200 bg-lime-50 p-3.5 text-sm text-lime-900">
+          Procurement confirmation reversed. The unit is back on the procurement list.
+        </div>
+      )}
+      {error === "procurement-invalid-quantity" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          Enter the quantity procured as a whole number of one or more.
+        </div>
+      )}
+      {error === "procurement-nothing-pending" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          Nothing is waiting to be procured for that product any more. The list
+          may have been confirmed by someone else already.
+        </div>
+      )}
+      {error === "procurement-not-confirmed" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          That unit is not marked as procured, so there is nothing to reverse.
+        </div>
+      )}
+      {error === "procurement-product-required" && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
+          Choose a product before confirming procurement.
+        </div>
+      )}
 
       {activeTab === "procurement" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
@@ -269,7 +305,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             <p>
               Products appear here when customer accounts for that product are
               at least {procurement.thresholdPercent}% paid, including fully
-              paid accounts that are still pending delivery.
+              paid accounts that are still pending delivery. Enter how many
+              units you actually bought and confirm, and the list reduces by
+              that quantity.
             </p>
             <Link
               href="/api/procurement/export"
@@ -336,7 +374,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       {activeTab === "procurement" ? (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px] text-sm">
+            <table className="w-full min-w-[1040px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Product</th>
@@ -347,6 +385,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Unit total</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Total</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Avg. paid</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Confirm procured</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400"></th>
                 </tr>
               </thead>
@@ -380,6 +419,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <td className="px-3 py-3 text-right tabular-nums text-gray-700">
                       {percent(item.averageProgress)}
                     </td>
+                    <td className="px-3 py-3">
+                      <ProcurementConfirmForm
+                        productId={item.productId}
+                        maxQuantity={item.quantity}
+                        returnTo="/products?tab=procurement"
+                      />
+                    </td>
                     <td className="px-3 py-3 text-right">
                       <Link
                         href={`/products/procurement/${item.productId}`}
@@ -404,7 +450,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <td className="px-3 py-3 text-right tabular-nums text-green-700">
                       {formatMoney(procurementItems.reduce((sum, item) => sum + item.totalCost, 0))}
                     </td>
-                    <td className="px-3 py-3" colSpan={2}></td>
+                    <td className="px-3 py-3" colSpan={3}></td>
                   </tr>
                 </tfoot>
               ) : null}
