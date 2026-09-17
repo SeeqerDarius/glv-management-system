@@ -262,6 +262,28 @@ claim it has changed records.
 - Prisma `package.json#prisma` config emits a deprecation warning during build.
   It is not currently blocking.
 
+## Database Client Construction
+
+- `lib/prisma.ts` exports a lazy proxy. The `PrismaClient` and the
+  `DATABASE_URL` check are deferred to the first real property access instead of
+  running at import time.
+- This exists because `app/layout.tsx` imports the client, so `next build`
+  evaluated the module while collecting page data for `/_not-found` and failed
+  with `DATABASE_URL is not configured.` That broke **every** Vercel preview
+  deployment, where the variable is not set, while production builds passed.
+  Builds no longer need database credentials; a request still fails loudly if
+  the environment is genuinely misconfigured.
+- Only `get` and `has` are trapped. Prisma's delegates rely on dynamic property
+  descriptors, so forwarding `ownKeys`/`getOwnPropertyDescriptor` through a
+  proxy over an empty target risks violating the proxy invariants. Nothing in
+  this codebase enumerates or spreads the client; if that changes, extend the
+  proxy deliberately rather than by reflex.
+- Functions are bound to the real client, so `$transaction`, `$connect` and the
+  other `$`-methods keep the correct `this`.
+- A preview deployment still needs `DATABASE_URL` set for the Preview
+  environment to be *usable*; the lazy client only stops the build from
+  failing. Point Preview at a branch or staging database, never production.
+
 ## Migrations Pending Deployment
 
 Apply these with `npm run db:deploy` from a trusted operator environment using

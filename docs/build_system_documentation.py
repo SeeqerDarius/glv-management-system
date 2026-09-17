@@ -291,7 +291,7 @@ def build_body() -> str:
         ["Presentation shell", "app/layout.tsx, components/app-shell.tsx, components/dashboard-nav.tsx", "Protected layout, sidebar navigation, role-specific menu visibility, notification badges, admin AI support bubble. The former floating calculator widget has been removed."],
         ["Pages", "app/**/page.tsx", "Server-rendered module screens for dashboard, customers, accounts, payments, products, staff, reports, settings, activity, credits, and audit logs."],
         ["Mutations", "actions/*.ts", "Server Actions for authenticated business writes and audit logging."],
-        ["Domain services", "lib/*.ts", "Shared business logic for auth config, reports, lifecycle, procurement, account creation, payment recording, settings, permissions, and utilities."],
+        ["Domain services", "lib/*.ts", "Shared business logic for auth config, reports, lifecycle, procurement, account creation, payment recording, settings, permissions, and utilities. lib/prisma.ts exports a lazy proxy so a build needs no database credentials."],
         ["Persistence", "prisma/schema.prisma, prisma/migrations", "Data model and migration history for Neon Postgres."],
         ["API routes", "app/api/**/route.ts", "Auth route, change-password, logout, notifications, weekly export, system health, and AI support."],
     ], [1900, 3100, 4360]))
