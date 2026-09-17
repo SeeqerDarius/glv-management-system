@@ -373,7 +373,7 @@ def build_body() -> str:
         ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, automatic terms, status, balance, delivery, corrections, lifecycle-gated cancellation/reactivation documents, and payment entry."],
         ["Payments", "/payments, /payments/new", "Payment recording, receipt numbers, customer receipt communication, grouped history, deletion/recalculation, and staff-safe filtering."],
         ["Products", "/products, /products/new, /products/[id], /products/[id]/edit", "Catalog management, product economics, quantity on sale, category badges, and procurement tab."],
-        ["Procurement", "/products?tab=procurement and /products/procurement/[productId]", "Buying list for products with accounts at least 70% paid and still pending delivery, with per-quantity procurement confirmation and an undo path."],
+        ["Procurement", "/products?tab=procurement and /products/procurement/[productId]", "Buying list for products with accounts at least 70% paid and still pending delivery, with quantity-based procurement confirmation. The per-product page is a read-only breakdown."],
         ["Staff", "/staff, /staff/new, /staff/[id], /staff/[id]/edit", "Staff records, permissions, assigned work, salary tracking, deactivation, deletion, and password resets."],
         ["Staff Applications", "/staff/applications", "Admin review queue for signup requests."],
         ["Credits & Refunds", "/credits", "Open credits from overpayments or closures and refund tracking."],
@@ -429,7 +429,7 @@ def build_body() -> str:
 
     body.append(section("7. Product and Procurement Module"))
     body.append(para("The procurement list is a computed view, not a separate table. It groups pending-delivery customer accounts by product when their payment progress reaches the effective procurement threshold. The current rule is at least 70% paid, including fully paid accounts that are not yet delivered. An account stops contributing to procurement quantity once procurement is confirmed for it, or once delivery is confirmed."))
-    body.append(para("Procurement confirmation records what was actually bought. An operator enters a quantity on the procurement tab or the product procurement page, and that many units are consumed from the queue, starting with the customers closest to finishing their plan. Confirmation is stored per account as procuredAt and procuredBy, so a partial purchase reduces the outstanding count by exactly the quantity entered and leaves the remainder on the list. Because procuredAt is part of the shared procurement query, the products tab, the sidebar attention badge, the procurement Excel export, the weekly report sheet and the reports module all reduce together. Confirming requires MANAGE_PRODUCTS, is audit logged with the requested and confirmed quantities, and is guarded so two operators cannot consume the same unit twice. Confirmed units appear under Bought, awaiting delivery on the product procurement page, where a mistaken confirmation can be undone."))
+    body.append(para("Procurement confirmation records what was actually bought. On the procurement tab the operator presses the procured action on a product row and enters the quantity bought in a small dialog; that many units are consumed from the queue, starting with the customers closest to finishing their plan. Confirmation is stored per account as procuredAt and procuredBy, so a partial purchase reduces the outstanding count by exactly the quantity entered and leaves the remainder on the list. Because procuredAt is part of the shared procurement query, the products tab, the sidebar attention badge, the procurement Excel export, the weekly report sheet and the reports module all reduce together. Confirming requires MANAGE_PRODUCTS, is audit logged with the requested and confirmed quantities, and is guarded so two operators cannot consume the same unit twice. Confirming procurement does not change delivery, which is still confirmed on the account."))
     body.append(code_block("""
     CustomerAccount
       |
@@ -456,10 +456,7 @@ def build_body() -> str:
       +--> reduces the buying list by exactly that quantity
       |
       v
-    Bought, awaiting delivery
-      |
-      +--> Undo returns the unit to the buying list
-      +--> Confirm delivery on the account completes the handover
+    Confirm delivery on the account completes the handover
     """, "Diagram 5: Procurement Readiness Flow"))
     body.append(table([
         ["Procurement field", "Meaning"],
@@ -468,9 +465,8 @@ def build_body() -> str:
         ["Estimated total cost", "Sum of landed product cost for all units to buy."],
         ["Average paid", "Average payment progress across eligible accounts for that product."],
         ["Highest paid", "Highest payment progress across eligible accounts, used for sorting."],
-        ["Confirm procured", "Operator enters the quantity actually bought. Units are consumed highest paid % first and leave the list immediately."],
+        ["Confirm procured", "Operator enters the quantity actually bought in a dialog on the product row. Units are consumed highest paid % first and leave the list immediately."],
         ["Clearing rule", "An account leaves procurement when procuredAt is set, or when delivery confirmation changes deliveryStatus to DELIVERED."],
-        ["Undo", "Clears procuredAt/procuredBy and returns the unit to the buying list, for confirmations entered in error."],
     ], [2300, 7060]))
 
     body.append(section("8. Staff, Applications, Salary, and Password Management"))

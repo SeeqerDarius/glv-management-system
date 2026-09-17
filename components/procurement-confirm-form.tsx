@@ -1,79 +1,99 @@
+"use client";
+
+import { useState } from "react";
 import { PackageCheck } from "lucide-react";
 import { confirmProcurement } from "@/actions/procurement";
-import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
+import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 type ProcurementConfirmFormProps = {
   productId: string;
+  productName: string;
   /** Units still waiting to be bought for this product. */
   maxQuantity: number;
   returnTo: string;
-  /** Compact fits inside a table row; stacked suits a page header card. */
-  layout?: "compact" | "stacked";
 };
 
 /**
- * Confirms how many units of a product were actually bought. Confirmed units
- * drop off the procurement list, so a partial purchase only reduces the
- * outstanding count.
+ * Confirms how many units of a product were actually bought, so the
+ * procurement list reduces by that quantity.
+ *
+ * The quantity lives in a dialog rather than inline in the table row: a number
+ * box and a button in every row of an already dense table added a column,
+ * widened the table and buried the figures the list exists to show.
  */
 export function ProcurementConfirmForm({
   productId,
+  productName,
   maxQuantity,
   returnTo,
-  layout = "compact",
 }: ProcurementConfirmFormProps) {
+  const [open, setOpen] = useState(false);
+
   if (maxQuantity < 1) {
     return null;
   }
 
-  const inputId = `procured-quantity-${productId}`;
-
   return (
-    <form
-      action={confirmProcurement}
-      className={
-        layout === "stacked"
-          ? "flex flex-wrap items-end gap-3"
-          : "flex items-center justify-end gap-2"
-      }
-    >
-      <input type="hidden" name="productId" value={productId} />
-      <input type="hidden" name="returnTo" value={returnTo} />
-      <label
-        htmlFor={inputId}
-        className={layout === "stacked" ? "space-y-1.5" : "sr-only"}
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Confirm procured units for ${productName}`}
+        title="Confirm procured"
+        className="group/procured flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-green-50 hover:text-green-700"
       >
-        {layout === "stacked" ? (
-          <span className="block text-xs font-semibold uppercase tracking-wide text-gray-600">
-            Quantity bought
-          </span>
-        ) : (
-          "Quantity bought"
-        )}
-        <input
-          id={inputId}
-          name="quantity"
-          type="number"
-          min={1}
-          max={maxQuantity}
-          step={1}
-          defaultValue={maxQuantity}
-          required
-          aria-describedby={`${inputId}-hint`}
-          className="h-9 w-20 rounded-md border border-gray-200 bg-white px-2 text-right text-sm tabular-nums outline-none focus:border-green-600 focus:ring-2 focus:ring-green-600/20"
-        />
-      </label>
-      <PlainSubmitButton
-        pendingLabel="Confirming"
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-green-800 px-3 text-sm font-medium text-white hover:bg-green-900"
-      >
-        <PackageCheck className="size-4" />
-        Confirm procured
-      </PlainSubmitButton>
-      <p id={`${inputId}-hint`} className="sr-only">
-        Up to {maxQuantity} unit{maxQuantity === 1 ? "" : "s"} can be confirmed
-        for this product. Confirmed units leave the procurement list.
-      </p>
-    </form>
+        <PackageCheck className="size-4 transition-transform duration-200 group-hover/procured:scale-125 group-hover/procured:-translate-y-0.5" />
+      </button>
+
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-lg border bg-white p-5 text-left shadow-xl">
+            <h2 className="text-lg font-semibold text-gray-950">
+              How many did you buy?
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              {productName} &middot; {maxQuantity} outstanding
+            </p>
+
+            <form action={confirmProcurement} className="mt-4 space-y-4">
+              <input type="hidden" name="productId" value={productId} />
+              <input type="hidden" name="returnTo" value={returnTo} />
+
+              <label className="block space-y-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                  Quantity procured
+                </span>
+                <input
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  max={maxQuantity}
+                  step={1}
+                  defaultValue={maxQuantity}
+                  required
+                  autoFocus
+                  className="h-10 w-full rounded-md border border-gray-200 bg-white px-3 text-sm tabular-nums outline-none focus:border-green-700 focus:ring-2 focus:ring-green-700/20"
+                />
+                <span className="block text-xs text-gray-500">
+                  That many units leave the procurement list.
+                </span>
+              </label>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <SubmitButton pendingLabel="Confirming">Confirm</SubmitButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
