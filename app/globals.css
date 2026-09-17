@@ -331,12 +331,21 @@ html {
   }
 }
 
-/* Scrolling a table or a dialog to its end should not then start scrolling the
-   page behind it. */
-main .overflow-x-auto,
+/* Scrolling a dialog or a table to its end should not then start scrolling the
+   page behind it.
+   Contain ONLY the axis the element actually scrolls. `overscroll-behavior`
+   is the two-axis shorthand, and setting it on a horizontal-only scroller was
+   a bad regression: a table wrapper has no vertical scroll range, so every
+   vertical wheel tick over it counted as overscroll and was blocked from
+   reaching the page. Tables cover most of a page, so the app could only be
+   scrolled with the scrollbar itself. Keep these per-axis. */
+main .overflow-x-auto {
+  overscroll-behavior-x: contain;
+}
+
 main .overflow-y-auto,
 main .overflow-auto {
-  overscroll-behavior: contain;
+  overscroll-behavior-y: contain;
 }
 
 

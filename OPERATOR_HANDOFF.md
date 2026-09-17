@@ -41,6 +41,13 @@ without rediscovering the system from scratch.
   tab row: Settings and Products each had their own filled-pill version and they
   did not match. The control is underline-style on purpose, so it does not
   compete with the page's primary buttons.
+- `overscroll-behavior` on an in-page scroller must name the axis that scroller
+  actually scrolls (`overscroll-behavior-x` for a table wrapper,
+  `overscroll-behavior-y` for a dialog or list). The bare shorthand sets both
+  axes, and on a horizontal-only scroller that blocks the page from scrolling
+  whenever the pointer is over it, because the element has no vertical scroll
+  range to consume the wheel. That shipped once and made the app feel like it
+  only scrolled from the scrollbar. Do not reintroduce the shorthand here.
 - Scrollbars are styled once, globally, in `app/globals.css`. There is no
   per-component scrollbar CSS and no JavaScript involved. An earlier build
   cloned a second scrollbar above every table from the app shell, driven by a
