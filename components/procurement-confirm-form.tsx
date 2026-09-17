@@ -21,6 +21,10 @@ type ProcurementConfirmFormProps = {
  * The quantity lives in a dialog rather than inline in the table row: a number
  * box and a button in every row of an already dense table added a column,
  * widened the table and buried the figures the list exists to show.
+ *
+ * The trigger carries a visible "Confirm" label rather than being a bare icon.
+ * An unlabelled icon sitting beside the view icon was not findable — the first
+ * question asked of it was where the control actually was.
  */
 export function ProcurementConfirmForm({
   productId,
@@ -40,10 +44,11 @@ export function ProcurementConfirmForm({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Confirm procured units for ${productName}`}
-        title="Confirm procured"
-        className="group/procured flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-green-50 hover:text-green-700"
+        title="Confirm how many units you bought"
+        className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-green-700/25 bg-lime-50 px-2.5 text-xs font-semibold text-green-800 transition-colors hover:border-green-700/50 hover:bg-lime-100"
       >
-        <PackageCheck className="size-4 transition-transform duration-200 group-hover/procured:scale-125 group-hover/procured:-translate-y-0.5" />
+        <PackageCheck className="size-3.5" />
+        Confirm
       </button>
 
       {open ? (
