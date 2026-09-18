@@ -309,29 +309,55 @@ claim it has changed records.
   environment to be *usable*; the lazy client only stops the build from
   failing. Point Preview at a branch or staging database, never production.
 
-## Migrations Pending Deployment
+## Migration Status
 
-Apply these with `npm run db:deploy` from a trusted operator environment using
-`DATABASE_URL_UNPOOLED`, before releasing the dependent code. Vercel's
+**Nothing is pending.** Every migration in `prisma/migrations/` is applied to
+the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
+
+| Migration | Applied (UTC) | Effect |
+| --- | --- | --- |
+| `20260917090000_sms_weekly_summary_short_template` | 2026-09-17 20:39 | `Setting.smsWeeklySummaryShortTemplate` for the below-target weekly summary. |
+| `20260917091000_procurement_confirmation` | 2026-09-17 20:40 | `CustomerAccount.procuredAt`, `procuredBy`, index on `procuredAt`. Superseded by the inventory migration, which drops all three, but still required in sequence. |
+| `20260917092000_delivery_with_outstanding_balance` | 2026-09-17 20:40 | `CustomerAccount.deliveredWithBalance`, `balanceAtDelivery`, `deliveryNote`. |
+| `20260917100000_inventory_module` | 2026-09-18 00:43 | `Product.stockOnHand`, the `InventoryMovement` table, opening stock seeded from units already marked procured, and the removal of `procuredAt`, `procuredBy` and `quantityOnSale`. |
+
+### What the inventory migration did to live data
+
+It seeded 6 units of opening stock from the 6 accounts that were marked
+procured and still pending delivery, one `OPENING` movement per product:
+
+| Product | Opening stock |
+| --- | --- |
+| Aware Pa (8) | 1 |
+| GLV Fiber Mattress 8" (10) | 4 |
+| Washing Machine (14) | 1 |
+
+Those three products consequently no longer appear on the procurement list,
+because stock now covers what their customers are owed. Before the migration
+they were hidden by the `procuredAt` flag; they are now hidden for the honest
+reason, and the units are visible on `/inventory`.
+
+The migration dropped columns, which no later migration restores. The data is
+not lost, though: the `CONFIRM_PROCUREMENT` audit log entries still hold every
+account ID, quantity and timestamp that `procuredAt`/`procuredBy` carried, so
+the per-account attribution can be reconstructed from `AuditLog` if it is ever
+needed. `quantityOnSale` was zero on all 55 products, so nothing was lost there.
+
+## Deploying Future Migrations
+
+Apply migrations **before** releasing the code that depends on them. Vercel's
 `npm run build` does not deploy migrations.
 
-| Migration | Adds |
-| --- | --- |
-| `20260917090000_sms_weekly_summary_short_template` | `Setting.smsWeeklySummaryShortTemplate` for the below-target weekly summary. |
-| `20260917091000_procurement_confirmation` | `CustomerAccount.procuredAt`, `procuredBy`, and an index on `procuredAt`. Superseded by the inventory migration below, but still required in sequence. |
-| `20260917092000_delivery_with_outstanding_balance` | `CustomerAccount.deliveredWithBalance`, `balanceAtDelivery`, `deliveryNote`. |
-| `20260917100000_inventory_module` | `Product.stockOnHand`, the `InventoryMovement` table, opening stock seeded from units already marked procured, and the removal of `procuredAt`, `procuredBy` and `quantityOnSale`. |
-
-Deploy the migrations before the code. Until `20260917100000` is applied the
-procurement query and the inventory page both fail, because `stockOnHand` is
-part of their select.
-
-`20260917100000` drops columns. It is not reversible by re-running an earlier
-migration — take a backup first. It was verified end to end against a scratch
-Postgres 16 with production-shaped data: three units of one product marked
-procured and pending became `stockOnHand = 3` with a matching `OPENING`
-movement, a unit marked procured but already delivered correctly did not, and
-the retired columns and index were gone afterwards.
+- Normal route: `npm run db:deploy` from a trusted operator environment using
+  `DATABASE_URL_UNPOOLED`.
+- Route used for the migrations above, when only the Supabase MCP connection is
+  available: run the migration SQL, then insert the `_prisma_migrations`
+  bookkeeping row in the same statement, with `checksum` set to the **SHA-256 of
+  that migration's `migration.sql`** (`sha256sum prisma/migrations/<name>/migration.sql`).
+  Prisma verifies that checksum on the next `migrate deploy`, so a wrong value
+  turns into a failed deploy later, not an error now.
+- Before a migration that drops or rewrites data, check what it will destroy and
+  whether an audit trail already preserves it, then record the finding here.
 
 Also set `GROQ_API_KEY` in the Vercel project environment before expecting AI
 Support to answer. Without it the chat returns the "not configured yet" message.
