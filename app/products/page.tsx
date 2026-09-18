@@ -13,7 +13,7 @@ import {
 import { deleteProduct } from "@/actions/products";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { TabsNav } from "@/components/ui/tabs-nav";
-import { ProcurementConfirmForm } from "@/components/procurement-confirm-form";
+import { InventoryReceiveForm } from "@/components/inventory-receive-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { formatMoney } from "@/lib/accounts";
 import { auth } from "@/lib/auth";
@@ -29,7 +29,8 @@ type ProductsPageProps = {
     sort?: string;
     error?: string;
     deleted?: string;
-    procured?: string;
+    received?: string;
+    balance?: string;
   }>;
 };
 
@@ -79,7 +80,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     redirect("/dashboard");
   }
 
-  const { q, tab, sort, error, deleted, procured } = await searchParams;
+  const { q, tab, sort, error, deleted, received, balance } =
+    await searchParams;
   const query = q?.trim() ?? "";
   const activeTab = tab === "procurement" ? "procurement" : "products";
   const sortParam = sort ?? "";
@@ -209,7 +211,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         {(activeTab === "procurement"
           ? [
               { label: "Products to buy", value: procurementItems.length },
-              { label: "Total units", value: procurementItems.reduce((sum, item) => sum + item.quantity, 0) },
+              { label: "Units to buy", value: procurementItems.reduce((sum, item) => sum + item.quantity, 0) },
               {
                 label: "Estimated total cost",
                 value: formatMoney(procurementItems.reduce((sum, item) => sum + item.totalCost, 0)),
@@ -218,7 +220,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             ]
           : [
               { label: "Total products", value: sortedProducts.length },
-              { label: "Total qty on sale", value: totalQty },
+              { label: "Total accounts", value: totalQty },
               { label: "Expected profit", value: formatMoney(totalProfit), green: true },
             ]).map((s) => (
           <div key={s.label} className="rounded-lg bg-gray-50 px-4 py-3">
@@ -259,26 +261,22 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           Product and all related accounts and payments were permanently deleted.
         </div>
       )}
-      {procured && (
+      {received && (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-3.5 text-sm text-lime-900">
-          {procured} unit{procured === "1" ? "" : "s"} confirmed as procured and
-          removed from the procurement list.
+          {received} unit{received === "1" ? "" : "s"} received into stock
+          {balance ? ` — ${balance} now on hand` : ""}, so they have left the
+          procurement list.
         </div>
       )}
-      {error === "procurement-invalid-quantity" && (
+      {error === "inventory-invalid-quantity" && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
-          Enter the quantity procured as a whole number of one or more.
+          Enter the quantity received as a whole number of one or more.
         </div>
       )}
-      {error === "procurement-nothing-pending" && (
+      {(error === "inventory-product-required" ||
+        error === "inventory-product-not-found") && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
-          Nothing is waiting to be procured for that product any more. The list
-          may have been confirmed by someone else already.
-        </div>
-      )}
-      {error === "procurement-product-required" && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
-          Choose a product before confirming procurement.
+          That product could not be found. It may have been deleted.
         </div>
       )}
 
@@ -286,10 +284,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-sm text-amber-900">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p>
-              Products appear here when customer accounts for that product are
-              at least {procurement.thresholdPercent}% paid, including fully
-              paid accounts that are still pending delivery. Confirm how many
-              units you bought and the list reduces by that quantity.
+              Products appear here when customer accounts for that product
+              are at least {procurement.thresholdPercent}% paid and still
+              awaiting delivery, and{" "}
+              <Link
+                href="/inventory"
+                className="font-medium underline underline-offset-2"
+              >
+                inventory
+              </Link>{" "}
+              does not already cover them. Receive the stock and the product
+              leaves this list.
             </p>
             <Link
               href="/api/procurement/export"
@@ -356,12 +361,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       {activeTab === "procurement" ? (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px] text-sm">
+            <table className="w-full min-w-[920px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Product</th>
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Category</th>
-                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Units</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">To buy</th>
+                  <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">In stock</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Cost price</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Transport</th>
                   <th className="px-3 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-gray-400">Unit total</th>
@@ -382,30 +388,34 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <td className="px-3 py-3">
                       <ProductCategoryBadge category={item.category} />
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums font-semibold text-gray-950">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums font-semibold text-gray-950">
                       {item.quantity}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-700">
+                      {item.stockOnHand}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-700">
                       {formatMoney(item.unitCost)}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-700">
                       {formatMoney(item.transportCost)}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-700">
                       {formatMoney(item.landedUnitCost)}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums font-semibold text-green-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums font-semibold text-green-700">
                       {formatMoney(item.totalCost)}
                     </td>
-                    <td className="px-3 py-3 text-right tabular-nums text-gray-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-gray-700">
                       {percent(item.averageProgress)}
                     </td>
                     <td className="px-3 py-3">
                       <div className="flex items-center justify-end gap-0.5">
-                        <ProcurementConfirmForm
+                        <InventoryReceiveForm
                           productId={item.productId}
                           productName={item.productName}
-                          maxQuantity={item.quantity}
+                          stockOnHand={item.stockOnHand}
+                          suggestedQuantity={item.quantity}
                           returnTo="/products?tab=procurement"
                         />
                         <Link
@@ -425,11 +435,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <tfoot>
                   <tr className="border-t bg-gray-50 font-semibold text-gray-950">
                     <td className="px-3 py-3" colSpan={2}>Total</td>
-                    <td className="px-3 py-3 text-right tabular-nums">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">
                       {procurementItems.reduce((sum, item) => sum + item.quantity, 0)}
                     </td>
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums">
+                      {procurementItems.reduce((sum, item) => sum + item.stockOnHand, 0)}
+                    </td>
                     <td className="px-3 py-3" colSpan={3}></td>
-                    <td className="px-3 py-3 text-right tabular-nums text-green-700">
+                    <td className="whitespace-nowrap px-3 py-3 text-right tabular-nums text-green-700">
                       {formatMoney(procurementItems.reduce((sum, item) => sum + item.totalCost, 0))}
                     </td>
                     <td className="px-3 py-3" colSpan={2}></td>

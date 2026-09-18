@@ -3,6 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 const privilegedRoutes = [
   { route: "/staff", permission: "VIEW_STAFF" },
   { route: "/products", permission: "MANAGE_PRODUCTS" },
+  { route: "/inventory", permission: "MANAGE_PRODUCTS" },
   { route: "/credits", permission: "MANAGE_PAYMENTS" },
   { route: "/reports", permission: "VIEW_REPORTS" },
   { route: "/audit-logs", permission: "VIEW_AUDIT_LOGS" },

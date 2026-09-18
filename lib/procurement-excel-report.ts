@@ -16,6 +16,7 @@ export async function buildProcurementWorkbook() {
   const columns = [
     { label: "Product", key: "productName", width: 28 },
     { label: "Category", key: "category", width: 18 },
+    { label: "Stock Status", key: "stockStatus", width: 14 },
     { label: "Customer", key: "customerName", width: 28 },
     { label: "Customer ID", key: "customerCode", width: 22 },
     { label: "Staff Code", key: "staffCode", width: 14 },
@@ -30,6 +31,9 @@ export async function buildProcurementWorkbook() {
     { label: "Layaway Price", key: "layawayPrice", width: 16 },
   ];
   sheet.columns = columns.map(({ key, width }) => ({ key, width }));
+
+  const toBuy = procurement.items.filter((item) => !item.coveredByStock);
+  const toBuyCost = toBuy.reduce((sum, item) => sum + item.landedUnitCost, 0);
 
   sheet.addRow([
     `Products at or above ${procurement.thresholdPercent}% paid and pending delivery`,
@@ -50,6 +54,7 @@ export async function buildProcurementWorkbook() {
     sheet.addRow({
       productName: item.productName,
       category: item.category,
+      stockStatus: item.coveredByStock ? "In stock" : "To buy",
       customerName: item.customerName,
       customerCode: item.customerCode,
       staffCode: item.staffCode,
@@ -66,20 +71,39 @@ export async function buildProcurementWorkbook() {
   });
 
   const totalRow = sheet.addRow({
-    productName: "Total",
-    customerName: `${procurement.items.length} customer account(s)`,
+    productName: "Total to buy",
+    customerName: `${toBuy.length} of ${procurement.items.length} customer account(s)`,
     unitCost: "",
     transportCost: "",
-    landedUnitCost: procurement.items.reduce(
-      (sum, item) => sum + item.landedUnitCost,
-      0
-    ),
+    // Units the store room already covers are not bought again, so only the
+    // shortfall is costed here.
+    landedUnitCost: toBuyCost,
   });
   totalRow.font = { bold: true };
 
+  // Derived from the column list so inserting a column never silently moves
+  // the currency formatting onto the wrong cells.
+  const moneyColumnNumbers = columns
+    .map((column, index) =>
+      (
+        [
+          "totalPaid",
+          "targetAmount",
+          "balance",
+          "unitCost",
+          "transportCost",
+          "landedUnitCost",
+          "layawayPrice",
+        ] as string[]
+      ).includes(column.key)
+        ? index + 1
+        : 0
+    )
+    .filter((columnNumber) => columnNumber > 0);
+
   sheet.eachRow((row, rowNumber) => {
     if (rowNumber >= 4) {
-      [8, 9, 10, 11, 12, 13, 14].forEach((columnNumber) => {
+      moneyColumnNumbers.forEach((columnNumber) => {
         row.getCell(columnNumber).numFmt = '"GHS"#,##0.00';
       });
     }
@@ -94,9 +118,7 @@ export async function buildProcurementWorkbook() {
   sheet.addRow([]);
   sheet.addRow([
     "Estimated procurement total",
-    formatMoney(
-      procurement.items.reduce((sum, item) => sum + item.landedUnitCost, 0)
-    ),
+    formatMoney(toBuyCost),
   ]);
 
   return workbook;

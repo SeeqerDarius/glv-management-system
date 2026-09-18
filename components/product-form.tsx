@@ -262,20 +262,6 @@ export function ProductForm({
         </p>
       </div>
 
-      <label className="block space-y-1">
-        <span className="text-sm font-medium text-gray-700">Quantity On Sale</span>
-        <input
-          name="quantityOnSale"
-          type="number"
-          min="0"
-          step="1"
-          defaultValue={product?.quantityOnSale ?? 0}
-          className="w-full rounded border p-3"
-          required
-        />
-        <FieldError message={state.errors?.quantityOnSale} />
-      </label>
-
       <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
         <input
           type="checkbox"

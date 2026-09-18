@@ -17,7 +17,6 @@ export type ProductFormState = {
     dailyAmount?: string;
     duration?: string;
     transportCost?: string;
-    quantityOnSale?: string;
     image?: string;
     form?: string;
   };
@@ -33,7 +32,6 @@ type ProductInput = {
   dailyAmount: number;
   duration: number;
   transportCost: number;
-  quantityOnSale: number;
 };
 
 const maxProductImageSize = 5 * 1024 * 1024;
@@ -169,7 +167,6 @@ function validateProduct(formData: FormData): {
   const dailyAmount = parseNumber(formData, "dailyAmount");
   const duration = Number(cleanInput(formData.get("duration")));
   const transportCost = parseNumber(formData, "transportCost");
-  const quantityOnSale = Number(cleanInput(formData.get("quantityOnSale")));
   const errors: ProductFormState["errors"] = {};
 
   if (!name) errors.name = "Product name is required.";
@@ -189,10 +186,6 @@ function validateProduct(formData: FormData): {
 
   if (!Number.isFinite(transportCost) || transportCost < 0) {
     errors.transportCost = "Transport cost cannot be negative.";
-  }
-
-  if (!Number.isInteger(quantityOnSale) || quantityOnSale < 0) {
-    errors.quantityOnSale = "Quantity must be a whole number of zero or more.";
   }
 
   const layawayPrice =
@@ -219,7 +212,6 @@ function validateProduct(formData: FormData): {
       dailyAmount,
       duration,
       transportCost,
-      quantityOnSale,
     },
   };
 }
@@ -345,7 +337,6 @@ export async function createProduct(
       data: {
         ...productData,
         imageUrl: imageResult.imageUrl,
-        quantityOnSale: 0,
         active,
       },
     });
@@ -439,7 +430,6 @@ export async function updateProduct(
         data: {
           ...productData,
           imageUrl: imageResult.imageUrl,
-          quantityOnSale: existingProduct.quantityOnSale,
           active: nextActive,
         },
       });
@@ -461,13 +451,11 @@ export async function updateProduct(
     oldValue: {
       costPrice: existingProduct.costPrice,
       transportCost: existingProduct.transportCost,
-      quantityOnSale: existingProduct.quantityOnSale,
       description: existingProduct.description,
     },
     newValue: {
       costPrice: updatedProduct.costPrice,
       transportCost: updatedProduct.transportCost,
-      quantityOnSale: updatedProduct.quantityOnSale,
       description: updatedProduct.description,
     },
   });

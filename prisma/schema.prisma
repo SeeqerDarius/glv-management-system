@@ -168,8 +168,32 @@ model Product {
   active         Boolean           @default(true)
   description    String?
   transportCost  Float             @default(0)
-  quantityOnSale Int               @default(0)
+  // Units physically held in the store room. The procurement list subtracts
+  // this, so a product only asks to be bought once stock runs out.
+  stockOnHand    Int               @default(0)
   accounts       CustomerAccount[]
+  inventoryMovements InventoryMovement[]
+}
+
+/// Every change to a product's stock on hand, so the count can always be
+/// explained: who moved it, when, why, and what the balance became.
+model InventoryMovement {
+  id           String   @id @default(cuid())
+  productId    String
+  /// Signed change: positive when stock arrives, negative when it leaves.
+  delta        Int
+  /// RECEIVED | DELIVERED | CORRECTION | OPENING
+  reason       String
+  balanceAfter Int
+  note         String?
+  /// Set when the movement came from handing a unit to a customer.
+  accountId    String?
+  createdBy    String
+  createdAt    DateTime @default(now())
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, createdAt])
+  @@index([createdAt])
 }
 
 model ProductCategory {
@@ -272,8 +296,6 @@ model CustomerAccount {
   deliveredWithBalance Boolean  @default(false)
   balanceAtDelivery    Float?
   deliveryNote         String?
-  procuredAt      DateTime?
-  procuredBy      String?
   createdAt       DateTime      @default(now())
   customer        Customer      @relation(fields: [customerId], references: [id])
   product         Product       @relation(fields: [productId], references: [id])

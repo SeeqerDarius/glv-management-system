@@ -96,11 +96,15 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   an outstanding balance" below.
 - `/payments`: payment recording and grouped searchable payment history.
 - `/products`: product catalog plus procurement tab. Procurement items appear
-  when product accounts cross the configured payment threshold and are not paid
-  off yet. Operators confirm the quantity actually bought, and that many units
-  leave the list. See "Procurement confirmation" below.
-- `/staff`: staff records, detail view, applications, salary support, password
-  reset flow, and per-staff product inventory allocation/restock.
+  when product accounts cross the configured payment threshold, are not
+  delivered yet, and inventory does not already hold the units. See
+  "Inventory and procurement" below.
+- `/inventory`: stock on hand per product and the movement ledger behind it.
+  Receiving stock here is what takes a product off the procurement list.
+  Requires `MANAGE_PRODUCTS`.
+- `/staff`: staff records, detail view, applications, salary support, and
+  password reset flow. Per-staff stock allocation is retired; see "Retired Staff
+  Inventory Details".
 - `/credits`: overpayment credits and refunds.
 - `/reports`: admin financial intelligence and salary tracking.
 - `/activity`: collection/activity charts.
@@ -264,8 +268,10 @@ claim it has changed records.
   the limitation and rely on code audit plus lint/type/build gates.
 - `documentation/build_glv_system_manual.py` and `docs/build_system_documentation.py`
   are kept current and both DOCX deliverables were regenerated for the
-  procurement confirmation, deliver-with-balance, SMS rule, Groq and settings
-  changes. `soffice --headless --convert-to pdf` still cannot regenerate the
+  inventory module, procurement, deliver-with-balance, SMS rule, Groq and
+  settings changes. The training manual gained two feature pages, Inventory and
+  Inventory Movements, with fresh screenshots; the procurement pages were
+  re-shot to show the new In stock / To buy columns. `soffice --headless --convert-to pdf` still cannot regenerate the
   matching PDFs in this sandbox: it fails to load even a trivial one-line test
   file (`Error: source file could not be loaded`, no PDF written, before it
   touches either GLV file), so this remains a broken LibreOffice
@@ -312,11 +318,20 @@ Apply these with `npm run db:deploy` from a trusted operator environment using
 | Migration | Adds |
 | --- | --- |
 | `20260917090000_sms_weekly_summary_short_template` | `Setting.smsWeeklySummaryShortTemplate` for the below-target weekly summary. |
-| `20260917091000_procurement_confirmation` | `CustomerAccount.procuredAt`, `procuredBy`, and an index on `procuredAt`. |
+| `20260917091000_procurement_confirmation` | `CustomerAccount.procuredAt`, `procuredBy`, and an index on `procuredAt`. Superseded by the inventory migration below, but still required in sequence. |
 | `20260917092000_delivery_with_outstanding_balance` | `CustomerAccount.deliveredWithBalance`, `balanceAtDelivery`, `deliveryNote`. |
+| `20260917100000_inventory_module` | `Product.stockOnHand`, the `InventoryMovement` table, opening stock seeded from units already marked procured, and the removal of `procuredAt`, `procuredBy` and `quantityOnSale`. |
 
-Until `20260917091000` is applied the procurement query fails, because
-`procuredAt: null` is part of its filter. Deploy the migrations first.
+Deploy the migrations before the code. Until `20260917100000` is applied the
+procurement query and the inventory page both fail, because `stockOnHand` is
+part of their select.
+
+`20260917100000` drops columns. It is not reversible by re-running an earlier
+migration — take a backup first. It was verified end to end against a scratch
+Postgres 16 with production-shaped data: three units of one product marked
+procured and pending became `stockOnHand = 3` with a matching `OPENING`
+movement, a unit marked procured but already delivered correctly did not, and
+the retired columns and index were gone afterwards.
 
 Also set `GROQ_API_KEY` in the Vercel project environment before expecting AI
 Support to answer. Without it the chat returns the "not configured yet" message.
@@ -447,35 +462,75 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   "Database Status" or "Neon Status" changes nothing about the live infrastructure.
   The tab says so, and support answers should too.
 
-## Procurement confirmation
+## Inventory and procurement
 
-- The procurement list is still a computed view. A product appears once at least
-  one of its pending-delivery accounts is at or above the configured threshold.
-- To confirm a purchase, press the procured icon on the product's row in
-  `/products?tab=procurement`. A small dialog asks how many units were bought;
-  the list reduces by that quantity. A partial purchase leaves the rest listed.
+This is one loop, not two features. Read it as a loop.
+
+- **Inventory** (`/inventory`) is the record of what is physically in the store
+  room: `Product.stockOnHand`, plus an `InventoryMovement` ledger row for every
+  change (migration `20260917100000_inventory_module`).
+- **Procurement** (`/products?tab=procurement`) is the shopping list, and it is
+  a computed view — nothing is stored. A product appears only when the units its
+  customers are owed exceed the units already in stock:
+
+      units to buy = accounts at or above the threshold and still PENDING
+                     − stock on hand
+
+  A product whose shelf covers everything it owes does not appear at all. That
+  is the whole rule, and it is what the owner asked for: *"when a product is
+  over the threshold and is not in the inventory, that is when it should show in
+  the procurement list."*
+- **Receiving stock is the action that closes the loop.** Press **Receive** on
+  the procurement row (or on the inventory page) and enter how many units were
+  bought. Those units enter stock and the product drops off the buying list by
+  that quantity. A partial purchase leaves the rest listed. The dialog defaults
+  to the outstanding quantity, so the common case is one click.
+- **Delivery takes stock back off the shelf.** Confirming delivery on an account
+  decrements that product by one and writes a `DELIVERED` movement linked to the
+  account. Reversing a delivery with **Mark pending** puts the unit back with a
+  `RETURNED` movement.
+  - If stock is already zero the delivery still records — the customer is at the
+    counter and must not be blocked. The count floors at zero, no phantom
+    negative row is written, and the account page shows a warning telling the
+    operator to correct the count. Never change this to block the handover.
+- **Correcting a count** is a separate action on the inventory page and requires
+  a written reason. The difference is recorded as a `CORRECTION` movement
+  against the operator's name, so a count that keeps drifting is visible rather
+  than silently overwritten.
+- Stock is allocated to the customers nearest completion first, so the unit on
+  the shelf is reserved for whoever is due it soonest. The per-product
+  procurement page (`/products/procurement/[productId]`) and the Excel export
+  both mark each account **In stock** or **To buy** on that basis, and the
+  export totals only the units still to buy.
+- The allocation rule is `allocateStockToDemand` in `lib/procurement.ts`, kept as
+  a pure function and covered by `scripts/inventory.test.ts`. Change the rule
+  there, not in a page.
+- Both stock actions require `MANAGE_PRODUCTS` (admins have it implicitly) and
+  are audit logged as `RECEIVE_STOCK` and `CORRECT_STOCK` with the before and
+  after balances.
+- Every consumer reduces together because they all read the same procurement
+  query: the products tab, the sidebar attention badge, the Excel export, the
+  weekly report sheet and the reports module.
 - Keep this flow as small as it is. An earlier version put a number box and a
   full button inside every table row, which added a column, widened the table
   and buried the figures the list exists to show. It also grew a second
   "bought, awaiting delivery" table and an undo action that nobody asked for.
-  All of that was removed. Confirm quantity, list reduces — nothing else.
-- Under the hood the confirmation is recorded per account
-  (`CustomerAccount.procuredAt` / `procuredBy`, migration
-  `20260917091000_procurement_confirmation`), consuming the customers closest to
-  finishing their plan first. That is an implementation detail: operators only
-  see a quantity.
-- Confirming does not change delivery. Delivery is still confirmed on the
-  account when the customer receives the product.
-- `procuredAt: null` is part of the shared procurement query, so every consumer
-  reduces together: the products tab, the sidebar attention badge, the
-  procurement Excel export, the weekly report sheet and the reports module.
-- Confirming requires `MANAGE_PRODUCTS` (admins have it implicitly) and is audit
-  logged as `CONFIRM_PROCUREMENT` with the requested quantity, the confirmed
-  quantity and the account IDs. Two operators confirming at once cannot consume
-  the same unit twice: the update is guarded on `procuredAt` still being null,
-  and the redirect reports the quantity actually confirmed.
-- The product procurement page (`/products/procurement/[productId]`) is a
-  read-only breakdown of the accounts driving demand. Do not add actions to it.
+  All of that was removed.
+
+### What this replaced
+
+The earlier "confirm procured" flag on the account
+(`CustomerAccount.procuredAt` / `procuredBy`) is gone, dropped by the inventory
+migration. It marked units as bought but could not answer "how many do we
+actually have?", so stock and demand could not be compared. The hand-typed
+`Product.quantityOnSale` catalogue field is gone with it; stock on hand is the
+real number and is maintained by the ledger, not by typing.
+
+Units that were marked procured and not yet delivered were really bought, so the
+migration converts them into opening stock (one `OPENING` movement per product,
+attributed to `system`). Without that those products would have reappeared on
+the procurement list and been bought a second time. Units already delivered are
+correctly excluded.
 
 ## Delivery with an outstanding balance
 
@@ -522,6 +577,9 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 
 ## Retired Staff Inventory Details
 
+- This is the *old* per-staff stock experiment, and is unrelated to the
+  `/inventory` module described above. That module tracks company stock on hand
+  per product; this one allocated stock to individual staff and is gone.
 - Staff product inventory allocation has been deactivated.
 - Staff, customer, account, product, report, notification, backup, and restore
   flows no longer create, consume, restore, export, or display staff stock.

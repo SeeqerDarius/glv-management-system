@@ -28,7 +28,7 @@ function attentionSignature(key: string, item: AttentionMap[string]) {
 
 const protectedPrefixes = [
   "/dashboard", "/activity", "/customers", "/accounts", "/payments", "/products",
-  "/staff", "/business", "/credits", "/reports", "/audit-logs", "/settings", "/profile",
+  "/inventory", "/staff", "/business", "/credits", "/reports", "/audit-logs", "/settings", "/profile",
 ];
 
 const pageTitles: Array<[string, string]> = [
@@ -39,7 +39,7 @@ const pageTitles: Array<[string, string]> = [
   ["/audit-logs", "Audit Logs"], ["/dashboard", "Dashboard"],
   ["/activity", "Activity"],
   ["/customers", "Customers"], ["/accounts", "Accounts"],
-  ["/payments", "Payments"], ["/products", "Products"],
+  ["/payments", "Payments"], ["/products", "Products"], ["/inventory", "Inventory"],
   ["/staff", "Staff"], ["/business", "Business Management"], ["/reports", "Reports"], ["/settings", "Settings"],
 ];
 
