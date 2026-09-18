@@ -317,8 +317,9 @@ def build_body() -> str:
         ["Staff", "Employee profile connected to customers, salaries, and optional user.", "code, fullName, email, phone, active, monthlySalary"],
         ["StaffApplication", "Public staff signup request awaiting admin review.", "fullName, email, phone, status, reviewedBy, reviewedAt"],
         ["Customer", "Person buying products through layaway.", "customerId, fullName, phone, address, nationalId, staffId"],
-        ["Product", "Sellable product or combo.", "name, category, costPrice, transportCost, layawayPrice, dailyAmount, duration, quantityOnSale, active"],
-        ["CustomerAccount", "A customer's product layaway contract.", "targetAmount, dailyAmount, totalPaid, balance, status, deliveryStatus, deliveredAt, deliveredWithBalance, balanceAtDelivery, deliveryNote, procuredAt, procuredBy"],
+        ["Product", "Sellable product or combo.", "name, category, costPrice, transportCost, layawayPrice, dailyAmount, duration, stockOnHand, active"],
+        ["InventoryMovement", "One change to a product's stock on hand.", "productId, delta, reason, balanceAfter, note, accountId, createdBy, createdAt"],
+        ["CustomerAccount", "A customer's product layaway contract.", "targetAmount, dailyAmount, totalPaid, balance, status, deliveryStatus, deliveredAt, deliveredWithBalance, balanceAtDelivery, deliveryNote"],
         ["Payment", "Installment payment record with generated receipt.", "receiptNo, accountId, amount, paymentDate, method, receivedBy"],
         ["CustomerCredit", "Overpayment or closure refund credit.", "amount, remainingAmount, status, source, accountId, paymentId"],
         ["StaffSalaryPayment", "Payroll payment tracking.", "staffId, amount, paymentDate, notes, paidBy"],
@@ -337,7 +338,7 @@ def build_body() -> str:
         ["MANAGE_ACCOUNTS", "Allows account creation/correction/delivery operations beyond assigned ownership. Delivering before a plan is fully paid additionally requires an admin role."],
         ["MANAGE_PAYMENTS", "Allows payment management, credits/refunds, and privileged payment workflows."],
         ["VIEW_REPORTS", "Allows access to reports and weekly export."],
-        ["MANAGE_PRODUCTS", "Allows product catalog access, the procurement module, and confirming procured quantities."],
+        ["MANAGE_PRODUCTS", "Allows product catalog access, the procurement module, and the inventory module (receiving stock and correcting counts)."],
         ["MANAGE_STAFF", "Allows staff records, applications, salaries, and password resets."],
         ["VIEW_AUDIT_LOGS", "Allows read-only audit log access."],
     ], [2300, 7060]))
@@ -372,8 +373,9 @@ def build_body() -> str:
         ["Customers", "/customers, /customers/new, /customers/[id], /customers/[id]/edit", "Customer CRUD, search/filtering, assignment, profile, account/payment history, and customer-level actions."],
         ["Accounts", "/accounts, /accounts/new, /accounts/[id]", "Product account creation, automatic terms, status, balance, delivery, corrections, lifecycle-gated cancellation/reactivation documents, and payment entry."],
         ["Payments", "/payments, /payments/new", "Payment recording, receipt numbers, customer receipt communication, grouped history, deletion/recalculation, and staff-safe filtering."],
-        ["Products", "/products, /products/new, /products/[id], /products/[id]/edit", "Catalog management, product economics, quantity on sale, category badges, and procurement tab."],
-        ["Procurement", "/products?tab=procurement and /products/procurement/[productId]", "Buying list for products with accounts at least 70% paid and still pending delivery, with quantity-based procurement confirmation. The per-product page is a read-only breakdown."],
+        ["Products", "/products, /products/new, /products/[id], /products/[id]/edit", "Catalog management, product economics, category badges, and procurement tab."],
+        ["Procurement", "/products?tab=procurement and /products/procurement/[productId]", "Buying list for products whose demand exceeds stock on hand. The per-product page is a read-only breakdown marking each account In stock or To buy."],
+        ["Inventory", "/inventory and /inventory/[productId]", "Stock on hand per product, receiving stock, correcting a count, and the movement ledger behind every figure."],
         ["Staff", "/staff, /staff/new, /staff/[id], /staff/[id]/edit", "Staff records, permissions, assigned work, salary tracking, deactivation, deletion, and password resets."],
         ["Staff Applications", "/staff/applications", "Admin review queue for signup requests."],
         ["Credits & Refunds", "/credits", "Open credits from overpayments or closures and refund tracking."],
@@ -414,6 +416,7 @@ def build_body() -> str:
       |      balanceAtDelivery recorded, account stays open and collectible
       |
       +--> deliveryStatus becomes DELIVERED
+      +--> stock on hand for the product decreases by one
       +--> account leaves the procurement list
     """, "Diagram 4: Customer Account Lifecycle"))
     body.append(table([
@@ -424,49 +427,58 @@ def build_body() -> str:
         ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit, and queues one receipt channel."],
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
-        ["Confirm delivery", "actions/accounts.ts", "Fully paid accounts are confirmed by any account manager. Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Revalidates account/customer/product screens."],
+        ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts are confirmed by any account manager. Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Stock on hand drops by one and a DELIVERED movement is written; reversing the delivery returns the unit. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory screens."],
     ], [2200, 3100, 4060]))
 
-    body.append(section("7. Product and Procurement Module"))
-    body.append(para("The procurement list is a computed view, not a separate table. It groups pending-delivery customer accounts by product when their payment progress reaches the effective procurement threshold. The current rule is at least 70% paid, including fully paid accounts that are not yet delivered. An account stops contributing to procurement quantity once procurement is confirmed for it, or once delivery is confirmed."))
-    body.append(para("Procurement confirmation records what was actually bought. On the procurement tab the operator presses the procured action on a product row and enters the quantity bought in a small dialog; that many units are consumed from the queue, starting with the customers closest to finishing their plan. Confirmation is stored per account as procuredAt and procuredBy, so a partial purchase reduces the outstanding count by exactly the quantity entered and leaves the remainder on the list. Because procuredAt is part of the shared procurement query, the products tab, the sidebar attention badge, the procurement Excel export, the weekly report sheet and the reports module all reduce together. Confirming requires MANAGE_PRODUCTS, is audit logged with the requested and confirmed quantities, and is guarded so two operators cannot consume the same unit twice. Confirming procurement does not change delivery, which is still confirmed on the account."))
+    body.append(section("7. Product, Inventory, and Procurement Module"))
+    body.append(para("Inventory and procurement are one loop. Inventory is the stored record of what is physically in the store room: Product.stockOnHand, backed by an InventoryMovement ledger row for every change. Procurement is a computed view over that record, not a separate table. It groups pending-delivery customer accounts by product when their payment progress reaches the effective procurement threshold, currently at least 70% paid including fully paid accounts that are not yet delivered, and then subtracts the units already in stock."))
+    body.append(para("A product therefore appears on the buying list only when the units its customers are owed exceed the units on the shelf; a product whose stock covers its demand does not appear at all. Stock is allocated to the customers closest to finishing their plan first, so the unit on the shelf is reserved for whoever is due it soonest. The allocation rule is the pure function allocateStockToDemand in lib/procurement.ts, covered by scripts/inventory.test.ts."))
+    body.append(para("Receiving stock is the action that closes the loop. On the procurement tab or the inventory page the operator presses Receive on a product row and enters the quantity bought; those units enter stock and the buying list reduces by exactly that quantity, so a partial purchase leaves the remainder listed. Delivery moves stock the other way, and a correction sets the count to what was actually on the shelf. Every movement is stored with its reason, the resulting balance, the person and the time, so any figure can be explained afterwards. Receiving and correcting both require MANAGE_PRODUCTS and are audit logged as RECEIVE_STOCK and CORRECT_STOCK. Because stock on hand is part of the shared procurement query, the products tab, the sidebar attention badge, the procurement Excel export, the weekly report sheet and the reports module all reduce together."))
+    body.append(para("This replaced an earlier per-account procured flag and the hand-typed quantity-on-sale field, both dropped by migration 20260917100000_inventory_module. The flag marked units as bought but could not answer how many were actually held, so stock and demand could not be compared. Units marked procured and not yet delivered were converted into opening stock by that migration, attributed to system, so they would not be bought a second time."))
     body.append(code_block("""
     CustomerAccount
       |
       +--> status in ACTIVE / COMPLETED / OVERDUE / DORMANT / PROBATION
       +--> deliveryStatus is PENDING
-      +--> procuredAt is null
       +--> totalPaid / targetAmount >= 70%
       |
       v
-    Group by Product
+    Units owed, per Product
       |
-      +--> quantity = eligible accounts count
-      +--> totalCost = quantity * (costPrice + transportCost)
-      +--> averageProgress and highestProgress displayed
+      +--> subtract Product.stockOnHand, highest paid % served first
+      |
+      +--> covered by stock --> waiting for handover, NOT on the buying list
+      +--> not covered      --> units to buy
       |
       v
     Products procurement tab + sidebar notification + weekly report sheet
+      |    (a product whose stock covers its demand does not appear at all)
       |
       v
-    Confirm procured quantity
+    Receive stock (quantity bought)
       |
-      +--> consumes that many units, highest paid % first
-      +--> sets procuredAt / procuredBy on those accounts
-      +--> reduces the buying list by exactly that quantity
+      +--> Product.stockOnHand increases
+      +--> InventoryMovement RECEIVED written with the new balance
+      +--> buying list reduces by exactly that quantity
       |
       v
     Confirm delivery on the account completes the handover
-    """, "Diagram 5: Procurement Readiness Flow"))
+      |
+      +--> Product.stockOnHand decreases by one
+      +--> InventoryMovement DELIVERED written, linked to the account
+      +--> zero stock still delivers: floors at zero and warns the operator
+    """, "Diagram 5: Inventory and Procurement Flow"))
     body.append(table([
         ["Procurement field", "Meaning"],
-        ["Products to buy", "Number of product groups with at least one eligible pending-delivery account."],
-        ["Total units", "Total eligible pending-delivery accounts across all products."],
-        ["Estimated total cost", "Sum of landed product cost for all units to buy."],
+        ["Products to buy", "Number of products whose units owed exceed their stock on hand."],
+        ["Units to buy", "Eligible pending-delivery accounts across all products, less the units already in stock."],
+        ["In stock", "Units of that product currently held, shown beside the units to buy so the figure can be read at a glance."],
+        ["Estimated total cost", "Sum of landed product cost for the units still to buy. Units covered by stock are not costed again."],
         ["Average paid", "Average payment progress across eligible accounts for that product."],
         ["Highest paid", "Highest payment progress across eligible accounts, used for sorting."],
-        ["Confirm procured", "Operator enters the quantity actually bought in a dialog on the product row. Units are consumed highest paid % first and leave the list immediately."],
-        ["Clearing rule", "An account leaves procurement when procuredAt is set, or when delivery confirmation changes deliveryStatus to DELIVERED."],
+        ["Receive", "Operator enters the quantity actually bought in a dialog on the product row. Those units enter stock and leave the buying list immediately."],
+        ["Clearing rule", "A product leaves the buying list when stock on hand covers the units its customers are owed, or when delivery confirmation changes deliveryStatus to DELIVERED."],
+        ["Movement reasons", "OPENING, RECEIVED, DELIVERED, RETURNED, and CORRECTION. Each row stores the signed change, the resulting balance, an optional note, the linked account where relevant, the person and the time."],
     ], [2300, 7060]))
 
     body.append(section("8. Staff, Applications, Salary, and Password Management"))

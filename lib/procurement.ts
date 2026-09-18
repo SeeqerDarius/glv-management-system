@@ -14,7 +14,11 @@ export type ProcurementListItem = {
   productId: string;
   productName: string;
   category: string;
+  /** Units still to be bought: demand beyond what is already in stock. */
   quantity: number;
+  /** Units customers are owed, before stock is taken off. */
+  unitsOwed: number;
+  stockOnHand: number;
   unitCost: number;
   transportCost: number;
   landedUnitCost: number;
@@ -42,24 +46,37 @@ export type ProcurementAccountItem = {
   totalPaid: number;
   balance: number;
   progress: number;
+  /**
+   * True when this unit is already sitting in the store room — stock covers it,
+   * so it is waiting to be handed over rather than waiting to be bought.
+   */
+  coveredByStock: boolean;
 };
 
-export async function getProcurementAccounts(productId?: string) {
+async function getThresholdPercent() {
   const settings = await getSettings();
   const configuredThreshold = Number(
     settings.procurementThresholdPercent ?? 70
   );
-  const thresholdPercent = Number.isFinite(configuredThreshold)
+
+  return Number.isFinite(configuredThreshold)
     ? Math.min(Math.max(configuredThreshold, 0), 100)
     : 70;
+}
+
+/**
+ * Every account that has paid far enough to be owed its product and has not
+ * received it yet. This is demand, not a shopping list: stock on hand has not
+ * been taken off.
+ */
+export async function getProcurementAccounts(productId?: string) {
+  const thresholdPercent = await getThresholdPercent();
   const threshold = thresholdPercent / 100;
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
       ...(productId ? { productId } : {}),
       deliveryStatus: DeliveryStatus.PENDING,
-      // A unit that has already been bought leaves the buying list.
-      procuredAt: null,
       status: {
         in: procurementStatuses,
       },
@@ -90,6 +107,7 @@ export async function getProcurementAccounts(productId?: string) {
           costPrice: true,
           transportCost: true,
           layawayPrice: true,
+          stockOnHand: true,
         },
       },
     },
@@ -126,44 +144,128 @@ export async function getProcurementAccounts(productId?: string) {
       totalPaid: account.totalPaid,
       balance: account.balance,
       progress,
+      coveredByStock: false,
     });
   }
 
+  items.sort(
+    (a, b) =>
+      a.productName.localeCompare(b.productName) ||
+      // Within a product, the customer closest to finishing is served first, so
+      // that is who the stock on the shelf is reserved for.
+      b.progress - a.progress ||
+      a.customerName.localeCompare(b.customerName)
+  );
+
+  const stockByProduct = new Map<string, number>();
+
+  for (const account of accounts) {
+    stockByProduct.set(account.product.id, account.product.stockOnHand);
+  }
+
+  allocateStockToDemand(items, stockByProduct);
+
   return {
     thresholdPercent,
-    items: items.sort(
-      (a, b) =>
-        a.productName.localeCompare(b.productName) ||
-        a.customerName.localeCompare(b.customerName)
-    ),
+    items,
   };
 }
 
+/**
+ * Marks the units that stock on hand already covers, in the order given.
+ *
+ * This is the rule the whole module turns on: a unit sitting in the store room
+ * is waiting to be handed over, not waiting to be bought, so it must not make
+ * the product ask to be bought again. Callers pass the items already sorted
+ * with the customers nearest completion first, so the stock is reserved for
+ * whoever is due it soonest.
+ *
+ * Mutates in place and returns the items, so it can be used either way.
+ */
+export function allocateStockToDemand<
+  T extends { productId: string; coveredByStock: boolean },
+>(items: T[], stockByProduct: Map<string, number>) {
+  const remaining = new Map(stockByProduct);
+
+  for (const item of items) {
+    const available = remaining.get(item.productId) ?? 0;
+
+    item.coveredByStock = available > 0;
+
+    if (available > 0) {
+      remaining.set(item.productId, available - 1);
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Units owed per product, used by both the inventory page and the procurement
+ * list so the two can never disagree about demand.
+ */
+export async function getProcurementDemand() {
+  const procurement = await getProcurementAccounts();
+  const unitsByProduct = new Map<string, number>();
+
+  for (const item of procurement.items) {
+    unitsByProduct.set(
+      item.productId,
+      (unitsByProduct.get(item.productId) ?? 0) + 1
+    );
+  }
+
+  return {
+    thresholdPercent: procurement.thresholdPercent,
+    unitsByProduct,
+  };
+}
+
+/**
+ * The buying list: one row per product, showing only the units that still have
+ * to be bought. A product whose stock on hand covers everything it owes does
+ * not appear at all.
+ */
 export async function getProcurementList() {
   const procurement = await getProcurementAccounts();
-  const grouped = new Map<string, ProcurementListItem & { progressTotal: number }>();
+  const grouped = new Map<
+    string,
+    ProcurementListItem & { progressTotal: number }
+  >();
 
   for (const account of procurement.items) {
     const existing = grouped.get(account.productId);
 
     if (existing) {
-      existing.quantity += 1;
-      existing.totalCost += account.landedUnitCost;
+      existing.unitsOwed += 1;
       existing.progressTotal += account.progress;
-      existing.averageProgress = existing.progressTotal / existing.quantity;
-      existing.highestProgress = Math.max(existing.highestProgress, account.progress);
+      existing.averageProgress = existing.progressTotal / existing.unitsOwed;
+      existing.highestProgress = Math.max(
+        existing.highestProgress,
+        account.progress
+      );
+
+      if (!account.coveredByStock) {
+        existing.quantity += 1;
+        existing.totalCost += account.landedUnitCost;
+      }
+
       continue;
     }
+
+    const covered = account.coveredByStock;
 
     grouped.set(account.productId, {
       productId: account.productId,
       productName: account.productName,
       category: account.category,
-      quantity: 1,
+      quantity: covered ? 0 : 1,
+      unitsOwed: 1,
+      stockOnHand: 0,
       unitCost: account.unitCost,
       transportCost: account.transportCost,
       landedUnitCost: account.landedUnitCost,
-      totalCost: account.landedUnitCost,
+      totalCost: covered ? 0 : account.landedUnitCost,
       layawayPrice: account.layawayPrice,
       averageProgress: account.progress,
       highestProgress: account.progress,
@@ -171,19 +273,26 @@ export async function getProcurementList() {
     });
   }
 
-  const items = Array.from(grouped.values()).map((groupedItem) => ({
-    productId: groupedItem.productId,
-    productName: groupedItem.productName,
-    category: groupedItem.category,
-    quantity: groupedItem.quantity,
-    unitCost: groupedItem.unitCost,
-    transportCost: groupedItem.transportCost,
-    landedUnitCost: groupedItem.landedUnitCost,
-    totalCost: groupedItem.totalCost,
-    layawayPrice: groupedItem.layawayPrice,
-    averageProgress: groupedItem.averageProgress,
-    highestProgress: groupedItem.highestProgress,
-  })).sort(
+  const items = Array.from(grouped.values())
+    // A product whose shelf already covers its customers is not something to
+    // buy, so it leaves the list entirely.
+    .filter((groupedItem) => groupedItem.quantity > 0)
+    .map((groupedItem) => ({
+      productId: groupedItem.productId,
+      productName: groupedItem.productName,
+      category: groupedItem.category,
+      quantity: groupedItem.quantity,
+      unitsOwed: groupedItem.unitsOwed,
+      stockOnHand: groupedItem.unitsOwed - groupedItem.quantity,
+      unitCost: groupedItem.unitCost,
+      transportCost: groupedItem.transportCost,
+      landedUnitCost: groupedItem.landedUnitCost,
+      totalCost: groupedItem.totalCost,
+      layawayPrice: groupedItem.layawayPrice,
+      averageProgress: groupedItem.averageProgress,
+      highestProgress: groupedItem.highestProgress,
+    }))
+    .sort(
       (a, b) =>
         b.quantity - a.quantity ||
         b.highestProgress - a.highestProgress ||

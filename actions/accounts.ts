@@ -27,6 +27,10 @@ import {
   recordPaymentForAccount,
 } from "@/lib/payment-recording";
 import { prisma } from "@/lib/prisma";
+import {
+  INVENTORY_REASONS,
+  recordInventoryMovement,
+} from "@/lib/inventory";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
@@ -726,8 +730,9 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
 
   const deliveredAt =
     nextStatus === DeliveryStatus.DELIVERED ? new Date() : null;
+  const alreadyDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
 
-  await prisma.$transaction(async (tx) => {
+  const movement = await prisma.$transaction(async (tx) => {
     await tx.customerAccount.update({
       where: {
         id: account.id,
@@ -781,6 +786,38 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
         }),
       },
     });
+
+    // Handing the product over takes it off the shelf; reversing a delivery
+    // puts it back. Only a real change of state moves stock, so re-confirming
+    // an already delivered account does not decrement twice.
+    if (nextStatus === DeliveryStatus.DELIVERED && !alreadyDelivered) {
+      // Stock is allowed to be wrong: if the unit was never booked in, the
+      // customer still walks away with it. The count floors at zero and the
+      // operator is told, rather than the handover being blocked at the
+      // counter.
+      return recordInventoryMovement(tx, {
+        productId: account.productId,
+        delta: -1,
+        reason: INVENTORY_REASONS.DELIVERED,
+        createdBy: user.id,
+        accountId: account.id,
+        note: "Handed over to customer.",
+        clampAtZero: false,
+      });
+    }
+
+    if (nextStatus === DeliveryStatus.PENDING && alreadyDelivered) {
+      return recordInventoryMovement(tx, {
+        productId: account.productId,
+        delta: 1,
+        reason: INVENTORY_REASONS.RETURNED,
+        createdBy: user.id,
+        accountId: account.id,
+        note: "Delivery reversed, unit back in stock.",
+      });
+    }
+
+    return null;
   });
 
   revalidatePath("/accounts");
@@ -788,6 +825,13 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   revalidatePath(`/customers/${account.customerId}`);
   revalidatePath("/products");
   revalidatePath(`/products/${account.productId}`);
+  revalidatePath("/inventory");
+
+  // The delivery is recorded either way; this only tells the operator the shelf
+  // count did not have the unit, so the books need a correction.
+  if (movement?.clamped) {
+    redirect(`/accounts/${account.id}?warning=delivery-without-stock`);
+  }
 }
 
 export async function reactivateDormantAccount(formData: FormData): Promise<void> {

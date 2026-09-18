@@ -175,7 +175,7 @@ export async function GET() {
       UserPermission.MANAGE_PRODUCTS,
     )
   ) {
-    const [procurement, productsMissingImages, inactiveProductsForSale] =
+    const [procurement, productsMissingImages, inactiveProductsHoldingStock] =
       await Promise.all([
         getProcurementList(),
         prisma.product.count({
@@ -184,10 +184,12 @@ export async function GET() {
             OR: [{ imageUrl: null }, { imageUrl: "" }],
           },
         }),
+        // Stock sitting under a product nobody can sell any more is money on
+        // a shelf, so it is worth surfacing.
         prisma.product.count({
           where: {
             active: false,
-            quantityOnSale: { gt: 0 },
+            stockOnHand: { gt: 0 },
           },
         }),
       ]);
@@ -211,14 +213,14 @@ export async function GET() {
       });
     }
 
-    if (inactiveProductsForSale > 0) {
-      addAttention(attention, "/products", {
-        count: inactiveProductsForSale,
+    if (inactiveProductsHoldingStock > 0) {
+      addAttention(attention, "/inventory", {
+        count: inactiveProductsHoldingStock,
         label: `${plural(
-          inactiveProductsForSale,
+          inactiveProductsHoldingStock,
           "inactive product",
-        )} still marked for sale`,
-        href: "/products",
+        )} still holding stock`,
+        href: "/inventory",
       });
     }
   }

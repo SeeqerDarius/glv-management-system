@@ -70,7 +70,7 @@ export default async function AccountDetailsPage({
   searchParams,
 }: AccountDetailsPageProps) {
   const { id } = await params;
-  const { created, error, refunded, updated } = await searchParams;
+  const { created, error, warning, refunded, updated } = await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -490,6 +490,20 @@ export default async function AccountDetailsPage({
             ))}
           </div>
         </section>
+      ) : null}
+
+      {warning === "delivery-without-stock" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Delivery recorded, but inventory held no stock of this product, so the
+          count could not be reduced. Correct the count on the{" "}
+          <Link
+            href="/inventory"
+            className="font-medium underline underline-offset-2"
+          >
+            inventory page
+          </Link>{" "}
+          so the books match the shelf.
+        </div>
       ) : null}
 
       {error === "delivery-not-completed" ? (

@@ -42,10 +42,10 @@ export default async function ProcurementProductPage({
     notFound();
   }
 
-  const totalCost = procurement.items.reduce(
-    (sum, item) => sum + item.landedUnitCost,
-    0
-  );
+  // Units the shelf already covers are waiting to be handed over, not bought,
+  // so they do not count towards what this trip to the market will cost.
+  const toBuy = procurement.items.filter((item) => !item.coveredByStock);
+  const totalCost = toBuy.reduce((sum, item) => sum + item.landedUnitCost, 0);
 
   return (
     <div className="space-y-6">
@@ -74,6 +74,7 @@ export default async function ProcurementProductPage({
             <p className="mt-2 text-sm text-gray-600">
               Customers whose accounts are at least{" "}
               {procurement.thresholdPercent}% paid and still pending delivery.
+              Those the store room already covers are marked in stock.
             </p>
           </div>
         </div>
@@ -88,10 +89,10 @@ export default async function ProcurementProductPage({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-            Units
+            Units to buy
           </p>
           <p className="mt-1 text-2xl font-semibold text-gray-950">
-            {procurement.items.length}
+            {toBuy.length}
           </p>
         </div>
         <div className="rounded-lg border bg-white p-4">
@@ -114,7 +115,7 @@ export default async function ProcurementProductPage({
 
       <div className="overflow-hidden rounded-lg border bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-sm">
+          <table className="w-full min-w-[1060px] text-sm">
             <thead>
               <tr className="bg-gray-100 text-left text-gray-700">
                 <th className="p-3 font-medium">Customer</th>
@@ -124,6 +125,7 @@ export default async function ProcurementProductPage({
                 <th className="p-3 text-right font-medium">Total Paid</th>
                 <th className="p-3 text-right font-medium">Balance</th>
                 <th className="p-3 text-right font-medium">Unit Cost</th>
+                <th className="p-3 font-medium">Status</th>
                 <th className="p-3 text-right font-medium">Action</th>
               </tr>
             </thead>
@@ -137,19 +139,30 @@ export default async function ProcurementProductPage({
                   <td className="p-3">
                     {item.staffCode} - {item.staffName}
                   </td>
-                  <td className="p-3 text-right tabular-nums">
+                  <td className="whitespace-nowrap p-3 text-right tabular-nums">
                     {percent(item.progress)}
                   </td>
-                  <td className="p-3 text-right tabular-nums">
+                  <td className="whitespace-nowrap p-3 text-right tabular-nums">
                     {formatMoney(item.totalPaid)}
                   </td>
-                  <td className="p-3 text-right tabular-nums">
+                  <td className="whitespace-nowrap p-3 text-right tabular-nums">
                     {formatMoney(item.balance)}
                   </td>
-                  <td className="p-3 text-right tabular-nums font-semibold text-green-700">
+                  <td className="whitespace-nowrap p-3 text-right tabular-nums font-semibold text-green-700">
                     {formatMoney(item.landedUnitCost)}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3">
+                    {item.coveredByStock ? (
+                      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-lime-100 px-2 py-0.5 text-xs font-semibold text-green-900">
+                        In stock
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">
+                        To buy
+                      </span>
+                    )}
+                  </td>
+                  <td className="whitespace-nowrap p-3 text-right">
                     <Link
                       href={`/accounts/${item.accountId}`}
                       className="font-medium text-green-700 hover:underline"

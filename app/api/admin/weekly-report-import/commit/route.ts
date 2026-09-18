@@ -164,7 +164,6 @@ export async function POST(request: Request) {
                 Math.max(1, Math.round(exampleAccount.daysPaid + exampleAccount.daysLeft)),
               layawayPrice:
                 exportedProduct.layawayPrice || exampleAccount.targetAmount,
-              quantityOnSale: 0,
               active: true,
               description:
                 productDetails.has(key) && exportedProduct.name !== productName
