@@ -63,6 +63,39 @@ test("missed-payment reminder waits two full weeks, then repeats per further for
   assert.equal(missedPaymentPeriod({ ...account, balance: 0 }, new Date(+start + MISSED_PAYMENT_WINDOW_MS)), null);
   assert.equal(missedPaymentPeriod({ ...account, payments: [{ id: "p", paymentDate: start, createdAt: new Date(+start + MISSED_PAYMENT_WINDOW_MS) }] }, new Date(+start + MISSED_PAYMENT_WINDOW_MS)), null);
 });
+test("reactivating an account restarts the missed-payment clock", () => {
+  const start = new Date("2026-01-01T00:00:00Z");
+  const paidAt = new Date("2026-03-01T00:00:00Z");
+  const reactivatedAt = new Date("2026-09-01T00:00:00Z");
+  const account = {
+    status: "ACTIVE", balance: 100, startDate: start,
+    payments: [{ id: "p1", paymentDate: paidAt, createdAt: paidAt }],
+  };
+  // Six months idle, then reactivated: the reminder must not fire the same day.
+  const reactivated = { ...account, reactivatedAt };
+  assert.equal(missedPaymentPeriod(reactivated, reactivatedAt), null);
+  assert.equal(missedPaymentPeriod(reactivated, new Date(+reactivatedAt + MISSED_PAYMENT_WINDOW_MS - 1)), null);
+  // Without the reactivation the same account is long overdue for a reminder.
+  assert.ok(missedPaymentPeriod(account, reactivatedAt)?.endsWith(":13"));
+  // The fortnight after reactivation counts from the reactivation, under a key
+  // that cannot collide with the reminders sent before the account closed.
+  assert.equal(
+    missedPaymentPeriod(reactivated, new Date(+reactivatedAt + MISSED_PAYMENT_WINDOW_MS)),
+    `p1:r${+reactivatedAt}:1`
+  );
+  // An account that was never reactivated keeps its original dedupe key.
+  assert.equal(
+    missedPaymentPeriod(account, new Date(+paidAt + MISSED_PAYMENT_WINDOW_MS)),
+    "p1:1"
+  );
+  // A payment after the reactivation takes the clock back over.
+  const paidAgain = new Date("2026-09-20T00:00:00Z");
+  assert.equal(
+    missedPaymentPeriod({ ...reactivated, payments: [{ id: "p2", paymentDate: paidAgain, createdAt: paidAgain }] },
+      new Date(+paidAgain + MISSED_PAYMENT_WINDOW_MS)),
+    "p2:1"
+  );
+});
 test("expected weekly amount and target comparison tolerate float noise and odd data", () => {
   assert.equal(expectedWeeklyAmount([25]), 175);
   assert.equal(expectedWeeklyAmount([25, 10]), 245);

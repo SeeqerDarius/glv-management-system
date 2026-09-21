@@ -45,14 +45,26 @@ export function metWeeklyTarget(paidAmount: number, expectedAmount: number) {
 }
 
 export function missedPaymentPeriod(account: {
-  status: string; balance: number; startDate: Date;
+  status: string; balance: number; startDate: Date; reactivatedAt?: Date | null;
   payments: Array<{ id: string; paymentDate: Date; createdAt: Date }>;
 }, now = new Date()) {
   if (!["ACTIVE", "OVERDUE"].includes(account.status) || account.balance <= 0) return null;
   const latest = account.payments[0];
-  // A backdated payment entered today also resets reminders.
+  // A backdated payment entered today also resets reminders. So does a
+  // reactivation, which restarts the plan and must not fire a reminder for the
+  // months the account spent dormant before it.
+  const reactivatedAt = account.reactivatedAt?.getTime() ?? 0;
   const anchor = Math.max(account.startDate.getTime(), latest?.paymentDate.getTime() ?? 0,
-    latest?.createdAt.getTime() ?? 0);
+    latest?.createdAt.getTime() ?? 0, reactivatedAt);
   const period = Math.floor((now.getTime() - anchor) / MISSED_PAYMENT_WINDOW_MS);
-  return period >= 1 ? `${latest?.id ?? account.startDate.toISOString()}:${period}` : null;
+  if (period < 1) return null;
+  const base = latest?.id ?? account.startDate.toISOString();
+  // Reactivation restarts the period count at 1, which would collide with a
+  // reminder already sent before the account closed and silently dedupe it
+  // away. Such an account gets its own key namespace. An account that was
+  // never reactivated keeps the original key, so reminders already queued
+  // under it stay deduped.
+  return account.reactivatedAt && anchor === reactivatedAt
+    ? `${base}:r${reactivatedAt}:${period}`
+    : `${base}:${period}`;
 }
