@@ -147,3 +147,52 @@ export async function recordPaymentForAccount({
   await queueAccountSms(tx, account.id, "PROGRESS_70");
   return createdPayment;
 }
+
+/**
+ * Re-derives an account's paid total, balance and status from the payments
+ * that currently exist. Shared by payment edits, payment deletion and the undo
+ * engine, all of which change the payment set underneath an account.
+ */
+export async function recalculateAccountAfterPaymentChange(
+  tx: Prisma.TransactionClient,
+  account: {
+    id: string;
+    targetAmount: number;
+    status: AccountStatus;
+  }
+) {
+  const paymentTotals = await tx.payment.aggregate({
+    where: {
+      accountId: account.id,
+    },
+    _sum: {
+      amount: true,
+    },
+  });
+  const nextTotalPaid = paymentTotals._sum.amount ?? 0;
+  const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
+  const nextStatus =
+    nextBalance <= 0
+      ? AccountStatus.COMPLETED
+      : account.status === AccountStatus.COMPLETED
+        ? AccountStatus.ACTIVE
+        : account.status;
+
+  await tx.customerAccount.update({
+    where: {
+      id: account.id,
+    },
+    data: {
+      totalPaid: nextTotalPaid,
+      balance: nextBalance,
+      status: nextStatus,
+    },
+  });
+
+  await queueAccountSms(tx, account.id, "PROGRESS_70");
+  return {
+    nextTotalPaid,
+    nextBalance,
+    nextStatus,
+  };
+}

@@ -306,6 +306,27 @@ model CustomerAccount {
   messages        CustomerMessage[]
 }
 
+/// A consequential action an administrator can retract for a short window.
+/// `payload` holds everything the matching reverse handler needs, including the
+/// values the action wrote, so the handler can refuse when the record has moved
+/// on since (a payment recorded after a reactivation, for example).
+model ReversibleAction {
+  id          String    @id @default(cuid())
+  action      String
+  entity      String
+  entityId    String
+  summary     String
+  payload     String
+  performedBy String
+  performedAt DateTime  @default(now())
+  expiresAt   DateTime
+  reversedAt  DateTime?
+  reversedBy  String?
+
+  @@index([entity, entityId, performedAt])
+  @@index([reversedAt, expiresAt])
+}
+
 model LegalTemplate {
   id          String   @id @default(cuid())
   key         String   @unique

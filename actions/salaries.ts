@@ -8,6 +8,8 @@ import { auth } from "@/lib/auth";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { recordReversibleAction } from "@/lib/undo";
+import { formatMoney } from "@/lib/accounts";
 import { isFutureDate } from "@/lib/date-rules";
 import { isFutureSalaryMonth, parseSalaryMonth } from "@/lib/salary-periods";
 
@@ -119,6 +121,26 @@ export async function deleteStaffSalary(formData: FormData): Promise<void> {
         oldValue: JSON.stringify(payment),
       },
     });
+    await recordReversibleAction(tx, {
+      action: "DELETE_STAFF_SALARY",
+      entity: "StaffSalaryPayment",
+      entityId: payment.id,
+      performedBy: user.id,
+      summary: `Deleted ${payment.staff.code}'s salary payment of ${formatMoney(payment.amount)}.`,
+      payload: {
+        salary: {
+          id: payment.id,
+          staffId: payment.staffId,
+          amount: payment.amount,
+          paymentDate: payment.paymentDate,
+          salaryMonth: payment.salaryMonth,
+          notes: payment.notes,
+          paidBy: payment.paidBy,
+          createdAt: payment.createdAt,
+        },
+      },
+    });
+
     await tx.staffSalaryPayment.delete({ where: { id: payment.id } });
   });
 

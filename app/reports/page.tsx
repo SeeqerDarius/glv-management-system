@@ -39,6 +39,8 @@ import {
   type MetricTone,
 } from "@/components/reports/report-layout";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
+import { UndoNotice, UndoPanel } from "@/components/undo-panel";
+import { listUndoableActions } from "@/lib/undo";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Badge } from "@/components/ui/badge";
@@ -204,6 +206,11 @@ export default async function ReportsPage({
   }
 
   const isAdmin = isAdminRole(session?.user?.role);
+  const undoableActions = isAdmin
+    ? await listUndoableActions({
+        entities: ["StaffDeposit", "StaffSalaryPayment"],
+      })
+    : [];
   const isCurrentWeek = weekParam(selectedDate) === weekParam(new Date());
   const previousWeekDate = new Date(report.start);
   previousWeekDate.setDate(previousWeekDate.getDate() - 7);
@@ -321,6 +328,12 @@ export default async function ReportsPage({
       </div>
 
       <SectionNav items={SECTIONS} />
+
+      <UndoNotice undone={query.undone} undoError={query.undoError} />
+
+      {isAdmin ? (
+        <UndoPanel actions={undoableActions} returnTo="/reports" />
+      ) : null}
 
       <ReportSection
         id="overview"

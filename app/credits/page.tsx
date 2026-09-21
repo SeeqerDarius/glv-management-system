@@ -11,6 +11,8 @@ import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { UndoNotice, UndoPanel } from "@/components/undo-panel";
+import { listUndoableActions } from "@/lib/undo";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -158,6 +160,10 @@ export default async function CreditsPage({
     },
   });
 
+  const undoableActions = await listUndoableActions({
+    entity: "CustomerCredit",
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -179,6 +185,9 @@ export default async function CreditsPage({
           </p>
         </div>
       </div>
+
+      <UndoNotice undone={query.undone} undoError={query.undoError} />
+      <UndoPanel actions={undoableActions} returnTo="/credits" />
 
       {query.refunded === "credit" ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">

@@ -5,6 +5,8 @@ import { deletePayment } from "@/actions/payments";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
+import { UndoNotice, UndoPanel } from "@/components/undo-panel";
+import { listUndoableActions } from "@/lib/undo";
 import { PaymentModalLauncher } from "@/components/payment-modal-launcher";
 import { formatMoney } from "@/lib/accounts";
 import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
@@ -77,7 +79,7 @@ function canEditPayment(createdAt: Date, windowHours: number) {
 }
 
 export default async function PaymentsPage({ searchParams }: PaymentsPageProps) {
-  const { error, deleted, from, method, page, q, sort, staffId, to } =
+  const { error, deleted, from, method, page, q, sort, staffId, to, undone, undoError } =
     await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
@@ -334,6 +336,10 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
     >()
   );
 
+  const undoableActions = isAdmin
+    ? await listUndoableActions({ entities: ["Payment", "CustomerCredit"] })
+    : [];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -349,6 +355,12 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
           }
         />
       </div>
+
+      <UndoNotice undone={undone} undoError={undoError} />
+
+      {isAdmin ? (
+        <UndoPanel actions={undoableActions} returnTo="/payments" />
+      ) : null}
 
       {/* Toasts */}
       {error === "payment-not-found" ? (

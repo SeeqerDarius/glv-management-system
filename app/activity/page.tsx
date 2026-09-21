@@ -3,6 +3,8 @@ import { formatMoney } from "@/lib/accounts";
 import { getActivityReport } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
+import { UndoNotice, UndoPanel } from "@/components/undo-panel";
+import { listUndoableActions } from "@/lib/undo";
 import { ProductImagePreview } from "@/components/product-image-preview";
 
 function formatDate(value: Date) {
@@ -50,9 +52,15 @@ function BarRow({
   );
 }
 
-export default async function ActivityPage() {
+export default async function ActivityPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
+  const query = await searchParams;
   const session = await auth();
   const isAdmin = isAdminRole(session?.user?.role);
+  const undoableActions = isAdmin ? await listUndoableActions() : [];
   let report: Awaited<ReturnType<typeof getActivityReport>>;
 
   try {
@@ -85,6 +93,17 @@ export default async function ActivityPage() {
             </p>
           </div>
         </div>
+
+        {isAdmin ? (
+          <>
+            <UndoNotice undone={query.undone} undoError={query.undoError} />
+            <UndoPanel
+              actions={undoableActions}
+              returnTo="/activity"
+              emptyMessage="Nothing has been done in the last three hours that can be retracted."
+            />
+          </>
+        ) : null}
 
         <section className="grid gap-5 xl:grid-cols-2">
           <div className="rounded-lg border bg-white p-5">

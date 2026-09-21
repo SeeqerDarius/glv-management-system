@@ -5,16 +5,16 @@ import {
   CreditStatus,
   UserPermission,
   UserRole,
-  type Prisma,
 } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { dispatchDueSms, queueAccountSms } from "@/lib/sms-notifications";
+import { dispatchDueSms } from "@/lib/sms-notifications";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
   parsePaymentDate,
+  recalculateAccountAfterPaymentChange,
   recordPaymentForAccount,
 } from "@/lib/payment-recording";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +25,7 @@ import { isFutureDate } from "@/lib/date-rules";
 import { createAccountDocument } from "@/lib/customer-documents";
 import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
 import { formatMoney } from "@/lib/accounts";
+import { recordReversibleAction } from "@/lib/undo";
 import {
   claimIdempotencyKey,
   completeIdempotencyKey,
@@ -82,50 +83,6 @@ function safeReturnTo(value: string, fallback: string) {
 function canEditPaymentCreatedAt(createdAt: Date, windowHours: number, now = new Date()) {
   const elapsedMs = now.getTime() - createdAt.getTime();
   return elapsedMs >= 0 && elapsedMs <= windowHours * 60 * 60 * 1000;
-}
-
-async function recalculateAccountAfterPaymentChange(
-  tx: Prisma.TransactionClient,
-  account: {
-    id: string;
-    targetAmount: number;
-    status: AccountStatus;
-  }
-) {
-  const paymentTotals = await tx.payment.aggregate({
-    where: {
-      accountId: account.id,
-    },
-    _sum: {
-      amount: true,
-    },
-  });
-  const nextTotalPaid = paymentTotals._sum.amount ?? 0;
-  const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
-  const nextStatus =
-    nextBalance <= 0
-      ? AccountStatus.COMPLETED
-      : account.status === AccountStatus.COMPLETED
-        ? AccountStatus.ACTIVE
-        : account.status;
-
-  await tx.customerAccount.update({
-    where: {
-      id: account.id,
-    },
-    data: {
-      totalPaid: nextTotalPaid,
-      balance: nextBalance,
-      status: nextStatus,
-    },
-  });
-
-  await queueAccountSms(tx, account.id, "PROGRESS_70");
-  return {
-    nextTotalPaid,
-    nextBalance,
-    nextStatus,
-  };
 }
 
 async function verifyAdminPassword(adminUserId: string, password: string) {
@@ -622,6 +579,27 @@ export async function deletePayment(formData: FormData): Promise<void> {
         },
       });
 
+      await recordReversibleAction(tx, {
+        action: "DELETE_PAYMENT",
+        entity: "Payment",
+        entityId: payment.id,
+        performedBy: user.id,
+        summary: `Deleted receipt ${payment.receiptNo} — ${formatMoney(payment.amount)} from ${payment.account.customer.fullName}.`,
+        payload: {
+          payment: {
+            id: payment.id,
+            receiptNo: payment.receiptNo,
+            accountId: payment.accountId,
+            amount: payment.amount,
+            paymentDate: payment.paymentDate,
+            method: payment.method,
+            notes: payment.notes,
+            receivedBy: payment.receivedBy,
+            createdAt: payment.createdAt,
+          },
+        },
+      });
+
       await tx.payment.delete({
         where: {
           id: payment.id,
@@ -688,6 +666,22 @@ export async function markCustomerCreditRefunded(
         remainingAmount: 0,
         resolvedBy: user.id,
         resolvedAt: new Date(),
+      },
+    });
+
+    await recordReversibleAction(tx, {
+      action: "REFUND_CUSTOMER_CREDIT",
+      entity: "CustomerCredit",
+      entityId: credit.id,
+      performedBy: user.id,
+      summary: `Marked ${formatMoney(credit.remainingAmount)} of ${credit.customer.fullName}'s credit as refunded.`,
+      payload: {
+        before: {
+          status: credit.status,
+          remainingAmount: credit.remainingAmount,
+          resolvedBy: credit.resolvedBy,
+          resolvedAt: credit.resolvedAt,
+        },
       },
     });
 
