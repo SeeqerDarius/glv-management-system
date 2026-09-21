@@ -1,13 +1,43 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { UserPermission } from "@prisma/client";
-import { ChevronLeftIcon, ChevronRightIcon, DownloadIcon, Trash2 } from "lucide-react";
+import {
+  ArrowDownUp,
+  Banknote,
+  Boxes,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CircleDollarSign,
+  DownloadIcon,
+  HandCoins,
+  Landmark,
+  PiggyBank,
+  ReceiptText,
+  Scale,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Trash2,
+  Users,
+  Wallet,
+} from "lucide-react";
 import { recordStaffSalary, deleteStaffSalary } from "@/actions/salaries";
 import {
   deleteStaffDeposit,
   recordStaffDeposit,
 } from "@/actions/staff-deposits";
 import { ReportAnalyticsCharts } from "@/components/reports/analytics-charts";
+import {
+  Cell,
+  MetricCard,
+  MetricGroup,
+  ReportSection,
+  ReportTable,
+  Row,
+  SectionNav,
+  type MetricTone,
+} from "@/components/reports/report-layout";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { ProductImagePreview } from "@/components/product-image-preview";
@@ -28,6 +58,15 @@ import { salaryMonthInputValue } from "@/lib/salary-periods";
 export const dynamic = "force-dynamic";
 
 const TREND_WEEKS = 8;
+
+const SECTIONS = [
+  { id: "overview", label: "Overview" },
+  { id: "analytics", label: "Analytics" },
+  { id: "staff-performance", label: "Staff Performance" },
+  { id: "staff-deposits", label: "Deposits" },
+  { id: "salary-tracking", label: "Salaries" },
+  { id: "product-profitability", label: "Products" },
+];
 
 function weekParam(date: Date) {
   const { start } = getCurrentWeekRange(date);
@@ -65,12 +104,51 @@ function dateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function SummaryCard({ label, value, emphasis = false }: { label: string; value: string; emphasis?: boolean }) {
+/** Positive figures are good news everywhere except costs and shortfalls. */
+function signTone(value: number): MetricTone {
+  if (value > 0) return "positive";
+  if (value < 0) return "negative";
+  return "neutral";
+}
+
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className={`glv-metric-card rounded-lg border p-4 ${emphasis ? "bg-lime-50" : "bg-white"}`}>
-      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-gray-950">{value}</p>
-    </div>
+    <label className="space-y-1">
+      <span className="text-xs font-medium text-gray-600">{label}</span>
+      {children}
+      {hint ? <span className="block text-[11px] text-gray-500">{hint}</span> : null}
+    </label>
+  );
+}
+
+const inputClass =
+  "w-full rounded-md border p-2.5 text-sm outline-none transition-colors focus:border-lime-500";
+
+function Notice({
+  tone,
+  children,
+}: {
+  tone: "error" | "success";
+  children: ReactNode;
+}) {
+  return (
+    <p
+      className={`rounded-md border p-3 text-sm ${
+        tone === "error"
+          ? "border-red-200 bg-red-50 text-red-700"
+          : "border-lime-200 bg-lime-50 text-lime-900"
+      }`}
+    >
+      {children}
+    </p>
   );
 }
 
@@ -117,15 +195,22 @@ export default async function ReportsPage({
     ]);
   } catch (error) {
     console.error("REPORTS_LOAD_ERROR", error);
-    return <DatabaseUnavailable retryHref="/reports" title="Reports are temporarily unavailable" />;
+    return (
+      <DatabaseUnavailable
+        retryHref="/reports"
+        title="Reports are temporarily unavailable"
+      />
+    );
   }
 
+  const isAdmin = isAdminRole(session?.user?.role);
   const isCurrentWeek = weekParam(selectedDate) === weekParam(new Date());
   const previousWeekDate = new Date(report.start);
   previousWeekDate.setDate(previousWeekDate.getDate() - 7);
   const nextWeekDate = new Date(report.start);
   nextWeekDate.setDate(nextWeekDate.getDate() + 7);
   const exportHref = `/api/reports/weekly-export?week=${weekParam(selectedDate)}`;
+  const weekLabel = `${formatDate(report.start)} - ${formatDate(report.end)}`;
 
   const today = todayDateInputValue();
   const selectedWeek = weekParam(selectedDate);
@@ -147,7 +232,7 @@ export default async function ReportsPage({
               ? "Deposit record could not be found."
               : query.depositError === "expired-form"
                 ? "This form expired. Refresh the page and try again."
-              : "Unable to record the staff deposit.";
+                : "Unable to record the staff deposit.";
   const defaultSalaryMonth = salaryMonthInputValue();
   const maxSalaryMonth = salaryMonthInputValue(new Date());
   const salaryError = query.salaryError;
@@ -158,12 +243,39 @@ export default async function ReportsPage({
         ? "Salary month cannot be in the future."
         : salaryError === "invalid-salary-month"
           ? "Choose a valid salary month."
-      : "Unable to record salary payment. Check the staff, amount, and date.";
+          : "Unable to record salary payment. Check the staff, amount, and date.";
+
+  const { summary } = report;
+  const varianceTone: MetricTone =
+    summary.weeklyDepositVariance < 0
+      ? "negative"
+      : summary.weeklyDepositVariance > 0
+        ? "watch"
+        : "positive";
+  const varianceLabel =
+    summary.weeklyDepositVariance < 0
+      ? "Deposit Shortage"
+      : summary.weeklyDepositVariance > 0
+        ? "Deposit Surplus"
+        : "Deposit Variance";
+  const varianceHint =
+    summary.weeklyDepositVariance < 0
+      ? "Collected but not yet banked."
+      : summary.weeklyDepositVariance > 0
+        ? "Banked more than was recorded."
+        : "Banked exactly what was recorded.";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h1 className="text-3xl font-bold text-gray-950">Financial Intelligence</h1><p className="mt-1 text-sm text-gray-600">GLV financial position and staff performance for {formatDate(report.start)} - {formatDate(report.end)}.</p></div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-950">
+            Financial Intelligence
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            GLV financial position and staff performance for {weekLabel}.
+          </p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-lg border bg-white">
             <Link
@@ -174,7 +286,9 @@ export default async function ReportsPage({
               <ChevronLeftIcon className="size-4" />
             </Link>
             {isCurrentWeek ? (
-              <span className="border-x px-3 py-2 text-xs font-medium text-gray-500">This Week</span>
+              <span className="border-x px-3 py-2 text-xs font-medium text-gray-500">
+                This Week
+              </span>
             ) : (
               <Link
                 href="/reports"
@@ -197,42 +311,142 @@ export default async function ReportsPage({
               </Link>
             )}
           </div>
-          <Button asChild><Link href={exportHref} download><DownloadIcon className="size-4" />Export Weekly Report</Link></Button>
+          <Button asChild>
+            <Link href={exportHref} download>
+              <DownloadIcon className="size-4" />
+              Export Weekly Report
+            </Link>
+          </Button>
         </div>
       </div>
 
-      <section className="space-y-3">
-        <div><h2 className="text-lg font-semibold text-gray-950">Business Overview</h2><p className="text-sm text-gray-600">Collections, capital exposure, salary commitments, and expected returns.</p></div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <SummaryCard label="Total Collected" value={formatMoney(report.summary.totalCollected)} />
-          <SummaryCard label="Recorded This Week" value={formatMoney(report.summary.weeklyRecordedCollections)} />
-          <SummaryCard label="Deposited This Week" value={formatMoney(report.summary.weeklyDeposits)} />
-          <SummaryCard
-            label={
-              report.summary.weeklyDepositVariance < 0
-                ? "Weekly Deposit Shortage"
-                : report.summary.weeklyDepositVariance > 0
-                  ? "Weekly Deposit Surplus"
-                  : "Weekly Deposit Variance"
-            }
-            value={formatMoney(Math.abs(report.summary.weeklyDepositVariance))}
-            emphasis
-          />
-          <SummaryCard label="Outstanding Balance" value={formatMoney(report.summary.totalOutstandingBalance)} />
-          <SummaryCard label="Expected Receivables" value={formatMoney(report.summary.totalExpectedReceivables)} />
-          <SummaryCard label="Product Cost Exposure" value={formatMoney(report.summary.totalProductCost)} />
-          <SummaryCard label="Current Month Payroll" value={formatMoney(report.summary.currentMonthPayroll)} />
-          <SummaryCard label="Salary Paid for Due Month" value={formatMoney(report.summary.totalSalaryPaid)} />
-          <SummaryCard label="Outstanding Salaries" value={formatMoney(report.summary.outstandingSalaries)} />
-          <SummaryCard label="Payroll vs Income" value={formatMoney(report.summary.payrollVsIncome)} />
-          <SummaryCard label="Payroll % of Revenue" value={`${report.summary.payrollPercentageOfRevenue.toFixed(1)}%`} />
-          <SummaryCard label="Net Profit So Far" value={formatMoney(report.summary.netProfitSoFar)} />
-          <SummaryCard label={report.summary.gainLossStatus} value={formatMoney(report.summary.projectedNetProfit)} emphasis />
-        </div>
-      </section>
+      <SectionNav items={SECTIONS} />
 
-      <section className="space-y-3">
-        <div><h2 className="text-lg font-semibold text-gray-950">Analytics</h2><p className="text-sm text-gray-600">Collection trends, account health, and top performers at a glance.</p></div>
+      <ReportSection
+        id="overview"
+        title="Business Overview"
+        description="Every figure below is for the selected week unless the card says otherwise."
+      >
+        <div className="space-y-4">
+          <MetricGroup
+            title="Collections and Banking"
+            description="What customers paid this week and how much of it reached the company account."
+          >
+            <MetricCard
+              label="Recorded This Week"
+              value={formatMoney(summary.weeklyRecordedCollections)}
+              hint="Payments entered by staff."
+              icon={ReceiptText}
+            />
+            <MetricCard
+              label="Deposited This Week"
+              value={formatMoney(summary.weeklyDeposits)}
+              hint="Cash banked against those payments."
+              icon={Landmark}
+            />
+            <MetricCard
+              label={varianceLabel}
+              value={formatMoney(Math.abs(summary.weeklyDepositVariance))}
+              hint={varianceHint}
+              icon={ArrowDownUp}
+              tone={varianceTone}
+            />
+            <MetricCard
+              label="Total Collected"
+              value={formatMoney(summary.totalCollected)}
+              hint="All payments, all time."
+              icon={Wallet}
+            />
+          </MetricGroup>
+
+          <MetricGroup
+            title="Receivables and Exposure"
+            description="Money still owed to GLV and the capital already committed to stock."
+          >
+            <MetricCard
+              label="Outstanding Balance"
+              value={formatMoney(summary.totalOutstandingBalance)}
+              hint="Owed across all live accounts."
+              icon={CircleDollarSign}
+            />
+            <MetricCard
+              label="Expected Receivables"
+              value={formatMoney(summary.totalExpectedReceivables)}
+              hint="Owed on active and overdue plans only."
+              icon={Target}
+            />
+            <MetricCard
+              label="Product Cost Exposure"
+              value={formatMoney(summary.totalProductCost)}
+              hint="Cost of the goods behind those plans."
+              icon={Boxes}
+            />
+          </MetricGroup>
+
+          <MetricGroup
+            title="Payroll"
+            description="Salary commitments for the month being settled."
+          >
+            <MetricCard
+              label="Current Month Payroll"
+              value={formatMoney(summary.currentMonthPayroll)}
+              hint="Total salary due this month."
+              icon={Users}
+            />
+            <MetricCard
+              label="Salary Paid for Due Month"
+              value={formatMoney(summary.totalSalaryPaid)}
+              icon={HandCoins}
+            />
+            <MetricCard
+              label="Outstanding Salaries"
+              value={formatMoney(summary.outstandingSalaries)}
+              hint="Still to be paid for the due month."
+              icon={Banknote}
+              tone={summary.outstandingSalaries > 0 ? "watch" : "positive"}
+            />
+            <MetricCard
+              label="Payroll % of Revenue"
+              value={`${summary.payrollPercentageOfRevenue.toFixed(1)}%`}
+              hint="Share of income going to salaries."
+              icon={Scale}
+            />
+          </MetricGroup>
+
+          <MetricGroup
+            title="Profitability"
+            description="Where the business stands once cost of goods and payroll are taken out."
+          >
+            <MetricCard
+              label="Net Profit So Far"
+              value={formatMoney(summary.netProfitSoFar)}
+              hint="Collected less product cost and salaries paid."
+              icon={PiggyBank}
+              tone={signTone(summary.netProfitSoFar)}
+            />
+            <MetricCard
+              label="Payroll vs Income"
+              value={formatMoney(summary.payrollVsIncome)}
+              hint="Monthly income less monthly payroll."
+              icon={Scale}
+              tone={signTone(summary.payrollVsIncome)}
+            />
+            <MetricCard
+              label={summary.gainLossStatus}
+              value={formatMoney(summary.projectedNetProfit)}
+              hint="If every live plan runs to completion."
+              icon={summary.projectedNetProfit < 0 ? TrendingDown : TrendingUp}
+              tone={signTone(summary.projectedNetProfit)}
+            />
+          </MetricGroup>
+        </div>
+      </ReportSection>
+
+      <ReportSection
+        id="analytics"
+        title="Analytics"
+        description="Collection trends, account health, and top performers at a glance."
+      >
         <ReportAnalyticsCharts
           trend={trend.map((week) => ({
             label: formatDate(week.start),
@@ -254,132 +468,442 @@ export default async function ReportsPage({
               value: product.expectedLayawayProfit,
             }))}
         />
-      </section>
+      </ReportSection>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-gray-950">Staff Weekly Performance</h2>
-        <div className="overflow-x-auto rounded-lg border bg-white"><table className="w-full min-w-[1400px] text-sm"><thead><tr><th className="p-3">Rank</th><th className="p-3">Staff</th><th className="p-3">Customers</th><th className="p-3">Active</th><th className="p-3">Contract Value</th><th className="p-3">Weekly Recorded</th><th className="p-3">Weekly Deposited</th><th className="p-3">Deposit Variance</th><th className="p-3">Monthly Collection</th><th className="p-3">Total Collected</th><th className="p-3">Outstanding</th><th className="p-3">Due Month Salary</th><th className="p-3">Paid for Due Month</th><th className="p-3">Salary Balance</th><th className="p-3">Projected After Payroll</th></tr></thead><tbody>{report.rows.map((row) => <tr key={row.staffId} className="border-t"><td className="p-3"><Badge variant={row.rank === 1 ? "default" : "secondary"}>#{row.rank}</Badge></td><td className="p-3"><p className="font-semibold">{row.staffCode}</p><p className="text-xs text-gray-500">{row.staffName}</p></td><td className="p-3">{row.assignedCustomers}</td><td className="p-3">{row.activeAccounts}</td><td className="p-3">{formatMoney(row.totalContractValue)}</td><td className="p-3">{formatMoney(row.weeklyCollection)}</td><td className="p-3">{formatMoney(row.weeklyDeposited)}</td><td className={`p-3 font-semibold ${row.depositVariance < 0 ? "text-red-700" : row.depositVariance > 0 ? "text-blue-700" : "text-green-700"}`}>{row.depositVariance < 0 ? `Shortage ${formatMoney(Math.abs(row.depositVariance))}` : row.depositVariance > 0 ? `Surplus ${formatMoney(row.depositVariance)}` : "Balanced"}</td><td className="p-3">{formatMoney(row.monthlyCollection)}</td><td className="p-3">{formatMoney(row.totalCollected)}</td><td className="p-3">{formatMoney(row.outstandingBalance)}</td><td className="p-3">{formatMoney(row.monthlySalary)}</td><td className="p-3">{formatMoney(row.salaryPaidThisMonth)}</td><td className="p-3">{formatMoney(row.salaryBalanceThisMonth)}</td><td className="p-3">{formatMoney(row.projectedProfitAfterSalary)}</td></tr>)}</tbody></table></div>
-      </section>
+      <ReportSection
+        id="staff-performance"
+        title="Staff Weekly Performance"
+        description={`Ranked by collections for ${weekLabel}. Scroll sideways for the full ledger; the staff column stays in view.`}
+      >
+        <ReportTable
+          minWidthClass="min-w-[1320px]"
+          isEmpty={report.rows.length === 0}
+          emptyMessage="No staff performance to report for this week."
+          columns={[
+            { label: "Staff", sticky: true },
+            { label: "Customers", align: "right" },
+            { label: "Active", align: "right" },
+            { label: "Contract Value", align: "right" },
+            { label: "Weekly Recorded", align: "right" },
+            { label: "Weekly Deposited", align: "right" },
+            { label: "Deposit Variance", align: "right" },
+            { label: "Monthly Collection", align: "right" },
+            { label: "Total Collected", align: "right" },
+            { label: "Outstanding", align: "right" },
+            { label: "Due Month Salary", align: "right" },
+            { label: "Paid for Due Month", align: "right" },
+            { label: "Salary Balance", align: "right" },
+            { label: "Projected After Payroll", align: "right" },
+          ]}
+        >
+          {report.rows.map((row) => (
+            <Row key={row.staffId}>
+              <Cell sticky>
+                <div className="flex items-center gap-3">
+                  <Badge variant={row.rank === 1 ? "default" : "secondary"}>
+                    #{row.rank}
+                  </Badge>
+                  <div className="min-w-0">
+                    <p className="font-semibold">{row.staffCode}</p>
+                    <p className="truncate text-xs text-gray-500">
+                      {row.staffName}
+                    </p>
+                  </div>
+                </div>
+              </Cell>
+              <Cell align="right" numeric>
+                {row.assignedCustomers}
+              </Cell>
+              <Cell align="right" numeric>
+                {row.activeAccounts}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.totalContractValue)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.weeklyCollection)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.weeklyDeposited)}
+              </Cell>
+              <Cell
+                align="right"
+                numeric
+                className={`font-semibold ${
+                  row.depositVariance < 0
+                    ? "text-red-700"
+                    : row.depositVariance > 0
+                      ? "text-blue-700"
+                      : "text-green-700"
+                }`}
+              >
+                {row.depositVariance < 0
+                  ? `Shortage ${formatMoney(Math.abs(row.depositVariance))}`
+                  : row.depositVariance > 0
+                    ? `Surplus ${formatMoney(row.depositVariance)}`
+                    : "Balanced"}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.monthlyCollection)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.totalCollected)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.outstandingBalance)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.monthlySalary)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.salaryPaidThisMonth)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.salaryBalanceThisMonth)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(row.projectedProfitAfterSalary)}
+              </Cell>
+            </Row>
+          ))}
+        </ReportTable>
+      </ReportSection>
 
-      <section id="staff-deposits" className="space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-950">Staff Deposits</h2>
-          <p className="text-sm text-gray-600">
-            Record money physically deposited into company accounts and compare
-            it with payments entered for {formatDate(report.start)} - {formatDate(report.end)}.
-          </p>
-        </div>
-        {query.depositError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{depositErrorMessage}</p> : null}
-        {query.depositRecorded ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Staff deposit recorded.</p> : null}
-        {query.depositDeleted ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Staff deposit deleted.</p> : null}
-        {isAdminRole(session?.user?.role) ? (
-          <form action={recordStaffDeposit} className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-2 lg:grid-cols-7">
+      <ReportSection
+        id="staff-deposits"
+        title="Staff Deposits"
+        description={`Money physically deposited into company accounts, compared with payments entered for ${weekLabel}.`}
+      >
+        {query.depositError ? (
+          <Notice tone="error">{depositErrorMessage}</Notice>
+        ) : null}
+        {query.depositRecorded ? (
+          <Notice tone="success">Staff deposit recorded.</Notice>
+        ) : null}
+        {query.depositDeleted ? (
+          <Notice tone="success">Staff deposit deleted.</Notice>
+        ) : null}
+
+        {isAdmin ? (
+          <form
+            action={recordStaffDeposit}
+            className="rounded-lg border bg-white p-4"
+          >
+            <p className="mb-3 text-sm font-semibold text-gray-950">
+              Record a deposit
+            </p>
             <input type="hidden" name="week" value={selectedWeek} />
             <input type="hidden" name="idempotencyKey" value={randomUUID()} />
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{report.rows.map((row) => <option key={row.staffId} value={row.staffId}>{row.staffCode} - {row.staffName}</option>)}</select></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Amount Deposited</span><input name="amount" type="number" min="0.01" step="0.01" className="w-full rounded border p-3" required /></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Deposit Date</span><input name="depositDate" type="date" defaultValue={depositDate} min={dateInputValue(earliestDepositDate)} max={dateInputValue(report.end < new Date() ? report.end : new Date())} className="w-full rounded border p-3" required /><span className="block text-[11px] text-gray-500">You may backdate a deposit into the previous week. It will appear in the report for the selected date.</span></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Channel</span><select name="channel" className="w-full rounded border p-3"><option value="Cash Deposit">Cash Deposit</option><option value="Bank Transfer">Bank Transfer</option><option value="Mobile Money">Mobile Money</option><option value="Cheque">Cheque</option><option value="Other">Other</option></select></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Reference</span><input name="reference" className="w-full rounded border p-3" placeholder="Slip or transaction ID" /></label>
-            <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
-            <div className="flex items-end"><SubmitButton className="w-full" pendingLabel="Recording">Record Deposit</SubmitButton></div>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Field label="Staff">
+                <select name="staffId" className={inputClass} required>
+                  <option value="">Select staff</option>
+                  {report.rows.map((row) => (
+                    <option key={row.staffId} value={row.staffId}>
+                      {row.staffCode} - {row.staffName}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Amount Deposited">
+                <input
+                  name="amount"
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  className={inputClass}
+                  required
+                />
+              </Field>
+              <Field
+                label="Deposit Date"
+                hint="You may backdate into the previous week. It will appear in the report for that date."
+              >
+                <input
+                  name="depositDate"
+                  type="date"
+                  defaultValue={depositDate}
+                  min={dateInputValue(earliestDepositDate)}
+                  max={dateInputValue(
+                    report.end < new Date() ? report.end : new Date()
+                  )}
+                  className={inputClass}
+                  required
+                />
+              </Field>
+              <Field label="Channel">
+                <select name="channel" className={inputClass}>
+                  <option value="Cash Deposit">Cash Deposit</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="Other">Other</option>
+                </select>
+              </Field>
+              <Field label="Reference">
+                <input
+                  name="reference"
+                  className={inputClass}
+                  placeholder="Slip or transaction ID"
+                />
+              </Field>
+              <Field label="Notes">
+                <input
+                  name="notes"
+                  className={inputClass}
+                  placeholder="Optional note"
+                />
+              </Field>
+            </div>
+            <div className="mt-4 flex justify-end border-t pt-3">
+              <SubmitButton pendingLabel="Recording">
+                Record Deposit
+              </SubmitButton>
+            </div>
           </form>
         ) : null}
-        <div className="overflow-hidden rounded-lg border bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-[1050px] text-sm">
-              <thead><tr><th className="p-3">Deposit Date</th><th className="p-3">Staff</th><th className="p-3">Amount</th><th className="p-3">Channel</th><th className="p-3">Reference</th><th className="p-3">Recorded By</th><th className="p-3">Notes</th>{isAdminRole(session?.user?.role) ? <th className="p-3 text-right">Action</th> : null}</tr></thead>
-              <tbody>{report.staffDeposits.map((deposit) => <tr key={deposit.id} className="border-t"><td className="p-3">{formatDate(deposit.depositDate)}</td><td className="p-3">{deposit.staff.code} - {deposit.staff.fullName}</td><td className="p-3 font-semibold">{formatMoney(deposit.amount)}</td><td className="p-3">{deposit.channel || "-"}</td><td className="p-3">{deposit.reference || "-"}</td><td className="p-3">{deposit.recordedByName}</td><td className="p-3">{deposit.notes || "-"}</td>{isAdminRole(session?.user?.role) ? <td className="p-3 text-right"><div className="flex justify-end"><ConfirmDeleteForm action={deleteStaffDeposit} id={deposit.id} title="Delete staff deposit?" description="This removes the deposit record and recalculates the staff variance." hiddenFields={{ week: selectedWeek }} triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125" /></ConfirmDeleteForm></div></td> : null}</tr>)}</tbody>
-            </table>
-          </div>
-          {report.staffDeposits.length === 0 ? <p className="border-t p-6 text-center text-sm text-gray-500">No staff deposits recorded for this week.</p> : null}
-        </div>
-      </section>
 
-      <section id="salary-tracking" className="space-y-4">
-        <div><h2 className="text-lg font-semibold text-gray-950">Monthly Staff Salary Tracking</h2><p className="text-sm text-gray-600">Track monthly payroll by the salary month being settled, separate from the actual payment date.</p></div>
-        {salaryError ? <p className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{salaryErrorMessage}</p> : null}
-        {query.salaryRecorded ? <p className="rounded-md border border-lime-200 bg-lime-50 p-3 text-sm text-lime-900">Salary payment recorded.</p> : null}
-        <form action={recordStaffSalary} className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-2 lg:grid-cols-6">
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Staff</span><select name="staffId" className="w-full rounded border p-3" required><option value="">Select staff</option>{report.rows.map((row) => <option key={row.staffId} value={row.staffId}>{row.staffCode} - {row.staffName}</option>)}</select></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Amount</span><input name="amount" type="number" min="0.01" step="0.01" className="w-full rounded border p-3" required /></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Salary Month</span><input name="salaryMonth" type="month" defaultValue={defaultSalaryMonth} max={maxSalaryMonth} className="w-full rounded border p-3" required /></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Payment Date</span><input name="paymentDate" type="date" defaultValue={today} max={today} className="w-full rounded border p-3" required /></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-gray-600">Notes</span><input name="notes" className="w-full rounded border p-3" placeholder="Optional note" /></label>
-          <div className="flex items-end"><SubmitButton className="w-full" pendingLabel="Recording">Record Salary</SubmitButton></div>
-        </form>
-        <div className="overflow-hidden rounded-lg border bg-white"><div className="overflow-x-auto"><table className="min-w-[920px] text-sm"><thead><tr><th className="p-3">Payment Date</th><th className="p-3">Salary Month</th><th className="p-3">Staff</th><th className="p-3">Amount</th><th className="p-3">Paid By</th><th className="p-3">Notes</th><th className="p-3 text-right">Action</th></tr></thead><tbody>{report.salaryPayments.map((payment) => <tr key={payment.id} className="border-t"><td className="p-3">{formatDate(payment.paymentDate)}</td><td className="p-3">{formatMonth(payment.salaryMonth)}</td><td className="p-3">{payment.staff.code} - {payment.staff.fullName}</td><td className="p-3">{formatMoney(payment.amount)}</td><td className="p-3">{payment.paidByName}</td><td className="p-3">{payment.notes || "-"}</td><td className="p-3 text-right"><div className="flex justify-end"><ConfirmDeleteForm action={deleteStaffSalary} id={payment.id} title="Delete salary payment?" description="This removes a financial salary record and creates an audit entry." triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" /></ConfirmDeleteForm></div></td></tr>)}</tbody></table></div>{report.salaryPayments.length === 0 ? <p className="border-t p-6 text-center text-sm text-gray-500">No salary payments recorded.</p> : null}</div>
-      </section>
+        <ReportTable
+          minWidthClass="min-w-[1050px]"
+          isEmpty={report.staffDeposits.length === 0}
+          emptyMessage="No staff deposits recorded for this week."
+          columns={[
+            { label: "Deposit Date" },
+            { label: "Staff", sticky: true },
+            { label: "Amount", align: "right" },
+            { label: "Channel" },
+            { label: "Reference" },
+            { label: "Recorded By" },
+            { label: "Notes" },
+            ...(isAdmin
+              ? [{ label: "Action", align: "right" as const, srOnly: true }]
+              : []),
+          ]}
+        >
+          {report.staffDeposits.map((deposit) => (
+            <Row key={deposit.id}>
+              <Cell>{formatDate(deposit.depositDate)}</Cell>
+              <Cell sticky>
+                <p className="font-semibold">{deposit.staff.code}</p>
+                <p className="text-xs text-gray-500">
+                  {deposit.staff.fullName}
+                </p>
+              </Cell>
+              <Cell align="right" numeric className="font-semibold">
+                {formatMoney(deposit.amount)}
+              </Cell>
+              <Cell>{deposit.channel || "-"}</Cell>
+              <Cell>{deposit.reference || "-"}</Cell>
+              <Cell>{deposit.recordedByName}</Cell>
+              <Cell>{deposit.notes || "-"}</Cell>
+              {isAdmin ? (
+                <Cell align="right">
+                  <div className="flex justify-end">
+                    <ConfirmDeleteForm
+                      action={deleteStaffDeposit}
+                      id={deposit.id}
+                      title="Delete staff deposit?"
+                      description="This removes the deposit record and recalculates the staff variance."
+                      hiddenFields={{ week: selectedWeek }}
+                      triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125" />
+                    </ConfirmDeleteForm>
+                  </div>
+                </Cell>
+              ) : null}
+            </Row>
+          ))}
+        </ReportTable>
+      </ReportSection>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-950">
-            Product Profitability / Procurement
-          </h2>
-          <p className="text-sm text-gray-600">
-            Layaway returns based on the number of customer accounts using each
-            product.
+      <ReportSection
+        id="salary-tracking"
+        title="Monthly Staff Salary Tracking"
+        description="Payroll is tracked by the salary month being settled, separate from the date it was actually paid."
+      >
+        {salaryError ? <Notice tone="error">{salaryErrorMessage}</Notice> : null}
+        {query.salaryRecorded ? (
+          <Notice tone="success">Salary payment recorded.</Notice>
+        ) : null}
+
+        <form action={recordStaffSalary} className="rounded-lg border bg-white p-4">
+          <p className="mb-3 text-sm font-semibold text-gray-950">
+            Record a salary payment
           </p>
-        </div>
-        <div className="overflow-x-auto rounded-lg border bg-white">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead>
-              <tr>
-                <th className="p-3">Product</th>
-                <th className="p-3">Cost</th>
-                <th className="p-3">Transport</th>
-                <th className="p-3">Daily</th>
-                <th className="p-3">Duration</th>
-                <th className="p-3">Layaway</th>
-                <th className="p-3">Accounts</th>
-                <th className="p-3">Layaway Profit</th>
-                <th className="p-3">Expected Revenue</th>
-                <th className="p-3">Expected Profit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.products.map((product) => (
-                <tr key={product.id} className="border-t">
-                  <td className="p-3">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <ProductImagePreview
-                        src={product.imageUrl}
-                        alt={product.name}
-                        className="size-10 bg-white"
-                        previewTitle={product.name}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold">
-                          {product.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {product.category}
-                        </p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-3">{formatMoney(product.costPrice)}</td>
-                  <td className="p-3">{formatMoney(product.transportCost)}</td>
-                  <td className="p-3">{formatMoney(product.dailyAmount)}</td>
-                  <td className="p-3">{product.duration} days</td>
-                  <td className="p-3">{formatMoney(product.layawayPrice)}</td>
-                  <td className="p-3">{product.accountCount}</td>
-                  <td className="p-3">
-                    {formatMoney(product.layawayProfit)} (
-                    {product.layawayProfitPercentage.toFixed(1)}%)
-                  </td>
-                  <td className="p-3">
-                    {formatMoney(product.expectedLayawayRevenue)}
-                  </td>
-                  <td className="p-3">
-                    {formatMoney(product.expectedLayawayProfit)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <Field label="Staff">
+              <select name="staffId" className={inputClass} required>
+                <option value="">Select staff</option>
+                {report.rows.map((row) => (
+                  <option key={row.staffId} value={row.staffId}>
+                    {row.staffCode} - {row.staffName}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Amount">
+              <input
+                name="amount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="Salary Month" hint="The month being settled.">
+              <input
+                name="salaryMonth"
+                type="month"
+                defaultValue={defaultSalaryMonth}
+                max={maxSalaryMonth}
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="Payment Date" hint="When the money actually left.">
+              <input
+                name="paymentDate"
+                type="date"
+                defaultValue={today}
+                max={today}
+                className={inputClass}
+                required
+              />
+            </Field>
+            <Field label="Notes">
+              <input
+                name="notes"
+                className={inputClass}
+                placeholder="Optional note"
+              />
+            </Field>
+          </div>
+          <div className="mt-4 flex justify-end border-t pt-3">
+            <SubmitButton pendingLabel="Recording">Record Salary</SubmitButton>
+          </div>
+        </form>
+
+        <ReportTable
+          minWidthClass="min-w-[920px]"
+          isEmpty={report.salaryPayments.length === 0}
+          emptyMessage="No salary payments recorded."
+          columns={[
+            { label: "Payment Date" },
+            { label: "Salary Month" },
+            { label: "Staff", sticky: true },
+            { label: "Amount", align: "right" },
+            { label: "Paid By" },
+            { label: "Notes" },
+            { label: "Action", align: "right", srOnly: true },
+          ]}
+        >
+          {report.salaryPayments.map((payment) => (
+            <Row key={payment.id}>
+              <Cell>{formatDate(payment.paymentDate)}</Cell>
+              <Cell>{formatMonth(payment.salaryMonth)}</Cell>
+              <Cell sticky>
+                <p className="font-semibold">{payment.staff.code}</p>
+                <p className="text-xs text-gray-500">
+                  {payment.staff.fullName}
+                </p>
+              </Cell>
+              <Cell align="right" numeric className="font-semibold">
+                {formatMoney(payment.amount)}
+              </Cell>
+              <Cell>{payment.paidByName}</Cell>
+              <Cell>{payment.notes || "-"}</Cell>
+              <Cell align="right">
+                <div className="flex justify-end">
+                  <ConfirmDeleteForm
+                    action={deleteStaffSalary}
+                    id={payment.id}
+                    title="Delete salary payment?"
+                    description="This removes a financial salary record and creates an audit entry."
+                    triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                  </ConfirmDeleteForm>
+                </div>
+              </Cell>
+            </Row>
+          ))}
+        </ReportTable>
+      </ReportSection>
+
+      <ReportSection
+        id="product-profitability"
+        title="Product Profitability / Procurement"
+        description="Layaway returns based on the number of customer accounts using each product."
+      >
+        <ReportTable
+          minWidthClass="min-w-[1180px]"
+          isEmpty={report.products.length === 0}
+          emptyMessage="No products to report on yet."
+          columns={[
+            { label: "Product", sticky: true },
+            { label: "Cost", align: "right" },
+            { label: "Transport", align: "right" },
+            { label: "Daily", align: "right" },
+            { label: "Duration", align: "right" },
+            { label: "Layaway", align: "right" },
+            { label: "Accounts", align: "right" },
+            { label: "Layaway Profit", align: "right" },
+            { label: "Expected Revenue", align: "right" },
+            { label: "Expected Profit", align: "right" },
+          ]}
+        >
+          {report.products.map((product) => (
+            <Row key={product.id}>
+              <Cell sticky>
+                <div className="flex min-w-0 items-center gap-3">
+                  <ProductImagePreview
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="size-10 bg-white"
+                    previewTitle={product.name}
+                  />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{product.name}</p>
+                    <p className="text-xs text-gray-500">{product.category}</p>
+                  </div>
+                </div>
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.costPrice)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.transportCost)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.dailyAmount)}
+              </Cell>
+              <Cell align="right" numeric>
+                {product.duration} days
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.layawayPrice)}
+              </Cell>
+              <Cell align="right" numeric>
+                {product.accountCount}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.layawayProfit)}
+                <span className="block text-xs text-gray-500">
+                  {product.layawayProfitPercentage.toFixed(1)}%
+                </span>
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.expectedLayawayRevenue)}
+              </Cell>
+              <Cell align="right" numeric>
+                {formatMoney(product.expectedLayawayProfit)}
+              </Cell>
+            </Row>
+          ))}
+        </ReportTable>
+      </ReportSection>
     </div>
   );
 }

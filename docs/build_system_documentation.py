@@ -517,12 +517,15 @@ def build_body() -> str:
         ["Dormant", "Account becomes DORMANT after 21 days without payment activity."],
         ["Probation", "Account becomes PROBATION after 4 months without payment activity."],
         ["Closed", "Account becomes CLOSED after 6 months without payment activity."],
+        ["Activity clock", "Inactivity is measured from the latest of start date, last payment date, and last reactivation date (CustomerAccount.reactivatedAt)."],
         ["Closure refund", "When closing with paid amount and no prior closure credit, 32% service fee is deducted and remaining amount becomes an open credit."],
+        ["Reactivation", "An admin may reactivate a DORMANT, PROBATION or CLOSED account once 6 months of inactivity have passed. A 32% service fee is deducted from the paid amount, open closure-refund credits are voided, and reactivatedAt is stamped so the ladder restarts from that date instead of re-closing the account on the next sweep."],
         ["Overpayment credit", "Payment amount beyond remaining balance creates CustomerCredit linked to the payment/account."],
         ["Refund action", "Credits can be marked refunded by permitted payment/admin users."],
     ], [2400, 6960]))
 
     body.append(section("10. Reports, Weekly Export, and Activity"))
+    body.append(para("The reports page is organised as an anchor-navigated sequence of sections: Overview, Analytics, Staff Performance, Deposits, Salaries, and Products. Overview presents its figures in four labelled groups - Collections and Banking, Receivables and Exposure, Payroll, and Profitability - rather than one undifferentiated grid, and colours each figure by whether it is favourable, adverse, or worth watching. The wide ledger tables pin the staff or product column while the money columns scroll sideways."))
     body.append(para("Reports combine customer/account/payment/staff/salary data into admin-facing summaries and an Excel workbook. The weekly export refreshes lifecycle statuses first, then builds sheets for executive summary, staff performance, accounts, weekly payment history, product profitability, procurement list, and weekly ledger."))
     body.append(code_block("""
     Report page

@@ -887,6 +887,7 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
     redirect(`${returnTo}?error=reactivation-not-eligible`);
   }
 
+  const reactivatedAt = new Date();
   const { serviceFee, nextTotalPaid, serviceFeeRate } =
     getDormantReactivationAmounts(account.totalPaid);
   const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
@@ -920,6 +921,10 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
         totalPaid: nextTotalPaid,
         balance: nextBalance,
         status: nextStatus,
+        // Reactivation restarts the dormancy ladder. Without this stamp the
+        // clock still reads the pre-closure payment date, so the next
+        // lifecycle sweep re-closes the account and deducts a second fee.
+        reactivatedAt,
         // A product already handed over stays delivered. Only an undelivered
         // plan falls back to pending when it is reactivated.
         ...(nextStatus === AccountStatus.COMPLETED || account.deliveredWithBalance
@@ -963,6 +968,7 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
           balance: account.balance,
           deliveryStatus: account.deliveryStatus,
           deliveredAt: account.deliveredAt,
+          reactivatedAt: account.reactivatedAt,
           closureCreditIds: account.credits.map((credit) => credit.id),
         }),
         newValue: JSON.stringify({
@@ -971,6 +977,7 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
           balance: nextBalance,
           serviceFee,
           serviceFeeRate,
+          reactivatedAt,
           voidedClosureCreditIds: account.credits.map((credit) => credit.id),
         }),
       },

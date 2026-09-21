@@ -211,6 +211,15 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   manually regenerated from Settings, not from ordinary account pages.
 - Cancellation calculations appear only for CLOSED/CANCELLED accounts.
   Reactivation calculations appear only after the lifecycle eligibility check.
+- The reports page (`/reports`) is organised into anchored sections — Overview,
+  Analytics, Staff Performance, Deposits, Salaries, Products — reachable from the
+  section menu under the page title. Overview groups its figures under
+  Collections and Banking, Receivables and Exposure, Payroll, and Profitability
+  instead of one flat grid, and tones each figure (green favourable, red adverse,
+  amber worth watching). Shared presentation lives in
+  `components/reports/report-layout.tsx`; the wide ledger tables pin the staff or
+  product column while the money columns scroll sideways. Adding a figure means
+  adding it to the group it belongs to, not to the end of a list.
 - Customer communications queue exactly one enabled channel. Legal/document
   messages prefer email, then WhatsApp, then SMS. Payment receipts prefer
   WhatsApp, then SMS, then email. If no email or phone exists, no outbound
@@ -441,7 +450,7 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 - Queue events use unique dedupe keys and transactional insertion; conditional claims
   protect concurrent dispatch. Backups include the SMS log; restored PENDING or
   PROCESSING entries become UNKNOWN to prevent re-sending messages accepted since backup.
-- Verification: `npx tsx --test scripts/sms.test.ts`, `npx tsc --noEmit`, `npm run lint`,
+- Verification: `npx tsx --test scripts/*.test.ts`, `npx tsc --noEmit`, `npm run lint`,
   `npm run build`. Run `npm run db:deploy` separately before releasing schema changes.
   Production migration, authenticated UI and real SMS delivery remain separate gates.
 - Super administrators can edit six templates on Settings > SMS: Salary payment,
@@ -590,6 +599,39 @@ correctly excluded.
     whose product was already delivered. Auto-closing such an account used to
     refund most of what the customer had paid while they kept the goods. What
     remains on a delivered account is a receivable, not a refundable deposit.
+
+## Account Reactivation and the Lifecycle Clock
+
+- Inactivity is measured from the **latest of** the account start date, the last
+  payment date and `CustomerAccount.reactivatedAt` (migration
+  `20260921090000_account_reactivation_clock`). That single clock drives the whole
+  ladder: DORMANT at 21 days, PROBATION at 4 months, CLOSED at 6 months.
+- Reactivating a DORMANT, PROBATION or CLOSED account deducts a 32% service fee
+  from the paid amount, recalculates the balance, queues the customer's
+  reactivation calculation, voids any open `ACCOUNT_CLOSURE_REFUND` credit, and
+  stamps `reactivatedAt`. It is administrator-only and requires the admin
+  password. The whole write is one transaction plus a
+  `REACTIVATE_DORMANT_ACCOUNT` audit entry.
+- **Why the stamp matters, and what must not regress:** reactivation records no
+  payment. Before `reactivatedAt` existed the clock still read the pre-closure
+  payment date, so the lifecycle sweep — which runs on the very page the operator
+  is redirected to — immediately re-closed the account and, because the old
+  closure credit had just been voided, minted a second closure credit on the
+  already-reduced paid amount. The customer lost 32% twice while the screen
+  showed "Account reactivated". Any change to the lifecycle clock must keep
+  `scripts/account-lifecycle.test.ts` passing.
+- Reactivation eligibility is measured from the same clock, so a reactivated
+  account cannot be reactivated again (and charged again) until it has been
+  inactive for a further six months.
+- Missed-payment reminders use the same rule: `missedPaymentPeriod` anchors on
+  `reactivatedAt` too, so a reactivated plan is not texted about the dormant
+  months. Reminders after a reactivation use a separate dedupe key namespace
+  (`<paymentId>:r<timestamp>:<period>`) so the restarted period count cannot
+  collide with a reminder sent before closure. Accounts that were never
+  reactivated keep their original key.
+- Pure lifecycle arithmetic lives in `lib/account-lifecycle-rules.ts` (no database
+  or server-only imports, so it is unit testable); `lib/account-lifecycle.ts`
+  applies it to real accounts and re-exports it so callers keep one import site.
 
 ## Integrated Business Management
 
