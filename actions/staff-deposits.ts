@@ -8,6 +8,8 @@ import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { isFutureDate } from "@/lib/date-rules";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { recordReversibleAction } from "@/lib/undo";
+import { formatMoney } from "@/lib/accounts";
 import { dispatchDueSms, queueWeeklyCustomerSummarySms } from "@/lib/sms-notifications";
 import {
   claimIdempotencyKey,
@@ -149,6 +151,27 @@ export async function deleteStaffDeposit(formData: FormData): Promise<void> {
         oldValue: JSON.stringify(deposit),
       },
     });
+    await recordReversibleAction(tx, {
+      action: "DELETE_STAFF_DEPOSIT",
+      entity: "StaffDeposit",
+      entityId: deposit.id,
+      performedBy: user.id,
+      summary: `Deleted ${deposit.staff.code}'s deposit of ${formatMoney(deposit.amount)}.`,
+      payload: {
+        deposit: {
+          id: deposit.id,
+          staffId: deposit.staffId,
+          amount: deposit.amount,
+          depositDate: deposit.depositDate,
+          channel: deposit.channel,
+          reference: deposit.reference,
+          notes: deposit.notes,
+          recordedBy: deposit.recordedBy,
+          createdAt: deposit.createdAt,
+        },
+      },
+    });
+
     await tx.staffDeposit.delete({ where: { id: deposit.id } });
   });
 

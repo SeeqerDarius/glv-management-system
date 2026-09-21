@@ -633,6 +633,44 @@ correctly excluded.
   or server-only imports, so it is unit testable); `lib/account-lifecycle.ts`
   applies it to real accounts and re-exports it so callers keep one import site.
 
+## Retracting a Recent Action
+
+- Five consequential administrator actions can be retracted for
+  **three hours** after they are taken: account reactivation, payment deletion,
+  staff deposit deletion, salary payment deletion, and marking a customer credit
+  refunded. The window lives in `UNDO_WINDOW_HOURS` in `lib/undo-rules.ts`;
+  change it there rather than in the UI copy.
+- Each of those actions writes a `ReversibleAction` row **inside its own
+  transaction** (migration `20260921120000_reversible_actions`), carrying the
+  values needed to restore the record and the values the action wrote. Recording
+  it in the same transaction means an action is never left without its undo
+  record, and an undo record never survives an action that rolled back.
+- Administrators see the pending retractions on the page where the action was
+  taken — the account page, Payments, Credits & Refunds, Reports — and all of
+  them together on Activity. Each entry shows what was done, by whom, and how
+  long is left.
+- **A retraction is refused rather than forced.** Every handler first checks the
+  record still looks the way the action left it. If a payment was recorded
+  against a reactivated account, or a restored credit was already spent, the
+  operator is told to correct the record directly instead. Without that check a
+  retraction would silently overwrite whatever happened in between, which is
+  worse than having no undo at all.
+- The retraction is claimed with a conditional update inside the transaction, so
+  two administrators pressing Undo at once cannot both run the handler. A
+  refused retraction rolls back the claim and leaves the window open.
+- Retraction is administrator-only and writes an `UNDO_<ACTION>` audit entry. It
+  does not ask for the administrator password again: the action being retracted
+  already did, and restoring a record is the safer direction.
+- **What undo cannot reach:** messages and documents already sent to a customer.
+  Retracting a reactivation puts the money and status back but does not withdraw
+  the reactivation calculation the customer received. The panel says so before
+  the operator confirms.
+- Deliberately not covered: deleting a customer, staff member, product or
+  account. Those cascade to related rows, so restoring the parent alone would
+  produce a misleading half-record. They keep the existing typed confirmation.
+  Delivery status is also not covered because **Mark pending** already reverses
+  it explicitly.
+
 ## Integrated Business Management
 
 - Administrators open `/business` from the single **Business Management** sidebar item. The page keeps People, Payroll, Accounting, and Analytics together; these are sections of one GLV workflow, not separately activated modules.

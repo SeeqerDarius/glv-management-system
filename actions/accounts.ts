@@ -42,6 +42,7 @@ import {
   readIdempotencyKey,
 } from "@/lib/idempotency";
 import { getSettings } from "@/lib/settings";
+import { recordReversibleAction } from "@/lib/undo";
 import { formatMoney } from "@/lib/accounts";
 
 export type AccountFormState = {
@@ -856,6 +857,16 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
       id,
     },
     include: {
+      customer: {
+        select: {
+          fullName: true,
+        },
+      },
+      product: {
+        select: {
+          name: true,
+        },
+      },
       payments: {
         orderBy: {
           paymentDate: "desc",
@@ -874,6 +885,9 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
           id: true,
           amount: true,
           remainingAmount: true,
+          status: true,
+          resolvedBy: true,
+          resolvedAt: true,
         },
       },
     },
@@ -955,6 +969,41 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
         },
       });
     }
+
+    await recordReversibleAction(tx, {
+      action: "REACTIVATE_DORMANT_ACCOUNT",
+      entity: "CustomerAccount",
+      entityId: account.id,
+      performedBy: user.id,
+      performedAt: reactivatedAt,
+      summary: `Reactivated ${account.customer.fullName}'s ${account.product.name} plan: ${formatMoney(serviceFee)} service fee deducted, ${formatMoney(nextBalance)} left outstanding.`,
+      payload: {
+        before: {
+          status: account.status,
+          totalPaid: account.totalPaid,
+          balance: account.balance,
+          deliveryStatus: account.deliveryStatus,
+          deliveredAt: account.deliveredAt,
+          deliveredBy: account.deliveredBy,
+          deliveredWithBalance: account.deliveredWithBalance,
+          balanceAtDelivery: account.balanceAtDelivery,
+          deliveryNote: account.deliveryNote,
+          reactivatedAt: account.reactivatedAt,
+        },
+        after: {
+          status: nextStatus,
+          totalPaid: nextTotalPaid,
+          balance: nextBalance,
+        },
+        voidedCredits: account.credits.map((credit) => ({
+          id: credit.id,
+          status: credit.status,
+          remainingAmount: credit.remainingAmount,
+          resolvedBy: credit.resolvedBy,
+          resolvedAt: credit.resolvedAt,
+        })),
+      },
+    });
 
     await tx.auditLog.create({
       data: {

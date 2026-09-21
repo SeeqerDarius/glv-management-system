@@ -32,6 +32,8 @@ import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { DeliverWithBalanceForm } from "@/components/deliver-with-balance-form";
 import { ProductImagePreview } from "@/components/product-image-preview";
+import { UndoNotice, UndoPanel } from "@/components/undo-panel";
+import { listUndoableActions } from "@/lib/undo";
 import { PaymentModal } from "@/components/payment-modal";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
@@ -70,7 +72,8 @@ export default async function AccountDetailsPage({
   searchParams,
 }: AccountDetailsPageProps) {
   const { id } = await params;
-  const { created, error, warning, refunded, updated } = await searchParams;
+  const { created, error, warning, refunded, updated, undone, undoError } =
+    await searchParams;
   const session = await auth();
   const isStaff = session?.user?.role === UserRole.STAFF;
   const isAdmin = isAdminRole(session?.user?.role);
@@ -181,6 +184,9 @@ export default async function AccountDetailsPage({
     isAdmin &&
     (account.status === AccountStatus.CLOSED ||
       account.status === AccountStatus.CANCELLED);
+  const undoableActions = isAdmin
+    ? await listUndoableActions({ entity: "CustomerAccount", entityId: account.id })
+    : [];
   const reactivationCutoffDate = getDormantReactivationCutoffDate(account);
   const reactivationAmounts = getDormantReactivationAmounts(account.totalPaid);
   const reactivationBalance = Math.max(
@@ -399,6 +405,15 @@ export default async function AccountDetailsPage({
             </form>
           ) : null}
         </div>
+      ) : null}
+
+      <UndoNotice undone={undone} undoError={undoError} />
+
+      {isAdmin ? (
+        <UndoPanel
+          actions={undoableActions}
+          returnTo={`/accounts/${account.id}`}
+        />
       ) : null}
 
       {canReactivateDormant ? (

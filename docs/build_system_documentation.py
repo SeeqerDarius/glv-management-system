@@ -522,6 +522,7 @@ def build_body() -> str:
         ["Reactivation", "An admin may reactivate a DORMANT, PROBATION or CLOSED account once 6 months of inactivity have passed. A 32% service fee is deducted from the paid amount, open closure-refund credits are voided, and reactivatedAt is stamped so the ladder restarts from that date instead of re-closing the account on the next sweep."],
         ["Overpayment credit", "Payment amount beyond remaining balance creates CustomerCredit linked to the payment/account."],
         ["Refund action", "Credits can be marked refunded by permitted payment/admin users."],
+        ["Retraction window", "Account reactivation, payment deletion, staff deposit deletion, salary deletion, and credit refunds are retractable by an administrator for 3 hours. Each writes a ReversibleAction row inside the action's own transaction; the reverse handler refuses when the record changed after the action rather than overwriting newer work. Retraction writes an UNDO_<ACTION> audit entry."],
     ], [2400, 6960]))
 
     body.append(section("10. Reports, Weekly Export, and Activity"))
