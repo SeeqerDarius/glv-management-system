@@ -210,7 +210,54 @@ export default async function ActivityPage() {
           <h2 className="text-lg font-semibold text-gray-950">
             Recent Payment Activity
           </h2>
-          <div className="mt-4 overflow-x-auto">
+          
+          {/* Mobile Card View */}
+          <div className="mt-4 space-y-3 md:hidden">
+            {report.recentPayments.map((payment) => (
+              <div
+                key={payment.id}
+                className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-gray-400">
+                      {payment.receiptNo}
+                    </p>
+                    <p className="text-sm font-semibold text-gray-950">
+                      {payment.account.customer.fullName}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {payment.account.customer.staff.code}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-gray-950">
+                      {formatMoney(payment.amount)}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <ProductImagePreview
+                    src={payment.account.product.imageUrl}
+                    alt={payment.account.product.name}
+                    className="size-8 bg-white"
+                    previewTitle={payment.account.product.name}
+                  />
+                  <p className="truncate text-sm text-gray-700">
+                    {payment.account.product.name}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {report.recentPayments.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-600">
+                No payment activity yet.
+              </p>
+            ) : null}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="mt-4 hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b bg-gray-50 text-left text-xs uppercase text-gray-500">

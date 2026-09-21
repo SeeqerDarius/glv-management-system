@@ -359,9 +359,66 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       </form>
 
       {activeTab === "procurement" ? (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[920px] text-sm">
+        <>
+          {/* Mobile Card View for Procurement */}
+          <div className="grid gap-3 md:hidden">
+            {procurementItems.map((item) => (
+              <div
+                key={item.productId}
+                className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-base font-semibold text-gray-950">
+                      {item.productName}
+                    </h2>
+                    <p className="text-sm text-gray-600">
+                      <ProductCategoryBadge category={item.category} />
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-green-700">
+                      {formatMoney(item.totalCost)}
+                    </p>
+                    <p className="text-xs text-gray-600">{item.quantity} units</p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-gray-400">Unit Cost</p>
+                    <p className="font-medium text-gray-800">{formatMoney(item.unitCost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Transport</p>
+                    <p className="font-medium text-gray-800">{formatMoney(item.transportCost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Landed Unit</p>
+                    <p className="font-medium text-gray-800">{formatMoney(item.landedUnitCost)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Avg. Paid</p>
+                    <p className="font-medium text-gray-800">{percent(item.averageProgress)}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <Link
+                    href={`/products/procurement/${item.productId}`}
+                    className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    View Details
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View for Procurement */}
+          <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[920px] text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
                   <th className="px-3 py-2.5 text-left text-[11px] font-medium uppercase tracking-wider text-gray-400">Product</th>
@@ -463,10 +520,109 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             )}
           </div>
         </div>
+
+          {procurementItems.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+              <p className="text-sm font-medium text-gray-700">No products are ready for procurement</p>
+              <p className="text-xs text-gray-400">Products will appear here when accounts cross the payment threshold.</p>
+            </div>
+          )}
+        </>
       ) : (
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm" style={{ tableLayout: "fixed" }}>
+        <>
+          {/* Mobile Card View for Products */}
+          <div className="grid gap-3 md:hidden">
+            {sortedProducts.map((product) => {
+              const unitProfit =
+                product.layawayPrice -
+                product.costPrice -
+                product.transportCost;
+              const expectedProfit = unitProfit * product._count.accounts;
+
+              return (
+                <div
+                  key={product.id}
+                  className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <ProductImagePreview
+                          src={product.imageUrl}
+                          alt={product.name}
+                          className="size-10"
+                          previewTitle={product.name}
+                        />
+                        <div className="min-w-0">
+                          <h2 className="truncate text-base font-semibold text-gray-950">
+                            {product.name}
+                          </h2>
+                          <p className="text-sm text-gray-600">
+                            <ProductCategoryBadge category={product.category} />
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-green-700">
+                        {formatMoney(expectedProfit)}
+                      </p>
+                      <p className="text-xs text-gray-600">{product._count.accounts} accounts</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-gray-400">Daily</p>
+                      <p className="font-medium text-gray-800">{formatMoney(product.dailyAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Layaway Total</p>
+                      <p className="font-medium text-gray-800">{formatMoney(product.layawayPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Qty on Sale</p>
+                      <p className="font-medium text-gray-800">{product._count.accounts}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Unit Profit</p>
+                      <p className="font-medium text-gray-800">{formatMoney(unitProfit)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Link
+                      href={`/products/${product.id}`}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      View
+                    </Link>
+                    <Link
+                      href={`/products/${product.id}/edit`}
+                      className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    >
+                      Edit
+                    </Link>
+                    <ConfirmDeleteForm
+                      action={deleteProduct}
+                      id={product.id}
+                      title={`Delete ${product.name}?`}
+                      hasLinkedHistory={product._count.accounts > 0}
+                      description="This permanently deletes the product, every related account, and all payment records. This cannot be undone."
+                      triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
+                    >
+                      Delete
+                    </ConfirmDeleteForm>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View for Products */}
+          <div className="hidden overflow-hidden rounded-xl border border-gray-200 bg-white md:block">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm" style={{ tableLayout: "fixed" }}>
             {/* Widths now sum perfectly to 100% */}
             <colgroup>
               <col style={{ width: "25%" }} />

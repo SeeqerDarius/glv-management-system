@@ -217,7 +217,93 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-        <div className="overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="space-y-3 p-3 md:hidden">
+          {logs.map((log) => {
+            const user = userNames.get(log.userId);
+            const entries = detailEntries(log.newValue);
+            return (
+              <div
+                key={log.id}
+                className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-gray-400">{formatDate(log.createdAt)}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span
+                        className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-medium ${actionVariant(log.action)}`}
+                      >
+                        {humanizeAction(log.action)}
+                      </span>
+                      <span className="inline-block rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500">
+                        {log.entity}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-2">
+                  <p className="font-medium text-gray-900">
+                    {user?.name ?? "System"}
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    {user?.email ?? log.userId}
+                  </p>
+                </div>
+
+                <details className="mt-3 rounded-lg border border-gray-200 bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2 text-xs font-semibold text-green-800 transition hover:bg-lime-50">
+                    <span>More details</span>
+                    <span className="rounded-full bg-lime-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-green-900 group-open:hidden">
+                      Open
+                    </span>
+                    <span className="hidden rounded-full bg-gray-100 px-2 py-0.5 text-[10px] uppercase tracking-wide text-gray-600 group-open:inline">
+                      Close
+                    </span>
+                  </summary>
+                  <div className="border-t border-gray-100 p-3">
+                    <div className="mb-3 rounded-lg bg-gray-50 px-3 py-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                        Record
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-gray-900">
+                        {pickEntityLabel(log)}
+                      </p>
+                      <p className="mt-1 break-all font-mono text-[10.5px] text-gray-400">
+                        {log.entityId}
+                      </p>
+                    </div>
+                    {entries?.length ? (
+                      <dl className="grid gap-1.5 text-xs">
+                        {entries.map(([key, value]) => (
+                          <div
+                            key={key}
+                            className="grid gap-1 rounded-md bg-gray-50 px-3 py-2"
+                          >
+                            <dt className="font-medium text-gray-400">
+                              {humanizeKey(key)}
+                            </dt>
+                            <dd className="break-words text-gray-700">
+                              {formatValue(value)}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <pre className="max-h-36 overflow-auto whitespace-pre-wrap rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        {previewJson(log.newValue)}
+                      </pre>
+                    )}
+                  </div>
+                </details>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
@@ -332,6 +418,15 @@ export default async function AuditLogsPage({ searchParams }: AuditLogsPageProps
           )}
         </div>
       </div>
+
+      {logs.length === 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+          <p className="text-sm font-medium text-gray-700">No audit logs found</p>
+          <p className="text-xs text-gray-400">
+            {query ? `No results for "${query}".` : "System actions will appear here."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

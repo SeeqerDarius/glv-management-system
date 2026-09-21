@@ -271,7 +271,91 @@ export default async function CreditsPage({
         </div>
       </form>
 
-      <div className="overflow-x-auto rounded-lg border bg-white">
+      {/* Mobile Card View */}
+      <div className="grid gap-3 md:hidden">
+        {credits.map((credit) => (
+          <div
+            key={credit.id}
+            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase text-gray-400">
+                  {formatDate(credit.createdAt)}
+                </p>
+                <h2 className="truncate text-base font-semibold text-gray-950">
+                  {credit.customer.fullName}
+                </h2>
+                <p className="truncate text-sm text-gray-600">
+                  {credit.customer.customerId}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-semibold text-gray-950">
+                  {formatMoney(credit.amount)}
+                </p>
+                <p className="text-xs text-gray-600">{credit.status}</p>
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-gray-400">Staff</p>
+                <p className="font-medium text-gray-800">{credit.customer.staff.code}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Source</p>
+                <p className="font-medium text-gray-800">{sourceLabel(credit.source)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Remaining</p>
+                <p className="font-medium text-gray-800">{formatMoney(credit.remainingAmount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400">Receipt</p>
+                <p className="font-medium text-gray-800 font-mono text-xs">
+                  {credit.payment?.receiptNo ?? "-"}
+                </p>
+              </div>
+            </div>
+
+            {credit.account ? (
+              <div className="mt-3 flex items-center gap-2">
+                <ProductImagePreview
+                  src={credit.account.product.imageUrl}
+                  alt={credit.account.product.name}
+                  className="size-8 bg-white"
+                  previewTitle={credit.account.product.name}
+                />
+                <p className="truncate text-sm text-gray-700">
+                  {credit.account.product.name}
+                </p>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Link
+                href={`/customers/${credit.customerId}`}
+                className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                View Customer
+              </Link>
+
+              {credit.status === CreditStatus.OPEN &&
+              credit.remainingAmount > 0 ? (
+                <CustomerCreditRefundForm
+                  creditId={credit.id}
+                  amount={credit.remainingAmount}
+                  returnTo="/credits"
+                />
+              ) : null}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden overflow-x-auto rounded-lg border bg-white md:block">
         <table className="w-full min-w-[980px] text-sm">
           <thead>
             <tr className="bg-gray-100 text-left text-gray-700">
@@ -357,6 +441,12 @@ export default async function CreditsPage({
           </div>
         ) : null}
       </div>
+
+      {credits.length === 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+          <p className="text-sm font-medium text-gray-700">No credits or refunds match these filters</p>
+        </div>
+      )}
     </div>
   );
 }

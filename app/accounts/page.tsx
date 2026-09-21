@@ -402,11 +402,119 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         />
       ) : null}
 
-      {/* ==================================================================== */}
-      {/* SECTION: Accounts Table Container                                      */}
-      {/* The main data table showing all filtered accounts                      */}
-      {/* ==================================================================== */}
-      <div className="overflow-hidden rounded-lg border bg-white">
+      {/* Mobile Card View */}
+      <div className="grid gap-3 md:hidden">
+        {accounts.map((account) => {
+          const status = getEffectiveAccountStatus(account);
+          return (
+            <div
+              key={account.id}
+              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <ProductImagePreview
+                      src={account.product.imageUrl}
+                      alt={account.product.name}
+                      className="size-8 bg-white"
+                      previewTitle={account.product.name}
+                    />
+                    <div className="min-w-0">
+                      <h2 className="truncate text-base font-semibold text-gray-950">
+                        {account.product.name}
+                      </h2>
+                      <p className="truncate text-sm text-gray-600">
+                        {account.customer.fullName}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                {isAdmin ? (
+                  <input
+                    form="bulk-account-reassignment"
+                    type="checkbox"
+                    name="customerIds"
+                    value={account.customer.id}
+                    className="size-4 shrink-0"
+                    aria-label={`Select ${account.customer.fullName} ${account.product.name}`}
+                  />
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-400">Customer ID</p>
+                  <p className="font-medium text-gray-800">{account.customer.customerId}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Staff</p>
+                  <p className="font-medium text-gray-800">{account.customer.staff.code}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Paid</p>
+                  <p className="font-medium text-gray-800">{formatMoney(account.totalPaid)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Balance</p>
+                  <p className="font-medium text-gray-800">{formatMoney(account.balance)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Daily</p>
+                  <p className="font-medium text-gray-800">{formatMoney(account.dailyAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Status</p>
+                  <p className="font-medium text-gray-800">{status}</p>
+                </div>
+              </div>
+
+              <div className="mt-3">
+                <p className="text-xs text-gray-400">Progress</p>
+                <AccountDaysProgress
+                  totalPaid={account.totalPaid}
+                  dailyAmount={account.dailyAmount}
+                  duration={account.product.duration}
+                />
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/accounts/${account.id}`}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  View
+                </Link>
+
+                {account.balance > 0 &&
+                status !== AccountStatus.COMPLETED &&
+                status !== AccountStatus.CANCELLED &&
+                status !== AccountStatus.SUSPENDED &&
+                status !== AccountStatus.CLOSED &&
+                status !== AccountStatus.ARCHIVED ? (
+                  <PaymentModal
+                    accounts={[account]}
+                    selectedCustomerId={account.customer.id}
+                    selectedAccountId={account.id}
+                    customerName={account.customer.fullName}
+                    trigger={
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Record Payment
+                      </button>
+                    }
+                  />
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden overflow-hidden rounded-lg border bg-white md:block">
         <div className="overflow-x-auto">
         <table className="min-w-[920px] text-sm">
           {/* ================================================================== */}
@@ -543,6 +651,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           </div>
         ) : null}
       </div>
+
+      {accounts.length === 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+          <p className="text-sm font-medium text-gray-700">No customer accounts found</p>
+        </div>
+      )}
 
       {/* ==================================================================== */}
       {/* SECTION: Pagination Controls                                           */}

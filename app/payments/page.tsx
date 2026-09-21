@@ -551,7 +551,8 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                 </Link>
                               </div>
 
-                              <div className="overflow-x-auto">
+                              {/* Desktop Table View */}
+                              <div className="hidden overflow-x-auto md:block">
                                 <table className="w-full min-w-[620px] text-sm">
                                   <thead>
                                     <tr className="bg-gray-100 text-left text-gray-700">
@@ -627,6 +628,67 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
                                     })}
                                   </tbody>
                                 </table>
+                              </div>
+
+                              {/* Mobile Card View for Payments */}
+                              <div className="space-y-3 md:hidden">
+                                {accountGroup.payments.map((payment) => {
+                                  const canEdit = canEditPayment(
+                                    payment.createdAt,
+                                    paymentEditWindowHours
+                                  );
+
+                                  return (
+                                    <div
+                                      key={payment.id}
+                                      className="rounded-md border border-gray-200 bg-white p-3"
+                                    >
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-xs font-semibold text-gray-400">
+                                            {payment.receiptNo}
+                                          </p>
+                                          <p className="text-sm font-semibold text-gray-950">
+                                            {formatMoney(payment.amount)}
+                                          </p>
+                                          <p className="text-xs text-gray-600">
+                                            {formatDate(payment.paymentDate)} • {payment.method}
+                                          </p>
+                                        </div>
+                                        <div className="flex gap-1">
+                                          {canEdit ? (
+                                            <Link
+                                              href={`/payments/${payment.id}/edit`}
+                                              aria-label={`Edit receipt ${payment.receiptNo}`}
+                                              title="Edit Payment"
+                                              className="group/edit flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-lime-50 hover:text-green-700"
+                                            >
+                                              <Pencil className="size-4 transition-transform duration-200 group-hover/edit:scale-125 group-hover/edit:rotate-12" />
+                                            </Link>
+                                          ) : null}
+                                          {isAdmin ? (
+                                            <ConfirmDeleteForm
+                                              action={deletePayment}
+                                              id={payment.id}
+                                              title={`Delete receipt ${payment.receiptNo}?`}
+                                              description="This permanently deletes the payment and recalculates the account total paid, balance, and status. This cannot be undone."
+                                              triggerClassName="group/del flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-red-50 hover:text-red-600"
+                                            >
+                                              <Trash2 className="size-4 transition-transform duration-200 group-hover/del:scale-125 group-hover/del:-translate-y-0.5" />
+                                            </ConfirmDeleteForm>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                      {payment.credit ? (
+                                        <div className="mt-2">
+                                          <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-medium text-blue-800">
+                                            Credit: {formatMoney(payment.credit.amount)} {payment.credit.status.toLowerCase()}
+                                          </span>
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )

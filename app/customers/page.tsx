@@ -307,7 +307,101 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         />
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border bg-white">
+      {/* Mobile Card View */}
+      <div className="grid gap-3 md:hidden">
+        {customers.map((customer) => {
+          const canRecordPayment = customer.accounts.length > 0;
+
+          return (
+            <div
+              key={customer.id}
+              className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold uppercase text-gray-400">
+                    {customer.customerId}
+                  </p>
+                  <h2 className="truncate text-base font-semibold text-gray-950">
+                    {customer.fullName}
+                  </h2>
+                  <p className="truncate text-sm text-gray-600">{customer.phone || "-"}</p>
+                </div>
+                {isAdmin ? (
+                  <input
+                    form="bulk-customer-reassignment"
+                    type="checkbox"
+                    name="customerIds"
+                    value={customer.id}
+                    className="size-4 shrink-0"
+                    aria-label={`Select ${customer.fullName}`}
+                  />
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-gray-400">Staff</p>
+                  <p className="font-medium text-gray-800">{customer.staff.code}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400">Accounts</p>
+                  <p className="font-medium text-gray-800">{customer._count.accounts}</p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/customers/${customer.id}`}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  View
+                </Link>
+
+                {canRecordPayment ? (
+                  <PaymentModal
+                    accounts={customer.accounts.map((account) => ({
+                      ...account,
+                      customer: {
+                        id: customer.id,
+                        customerId: customer.customerId,
+                        fullName: customer.fullName,
+                      },
+                    }))}
+                    selectedCustomerId={customer.id}
+                    selectedAccountId={customer.accounts.length === 1 ? customer.accounts[0].id : undefined}
+                    customerName={customer.fullName}
+                    trigger={
+                      <button
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        Record Payment
+                      </button>
+                    }
+                  />
+                ) : null}
+
+                {isAdmin ? (
+                  <ConfirmDeleteForm
+                    action={deleteCustomer}
+                    id={customer.id}
+                    title={`Delete ${customer.fullName}?`}
+                    description="This permanently deletes the customer, every related account, and all payment records. This cannot be undone."
+                    hasLinkedHistory={customer._count.accounts > 0}
+                    triggerClassName="inline-flex h-9 items-center justify-center rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50"
+                  >
+                    Delete
+                  </ConfirmDeleteForm>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden overflow-hidden rounded-lg border bg-white md:block">
         <div className="overflow-x-auto">
         <table className="min-w-[860px] text-sm">
           <thead>
@@ -410,6 +504,12 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           </div>
         ) : null}
       </div>
+
+      {customers.length === 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+          <p className="text-sm font-medium text-gray-700">No customers found</p>
+        </div>
+      )}
 
       {/* Pagination */}
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
