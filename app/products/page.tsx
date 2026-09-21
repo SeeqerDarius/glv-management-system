@@ -759,6 +759,18 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           )}
         </div>
       </div>
+
+          {products.length === 0 && (
+            <div className="rounded-lg border border-gray-200 bg-white p-8 text-center md:hidden">
+              <p className="text-sm font-medium text-gray-700">No products found</p>
+              <p className="text-xs text-gray-400">
+                {query
+                  ? `No results for "${query}". Try a different search.`
+                  : "Create your first product to get started."}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
