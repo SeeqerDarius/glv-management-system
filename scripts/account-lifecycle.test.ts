@@ -5,13 +5,16 @@ import {
   getAccountActivityDate,
   getArchiveRepairStatus,
   getClosureRefundAmounts,
+  getDeliveryWait,
   getDormantReactivationAmounts,
   getDormantReactivationCutoffDate,
   getNextLifecycleStatus,
+  getPaidOffDate,
   getStatusAfterBalanceChange,
   isAwaitingDelivery,
   isDormantReactivationEligible,
   isFinishedStatus,
+  resolveServiceFeeRate,
 } from "../lib/account-lifecycle-rules";
 
 const DAY = 86_400_000;
@@ -227,4 +230,54 @@ test("a balance change reopens or completes a plan without stranding it in the a
   assert.equal(getStatusAfterBalanceChange(AccountStatus.ARCHIVED, 75), AccountStatus.ACTIVE);
   assert.equal(getStatusAfterBalanceChange(AccountStatus.DORMANT, 75), AccountStatus.DORMANT);
   assert.equal(getStatusAfterBalanceChange(AccountStatus.CLOSED, 75), AccountStatus.CLOSED);
+});
+
+test("the configured refund deduction replaces 32% only once it is really set", () => {
+  // The setting shipped at 0 and was never read. Treating 0 as a rate would
+  // refund closures in full and reactivate for free the day it was wired up.
+  assert.equal(resolveServiceFeeRate(0), 0.32);
+  assert.equal(resolveServiceFeeRate(null), 0.32);
+  assert.equal(resolveServiceFeeRate(undefined), 0.32);
+  assert.equal(resolveServiceFeeRate(Number.NaN), 0.32);
+  assert.equal(resolveServiceFeeRate(-5), 0.32);
+  assert.equal(resolveServiceFeeRate(150), 0.32);
+  assert.equal(resolveServiceFeeRate(25), 0.25);
+  assert.equal(resolveServiceFeeRate(100), 1);
+
+  assert.deepEqual(getClosureRefundAmounts(1000, 0.25), {
+    refundAmount: 750,
+    serviceFee: 250,
+    serviceFeeRate: 0.25,
+  });
+  assert.deepEqual(getDormantReactivationAmounts(1000, 0.25), {
+    serviceFee: 250,
+    nextTotalPaid: 750,
+    serviceFeeRate: 0.25,
+  });
+});
+
+test("a paid-off plan dates from the payment that cleared it", () => {
+  assert.deepEqual(
+    getPaidOffDate({ startDate: at(90), payments: [{ paymentDate: at(4) }, { paymentDate: at(9) }] }),
+    at(4)
+  );
+  assert.deepEqual(getPaidOffDate({ startDate: at(90), payments: [] }), at(90));
+});
+
+test("delivery waits are counted in whole days and late only past the target", () => {
+  assert.deepEqual(getDeliveryWait(at(3), 0, NOW), {
+    daysWaiting: 3,
+    deliveryTargetDays: 0,
+    late: false,
+    dueBy: null,
+  });
+
+  const onTarget = getDeliveryWait(at(7), 7, NOW);
+  assert.equal(onTarget.daysWaiting, 7);
+  assert.equal(onTarget.late, false);
+  assert.deepEqual(onTarget.dueBy, NOW);
+
+  assert.equal(getDeliveryWait(at(8), 7, NOW).late, true);
+  // A paid-off date in the future (a backdating slip) never reads negative.
+  assert.equal(getDeliveryWait(at(-2), 7, NOW).daysWaiting, 0);
 });

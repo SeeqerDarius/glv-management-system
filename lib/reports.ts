@@ -7,10 +7,10 @@ import {
 } from "@prisma/client";
 import { countsAsSale, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
-  isAwaitingDelivery,
+  ensureLifecycleStatusesFresh,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
 } from "@/lib/account-lifecycle";
+import { getAwaitingDeliverySummary } from "@/lib/delivery-queue";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
@@ -102,7 +102,7 @@ function expectedCollectionForRange(
 }
 
 export async function getAdminReportSummary() {
-  await refreshAccountLifecycleStatuses();
+  await ensureLifecycleStatusesFresh();
 
   const month = getCurrentMonthRange();
   const salaryDueMonth = previousSalaryMonthStart();
@@ -187,7 +187,7 @@ export async function getAdminReportSummary() {
   const finishedAccounts = accounts.filter((account) =>
     isFinishedStatus(account.status)
   ).length;
-  const awaitingDeliveryAccounts = accounts.filter(isAwaitingDelivery).length;
+  const awaitingDelivery = await getAwaitingDeliverySummary();
   const expectedReceivables = accounts
     .filter((account) => {
       const status = getEffectiveAccountStatus(account);
@@ -238,7 +238,9 @@ export async function getAdminReportSummary() {
     completedAccounts: statusCounts.COMPLETED,
     finishedAccounts,
     completedDeliveredAccounts,
-    awaitingDeliveryAccounts,
+    awaitingDeliveryAccounts: awaitingDelivery.count,
+    lateDeliveryAccounts: awaitingDelivery.late,
+    deliveryTargetDays: awaitingDelivery.deliveryTargetDays,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
@@ -418,7 +420,9 @@ export async function getStaffDashboardTrend(staffId: string, now = new Date()) 
 }
 
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  // Always the real clock: sweeping with a report's selected week rewrote live
+  // statuses as they stood in that past week.
+  await ensureLifecycleStatusesFresh();
 
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
@@ -712,7 +716,9 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 }
 
 export async function getStaffDashboardSummary(staffId: string, now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  // Always the real clock: sweeping with a report's selected week rewrote live
+  // statuses as they stood in that past week.
+  await ensureLifecycleStatusesFresh();
 
   const week = getCurrentWeekRange(now);
   const dayStart = new Date(now);
@@ -849,7 +855,9 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
       account.deliveryStatus === DeliveryStatus.DELIVERED &&
       isFinishedStatus(account.status)
   ).length;
-  const awaitingDeliveryAccounts = accounts.filter(isAwaitingDelivery).length;
+  const awaitingDelivery = await getAwaitingDeliverySummary({
+    customer: { staffId },
+  });
 
   return {
     staff,
@@ -858,7 +866,9 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
     completedDeliveredAccounts,
-    awaitingDeliveryAccounts,
+    awaitingDeliveryAccounts: awaitingDelivery.count,
+    lateDeliveryAccounts: awaitingDelivery.late,
+    deliveryTargetDays: awaitingDelivery.deliveryTargetDays,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
@@ -889,7 +899,9 @@ export async function getActivityReport({
   includeFinancialValues?: boolean;
   now?: Date;
 }) {
-  await refreshAccountLifecycleStatuses(now);
+  // Always the real clock: sweeping with a report's selected week rewrote live
+  // statuses as they stood in that past week.
+  await ensureLifecycleStatusesFresh();
 
   const week = getCurrentWeekRange(now);
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

@@ -10,7 +10,7 @@ import { CustomerCreditRefundForm } from "@/components/customer-credit-refund-fo
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { ensureLifecycleStatusesFresh } from "@/lib/account-lifecycle";
 import { UndoNotice, UndoPanel } from "@/components/undo-panel";
 import { listUndoableActions } from "@/lib/undo";
 import { auth } from "@/lib/auth";
@@ -95,7 +95,7 @@ export default async function CreditsPage({
     );
   }
 
-  await refreshAccountLifecycleStatuses();
+  await ensureLifecycleStatusesFresh();
 
   const q = query.q?.trim() ?? "";
   const selectedStatus = query.status?.trim() || CreditStatus.OPEN;

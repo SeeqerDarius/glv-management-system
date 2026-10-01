@@ -320,13 +320,17 @@ export function TrendBadge({
   current,
   previous,
   suffix = "vs last week",
+  higherIsBetter = true,
 }: {
   current: number;
   previous: number;
   suffix?: string;
+  /** False for figures where growth is bad news, such as overdue accounts. */
+  higherIsBetter?: boolean;
 }) {
   const delta = current - previous;
   const direction = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  const good = higherIsBetter ? direction === "up" : direction === "down";
   const pct =
     previous > 0
       ? Math.round((Math.abs(delta) / previous) * 100)
@@ -335,11 +339,11 @@ export function TrendBadge({
         : 0;
 
   const color =
-    direction === "up"
-      ? "var(--chart-good)"
-      : direction === "down"
-        ? "var(--chart-critical)"
-        : "var(--chart-muted)";
+    direction === "flat"
+      ? "var(--chart-muted)"
+      : good
+        ? "var(--chart-good)"
+        : "var(--chart-critical)";
   const Icon = direction === "up" ? ArrowUpRightIcon : direction === "down" ? ArrowDownRightIcon : MinusIcon;
   const magnitude =
     previous === 0 && current === 0

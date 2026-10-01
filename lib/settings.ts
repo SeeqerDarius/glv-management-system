@@ -15,6 +15,9 @@ export const fallbackSettings = {
   defaultDailyCollection: 0,
   procurementThresholdPercent: 70,
   paymentEditWindowHours: 3,
+  // 0 = not configured: the standard 32% service fee and no delivery target.
+  refundDeductionPercent: 0,
+  deliveryTimeAfterCompletionDays: 0,
   defaultMonthlySalary: 0,
   receiptPrefix: "GLV/RCPT",
   customerIdPrefix: "GLV",

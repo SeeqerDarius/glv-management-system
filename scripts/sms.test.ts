@@ -5,7 +5,9 @@ import {
   missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone,
 } from "../lib/sms-rules";
 import { sendSms, SmsSendError } from "../lib/sms-provider";
-import { renderSmsTemplate, smsFirstName, validateSmsTemplate } from "../lib/sms-templates";
+import {
+  READY_FOR_COLLECTION_SMS, renderReadyForCollectionSms, renderSmsTemplate, smsFirstName, validateSmsTemplate,
+} from "../lib/sms-templates";
 
 afterEach(() => mock.restoreAll());
 test("editable SMS templates render allowed placeholders and reject unsafe template syntax", () => {
@@ -211,4 +213,31 @@ test("dispatch suppresses completed reminders and concurrent duplicate workers",
   const fetch = mock.method(globalThis, "fetch", async () => { throw new Error("Must not send"); });
   await Promise.all([dispatchDueSms(), dispatchDueSms()]);
   assert.equal(fetch.mock.callCount(), 0); assert.equal(update.mock.callCount(), 1);
+});
+test("ready-for-collection notice is queued once, held for the edit window, and only for undelivered paid-off plans", async () => {
+  const { prisma } = await import("../lib/prisma");
+  const { queueAccountSms } = await import("../lib/sms-notifications");
+  mock.method(prisma.setting, "findFirst", async () => ({ smsNotificationsEnabled: true, defaultCurrency: "GHS", paymentEditWindowHours: 3 }));
+  let account = { id: "a", status: "COMPLETED", deliveryStatus: "PENDING", targetAmount: 100, totalPaid: 100, balance: 0, dailyAmount: 5, startDate: new Date(),
+    customer: { fullName: "Kwame Mensah", phone: "0241234567", staff: { fullName: "Ama Serwaa" } }, product: { name: "Fridge" } };
+  mock.method(prisma.customerAccount, "findUnique", async () => account);
+  mock.method(prisma.smsNotification, "updateMany", async () => ({ count: 0 }));
+  const queued: Array<{ dedupeKey: string; body: string; scheduledAt: Date }> = [];
+  mock.method(prisma.smsNotification, "createMany", async ({ data }: { data: Array<{ dedupeKey: string; body: string; scheduledAt: Date }> }) => {
+    if (queued.some((row) => row.dedupeKey === data[0].dedupeKey)) return { count: 0 };
+    queued.push(data[0]); return { count: 1 };
+  });
+  const before = Date.now();
+  await queueAccountSms(prisma, "a", "READY_FOR_COLLECTION");
+  await queueAccountSms(prisma, "a", "READY_FOR_COLLECTION");
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].dedupeKey, "READY_FOR_COLLECTION:a");
+  assert.equal(queued[0].body, renderReadyForCollectionSms({ customerName: "Kwame", productName: "Fridge", staffName: "Ama" }));
+  assert.ok(queued[0].body.startsWith("Rock Frost Group:"));
+  assert.ok(queued[0].scheduledAt.getTime() >= before + 3 * 3_600_000 - 1000);
+  // Already handed over (delivered on credit, then paid off): nothing to collect.
+  account = { ...account, id: "b", deliveryStatus: "DELIVERED" };
+  await queueAccountSms(prisma, "b", "READY_FOR_COLLECTION");
+  assert.equal(queued.length, 1);
+  assert.ok(READY_FOR_COLLECTION_SMS.template.length <= 612);
 });

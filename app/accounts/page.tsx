@@ -18,10 +18,14 @@ import { Button } from "@/components/ui/button";
 import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
+  ensureLifecycleStatusesFresh,
+  getDeliveryWait,
+  getLifecycleBusinessRules,
+  getPaidOffDate,
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
 } from "@/lib/account-lifecycle";
+import { awaitingDeliveryWhere } from "@/lib/delivery-queue";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -82,6 +86,33 @@ function getAccountOrderBy(sort: AccountSort): Prisma.CustomerAccountOrderByWith
     default:
       return { createdAt: "desc" };
   }
+}
+
+/** "5d waiting", red once the delivery target has passed. */
+function DeliveryWaitLabel({
+  paidOffAt,
+  targetDays,
+}: {
+  paidOffAt: Date;
+  targetDays: number;
+}) {
+  const wait = getDeliveryWait(paidOffAt, targetDays);
+  const label = `${wait.daysWaiting}d waiting`;
+
+  return (
+    <span
+      className={`whitespace-nowrap text-xs font-medium ${wait.late ? "text-red-700" : "text-gray-500"}`}
+      title={
+        wait.late
+          ? `Past the ${wait.deliveryTargetDays}-day delivery target`
+          : wait.deliveryTargetDays > 0
+            ? `Delivery target: ${wait.deliveryTargetDays} days after payoff`
+            : "Days since the plan was paid off"
+      }
+    >
+      {wait.late ? `${label} · late` : label}
+    </span>
+  );
 }
 
 function buildPageHref(params: URLSearchParams, page: number) {
@@ -155,13 +186,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       expectedEndDate: { lt: today },
     });
   } else if (selectedStatus === "AWAITING_DELIVERY") {
-    // Paid off and not handed over. Archived plans are included on purpose:
-    // one still owed its product must not drop out of the delivery queue.
-    filters.push({
-      status: { in: [AccountStatus.COMPLETED, AccountStatus.ARCHIVED] },
-      balance: { lte: 0 },
-      deliveryStatus: DeliveryStatus.PENDING,
-    });
+    filters.push(awaitingDeliveryWhere);
   } else if (selectedStatus === "DELIVERED_ON_CREDIT") {
     // Released early and still owing: the debt the business carries.
     filters.push({
@@ -200,6 +225,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
     deliveryStatus: DeliveryStatus;
     deliveredAt: Date | null;
     deliveredWithBalance: boolean;
+    payments: Array<{ paymentDate: Date }>;
     customer: {
       id: string;
       fullName: string;
@@ -212,13 +238,15 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   let staff: Array<{ id: string; code: string; fullName: string }> = [];
   let products: Array<{ id: string; name: string }> = [];
   let loadError = false;
+  let deliveryTargetDays = 0;
 
   // ==========================================================================
   // SECTION: Database Queries
   // Fetches accounts (paginated), total count, staff list (admin only), and products
   // ==========================================================================
   try {
-    await refreshAccountLifecycleStatuses();
+    await ensureLifecycleStatusesFresh();
+    deliveryTargetDays = (await getLifecycleBusinessRules()).deliveryTargetDays;
 
     // Fetch accounts first (most important), then supporting data sequentially
     accounts = await prisma.customerAccount.findMany({
@@ -238,6 +266,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
         deliveryStatus: true,
         deliveredAt: true,
         deliveredWithBalance: true,
+        // The latest payment dates the payoff, for the delivery wait.
+        payments: {
+          orderBy: { paymentDate: "desc" },
+          take: 1,
+          select: { paymentDate: true },
+        },
         customer: {
           select: {
             id: true,
@@ -501,6 +535,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                           : "Delivered"
                         : "Awaiting delivery"}
                     </p>
+                    {isAwaitingDelivery(account) ? (
+                      <DeliveryWaitLabel
+                        paidOffAt={getPaidOffDate(account)}
+                        targetDays={deliveryTargetDays}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -632,10 +672,18 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">
                     {isFinishedStatus(account.status) ||
                     account.deliveryStatus === DeliveryStatus.DELIVERED ? (
-                      <DeliveryStatusIcon
-                        status={account.deliveryStatus}
-                        withBalance={account.deliveredWithBalance}
-                      />
+                      <div className="flex items-center gap-2">
+                        <DeliveryStatusIcon
+                          status={account.deliveryStatus}
+                          withBalance={account.deliveredWithBalance}
+                        />
+                        {isAwaitingDelivery(account) ? (
+                          <DeliveryWaitLabel
+                            paidOffAt={getPaidOffDate(account)}
+                            targetDays={deliveryTargetDays}
+                          />
+                        ) : null}
+                      </div>
                     ) : (
                       <span className="text-xs text-gray-400">-</span>
                     )}

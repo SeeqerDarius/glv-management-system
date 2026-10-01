@@ -115,7 +115,10 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   Company, Business Rules, Payroll, Notifications, Security, Appearance,
   Product Categories, and Data & System. Each tab saves on its own and writes
   only its own columns. Important: many fields are stored but not fully wired
-  downstream yet. Always distinguish "saved" from "effective".
+  downstream yet. Always distinguish "saved" from "effective". Refund
+  Deduction % and Delivery Time After Completion are effective (see "Business
+  Rules Settings in Effect"); Administration Fee %, Minimum Deposit,
+  Commission and Session Timeout are still saved only.
 - `/settings/legal`: Super Admin legal-template editor and customer selector for
   generating addressed Terms and Conditions.
 - AI Support: floating chat bubble rendered in the protected app shell for
@@ -176,10 +179,14 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   are only computed for flow metrics that are safely reconstructible from
   immutable `createdAt`/`paymentDate` history (new customers/staff/accounts
   this week vs last week, collected this week/today vs the prior period).
-  Status-based snapshot figures (Active/Overdue/Completed accounts, cash
-  position) intentionally show no arrow: the `status` column has no history
-  table, so there is no honest way to reconstruct "as it was last week" for
-  those — showing a fabricated delta there would be worse than showing none.
+  Status-based figures could not show an arrow at first: the `status` column
+  has no history table, so there was no honest way to reconstruct "as it was
+  last week" — a fabricated delta would be worse than none. Daily status
+  snapshots now supply that history (see "Lifecycle Sweep Scheduling and
+  Status Snapshots"), so Active, Overdue, Completed & Delivered and Paid,
+  Awaiting Delivery show a week-over-week arrow once a snapshot from a week
+  earlier exists, and still show none before that. Cash-position cards remain
+  arrow-free.
   The Business Dashboard screenshot in the training manual
   (`documentation/screenshots/01-dashboard.png`) was not recaptured (no
   database access in this sandbox to render the live page); the manual's
@@ -381,39 +388,24 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 
 - Configure Resend/Twilio credentials before enabling production email, SMS, or
   WhatsApp delivery. The queue and retry workflow are live.
-- Workflow review (2026-10-01) items not yet built, in rough priority order:
-  - **Move the lifecycle sweep off the request path.**
-    `refreshAccountLifecycleStatuses` runs on eight page/route entry points,
-    including the sidebar notification poll, and issues one transaction per
-    account that changes. Run it from a cron (hourly, or with the 09:00 SMS
-    job) and keep at most a cheap guard on pages.
-  - **Wire the Business Rules settings that are saved but not effective.**
-    `deliveryTimeAfterCompletionDays` (the archive delay is hard-coded at two
-    days), `refundDeductionPercent` (the closure and reactivation fee is
-    hard-coded at 32%), `administrationFeePercent`, `minimumDeposit`,
-    `commissionEnabled`/`commissionPercentage` and `sessionTimeoutMinutes` are
-    stored but nothing reads them. Owner decision needed before wiring.
-  - **Receipt numbers.** `generateReceiptNo` scans every receipt with the prefix
-    and takes max + 1, so two payments recorded at the same moment compute the
-    same number and the second fails on the unique constraint ("Unable to
-    record payment"). Use a counter row or database sequence.
-  - **Delivery lead time.** There is no "paid off on" date, so nobody can see
-    how long a customer has waited for delivery. Add `completedAt`, show the
-    wait on the Awaiting delivery list, and (with
-    `deliveryTimeAfterCompletionDays` as the target) alert on late deliveries.
-  - **"Ready for collection" SMS.** Customers are told about 70% progress but
-    not that their product is ready. A sixth SMS rule on payoff (or when stock
-    arrives for a paid-off plan) would close the loop.
-  - **Product correction on a delivered plan** resets delivery to pending but
-    does not return the original unit to stock or record what happened to it.
-    Decide whether a correction is an exchange (return old unit, deliver new)
-    or a data-entry fix, and make the stock follow.
-  - **Notification scope for admins with a staff profile.** The attention
-    counts scope to `session.user.staffId` regardless of role, so an admin
-    linked to a staff record sees only their own customers' counts.
-  - **Account status history.** Status has no history table, so status-based
-    dashboard figures cannot show week-over-week movement. The sweep's audit
-    entries could seed one.
+- Workflow review (2026-10-01) follow-ups still open. Everything else from that
+  review is built; see "Lifecycle Sweep Scheduling and Status Snapshots" and
+  "Business Rules Settings in Effect".
+  - **Make the ready-for-collection SMS editable.** Its wording is fixed in
+    `READY_FOR_COLLECTION_SMS` (`lib/sms-templates.ts`) because every editable
+    template has its own `Setting` column. Add a
+    `smsReadyForCollectionTemplate` column by migration, apply it, then add the
+    key to `SMS_TEMPLATE_KEYS`, `templateFields` in `actions/sms.ts` and the
+    editor list on `/settings/sms`.
+  - **Administration Fee %** is still saved but applied nowhere; the owner has
+    not said what it should be charged on.
+  - **Minimum Deposit, Commission and Session Timeout** were deliberately left
+    unwired at the owner's request on 2026-10-01. Do not wire them without a
+    new instruction.
+  - **Exact payoff date.** Delivery waits are measured from the plan's latest
+    payment, which is exact for payment-driven payoffs but early for a plan
+    completed by a price override or product correction. A `completedAt`
+    column would make it exact; it needs a migration.
 - Decide whether AI Support conversations should be stored in the database for
   auditability.
 - Add support actions only after strict permission checks and confirmation UI.
@@ -471,12 +463,23 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   as CANCELLED rather than attempting a send that cannot arrive. Fix the phone
   number on the customer or staff record and the next qualifying event queues
   normally.
+- **Ready for collection:** one SMS per account when a plan is paid off and its
+  product has not been handed over (payment, payment edit/delete/undo, price
+  override or product correction that completes the plan). It is held for the
+  payment edit window so a mistyped final payment can be corrected first, and
+  dispatch cancels it if the plan was delivered, reopened or is no longer paid
+  off by then. A plan delivered on credit and later paid off gets none: the
+  customer already has the product. The wording is fixed for now
+  (`READY_FOR_COLLECTION_SMS` in `lib/sms-templates.ts`) and is shown on
+  `/settings/sms`; see Good Next Tasks for making it editable.
 - `/api/cron/sms-notifications` requires `Authorization: Bearer <CRON_SECRET>`.
-  Vercel schedule: daily at 09:00 UTC/Ghana. Dispatches up to 100 messages in groups
+  Vercel schedule: daily at 09:00 UTC/Ghana. It first runs the account lifecycle
+  sweep and files the day's status snapshot, then queues missed-payment
+  reminders from those fresh statuses. Dispatches up to 100 messages in groups
   of five. Qualifying mutations and authenticated notification polling also drain
   pending messages. Monitor backlog; larger deployments need a more frequent scheduler.
 - Super administrators open `/settings/sms` from Settings to configure the master
-  SMS enable switch, verify the BMS API/sender status, review all five automatic
+  SMS enable switch, verify the BMS API/sender status, review all seven automatic
   notification rules, inspect the latest 100 messages, and retry FAILED entries
   after fixing their cause. ACCEPTED means
   provider acceptance, not handset delivery; check BMS campaign history with its ID.
@@ -720,22 +723,106 @@ correctly excluded.
   no-op instead of archiving twice, or closing an account twice and minting two
   closure refund credits.
 
+## Delivery Waits, Late Deliveries and Product Corrections
+
+- Every plan awaiting delivery shows how long it has waited since it was paid
+  off: "Nd waiting" in the Delivery column on Accounts, and "Paid off <date>,
+  waiting N days" on the account page. The payoff date is the plan's latest
+  payment (`getPaidOffDate`), since no payment can be recorded on a completed
+  plan.
+- **Delivery Time After Completion** (Settings > Business Rules) is the target.
+  When it is above 0, a plan waiting longer than that many days is late: red on
+  Accounts and the account page ("Late: the 7-day delivery target passed on
+  ..."), counted in brackets on the dashboard's Paid, Awaiting Delivery card
+  ("4 (2 late)") and the staff Awaiting Delivery tile, and named in the sidebar
+  alert. At 0 nothing is ever late; waits still show. The rule is
+  `getDeliveryWait` in `lib/account-lifecycle-rules.ts`; every queue view reads
+  `awaitingDeliveryWhere` / `getAwaitingDeliverySummary` in
+  `lib/delivery-queue.ts`.
+- **Correcting the product on a delivered plan is refused**
+  (`product-correction-delivered`). The unit that left was the old product,
+  and the old behaviour silently reset delivery to pending without putting that
+  unit back. Mark the delivery pending first (the unit returns to stock if the
+  delivery took one), correct the product, then mark the right product
+  delivered so the new product's stock moves.
+
+## Business Rules Settings in Effect
+
+- **Refund Deduction %** is the service fee on closure refunds and on
+  reactivation, replacing the hard-coded 32% everywhere: the lifecycle sweep's
+  closure credit and closure calculation, the reactivation action, the
+  reactivation panel on the account page, and the cancellation/reactivation
+  calculation documents. **0 means "not configured" and keeps 32%.** The field
+  shipped at 0 and was never read, so treating 0 as a real rate would have
+  refunded every closure in full and reactivated for free the moment it was
+  wired. A rate like 12.5 is stated as "12.5%" in documents
+  (`formatServiceFeeRate`). The rule is `resolveServiceFeeRate`, tested in
+  `scripts/account-lifecycle.test.ts`.
+- If the fee is changed, also update clause 7 of the Terms and Conditions
+  template in Settings > Legal, which states 32% in its wording. Legal text was
+  deliberately not rewritten automatically.
+- **Delivery Time After Completion** is the delivery target described above.
+- Both are read through `getLifecycleBusinessRules()` in
+  `lib/account-lifecycle.ts`.
+
+## Lifecycle Sweep Scheduling and Status Snapshots
+
+- **The sweep no longer runs on every request.** It used to run on the
+  Accounts, Customers, Payments and Credits lists, both detail pages, every
+  report, and the sidebar notification poll, one transaction per changed
+  account each time. Now:
+  - the daily cron (`/api/cron/sms-notifications`, 09:00) runs the full sweep;
+  - pages and the notification poll call `ensureLifecycleStatusesFresh()`,
+    which sweeps at most once every five minutes per server instance and lets
+    concurrent requests share one run;
+  - the weekly Excel export still runs a full sweep first, so exports are
+    exact.
+  Statuses an operator changes directly (payments, deliveries, reactivation,
+  corrections) are written by the action itself, so only the time-based moves
+  (dormancy, probation, closure, archiving) can trail by those few minutes.
+- **Fixed with it:** Reports and the weekly export passed the selected week's
+  date into the sweep, so viewing or exporting an earlier week re-evaluated live
+  accounts as of that past date and could flip DORMANT or PROBATION plans back
+  to ACTIVE until the next sweep. The sweep now always uses the real clock.
+- **Receipt numbers are collision-safe.** `generateReceiptNo` takes a
+  transaction-scoped Postgres advisory lock on the receipt prefix and reads the
+  highest numeric suffix with one SQL `MAX`, instead of loading every receipt
+  of the year and racing other payments. Two payments recorded at the same
+  moment previously computed the same number and the second failed on the
+  unique constraint; a 12-way concurrent test now produces 12 sequential
+  receipts with no failures.
+- **Daily status snapshots.** The first sweep of each day (cron or page) files
+  one audit-log row: action `ACCOUNT_STATUS_SNAPSHOT`, entity
+  `AccountStatusSnapshot`, entityId the date, holding Active, Overdue,
+  Completed & Delivered and Paid, Awaiting Delivery counts in total and per
+  staff (`lib/status-snapshots.ts`, counting rules in
+  `lib/status-snapshot-rules.ts`, tested in `scripts/status-snapshots.test.ts`).
+  The audit log was used instead of a new table so no migration was needed;
+  these rows appear on Audit Logs as one system entry per day. The dashboard
+  compares against the snapshot from seven days earlier (up to ten), and shows
+  no arrow until one exists. Overdue and Awaiting Delivery arrows are coloured
+  so that a fall is good news (`TrendBadge` `higherIsBetter={false}`).
+- **Sidebar alert scope.** Attention counts are scoped to the user's own
+  customers only for STAFF. An admin who also has a staff profile now sees
+  business-wide counts, as on the rest of their dashboard.
+
 ## Account Reactivation and the Lifecycle Clock
 
 - Inactivity is measured from the **latest of** the account start date, the last
   payment date and `CustomerAccount.reactivatedAt` (migration
   `20260921090000_account_reactivation_clock`). That single clock drives the whole
   ladder: DORMANT at 21 days, PROBATION at 4 months, CLOSED at 6 months.
-- Reactivating a DORMANT, PROBATION or CLOSED account deducts a 32% service fee
-  from the paid amount, recalculates the balance, queues the customer's
-  reactivation calculation, voids any open `ACCOUNT_CLOSURE_REFUND` credit, and
+- Reactivating a DORMANT, PROBATION or CLOSED account deducts the service fee
+  (Refund Deduction %, 32% unless configured) from the paid amount,
+  recalculates the balance, queues the customer's reactivation calculation,
+  voids any open `ACCOUNT_CLOSURE_REFUND` credit, and
   stamps `reactivatedAt`. It is administrator-only and requires the admin
   password. The whole write is one transaction plus a
   `REACTIVATE_DORMANT_ACCOUNT` audit entry.
 - **Why the stamp matters, and what must not regress:** reactivation records no
   payment. Before `reactivatedAt` existed the clock still read the pre-closure
-  payment date, so the lifecycle sweep — which runs on the very page the operator
-  is redirected to — immediately re-closed the account and, because the old
+  payment date, so the lifecycle sweep — which then ran on the very page the
+  operator is redirected to — immediately re-closed the account and, because the old
   closure credit had just been voided, minted a second closure credit on the
   already-reduced paid amount. The customer lost 32% twice while the screen
   showed "Account reactivated". Any change to the lifecycle clock must keep

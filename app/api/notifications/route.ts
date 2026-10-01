@@ -3,13 +3,14 @@ import { dispatchDueSms } from "@/lib/sms-notifications";
 import {
   AccountStatus,
   CreditStatus,
-  DeliveryStatus,
   StaffApplicationStatus,
   UserPermission,
+  UserRole,
   ProfileChangeStatus,
 } from "@prisma/client";
 import { auth } from "@/lib/auth";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { ensureLifecycleStatusesFresh } from "@/lib/account-lifecycle";
+import { getAwaitingDeliverySummary } from "@/lib/delivery-queue";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isSuperAdminRole } from "@/lib/roles";
@@ -74,19 +75,19 @@ export async function GET() {
 
   const attention: Record<string, AttentionItem> = {};
   try {
-    const staffScope = session.user.staffId
-      ? { customer: { staffId: session.user.staffId } }
-      : {};
-    const customerScope = session.user.staffId
-      ? { staffId: session.user.staffId }
-      : {};
+    // Only staff are scoped to their own customers. An admin who also has a
+    // staff profile runs the business, so they see business-wide counts.
+    const ownStaffId =
+      session.user.role === UserRole.STAFF ? session.user.staffId : null;
+    const staffScope = ownStaffId ? { customer: { staffId: ownStaffId } } : {};
+    const customerScope = ownStaffId ? { staffId: ownStaffId } : {};
     const todayStart = startOfToday();
 
-    await refreshAccountLifecycleStatuses();
+    await ensureLifecycleStatusesFresh();
 
     const [
       accountAttentionCount,
-      awaitingDeliveryCount,
+      awaitingDelivery,
       customersWithoutAccountsCount,
       newCustomersToday,
       newAccountsToday,
@@ -110,14 +111,7 @@ export async function GET() {
           },
         }),
         // Paid off and not yet handed over, archived plans included.
-        prisma.customerAccount.count({
-          where: {
-            ...staffScope,
-            status: { in: [AccountStatus.COMPLETED, AccountStatus.ARCHIVED] },
-            balance: { lte: 0 },
-            deliveryStatus: DeliveryStatus.PENDING,
-          },
-        }),
+        getAwaitingDeliverySummary(staffScope),
         prisma.customer.count({
           where: {
             ...customerScope,
@@ -138,9 +132,7 @@ export async function GET() {
         }),
         prisma.payment.count({
           where: {
-            ...(session.user.staffId
-              ? { account: { customer: { staffId: session.user.staffId } } }
-              : {}),
+            ...(ownStaffId ? { account: staffScope } : {}),
             createdAt: { gte: todayStart },
           },
         }),
@@ -154,10 +146,14 @@ export async function GET() {
     });
   }
 
-  if (awaitingDeliveryCount > 0) {
+  if (awaitingDelivery.count > 0) {
     addAttention(attention, "/accounts", {
-      count: awaitingDeliveryCount,
-      label: `${plural(awaitingDeliveryCount, "paid-off account")} awaiting delivery`,
+      count: awaitingDelivery.count,
+      label: `${plural(awaitingDelivery.count, "paid-off account")} awaiting delivery${
+        awaitingDelivery.late > 0
+          ? ` (${awaitingDelivery.late} past the ${awaitingDelivery.deliveryTargetDays}-day target)`
+          : ""
+      }`,
       href: "/accounts?status=AWAITING_DELIVERY",
     });
   }

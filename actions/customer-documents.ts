@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { AccountStatus } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import {
+  formatServiceFeeRate,
   getClosureRefundAmounts,
   getDormantReactivationAmounts,
+  getLifecycleBusinessRules,
   isDormantReactivationEligible,
 } from "@/lib/account-lifecycle";
 import { formatMoney } from "@/lib/accounts";
@@ -48,11 +50,12 @@ export async function generateCustomerDocument(formData: FormData) {
     ) {
       redirect(`/accounts/${accountId}?error=document-not-eligible`);
     }
-    const calculation = getClosureRefundAmounts(account.totalPaid);
+    const { serviceFeeRate } = await getLifecycleBusinessRules();
+    const calculation = getClosureRefundAmounts(account.totalPaid, serviceFeeRate);
     templateKey = LEGAL_TEMPLATE_KEYS.CANCELLATION;
     type = "CANCELLATION_CALCULATION";
     values = {
-      deductionRate: `${Math.round(calculation.serviceFeeRate * 100)}%`,
+      deductionRate: formatServiceFeeRate(calculation.serviceFeeRate),
       deductionAmount: formatMoney(calculation.serviceFee),
       refundAmount: formatMoney(calculation.refundAmount),
       refundMethod: clean(formData.get("refundMethod")) || "Customer credit / approved payment channel",
@@ -62,12 +65,13 @@ export async function generateCustomerDocument(formData: FormData) {
     if (!isDormantReactivationEligible(account)) {
       redirect(`/accounts/${accountId}?error=document-not-eligible`);
     }
-    const calculation = getDormantReactivationAmounts(account.totalPaid);
+    const { serviceFeeRate } = await getLifecycleBusinessRules();
+    const calculation = getDormantReactivationAmounts(account.totalPaid, serviceFeeRate);
     templateKey = LEGAL_TEMPLATE_KEYS.REACTIVATION;
     type = "REACTIVATION_CALCULATION";
     values = {
       previousAmountPaid: formatMoney(account.totalPaid),
-      deductionRate: `${Math.round(calculation.serviceFeeRate * 100)}%`,
+      deductionRate: formatServiceFeeRate(calculation.serviceFeeRate),
       reactivationCharge: formatMoney(calculation.serviceFee),
       amountRemainingAfterCharge: formatMoney(calculation.nextTotalPaid),
       newBalance: formatMoney(

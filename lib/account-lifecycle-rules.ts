@@ -11,8 +11,27 @@ const DORMANT_AFTER_DAYS = 21;
 const PROBATION_AFTER_MONTHS = 4;
 const CLOSE_AFTER_MONTHS = 6;
 export const ARCHIVE_AFTER_DELIVERY_DAYS = 2;
-const CLOSURE_SERVICE_FEE_RATE = 0.32;
-export const DORMANT_REACTIVATION_SERVICE_FEE_RATE = 0.32;
+/** GLV's standard service fee on a closure refund and on a reactivation. */
+export const STANDARD_SERVICE_FEE_RATE = 0.32;
+export const DORMANT_REACTIVATION_SERVICE_FEE_RATE = STANDARD_SERVICE_FEE_RATE;
+const DAY_MS = 86_400_000;
+
+/**
+ * The service fee rate the business has configured in Settings > Business Rules
+ * > Refund Deduction %, used for both closure refunds and reactivations. The
+ * field shipped at 0 and was never read, so 0 (or an unusable value) means "not
+ * configured" and keeps the standard 32%. Reading 0 as a real rate would have
+ * silently started refunding closures in full and reactivating for free the
+ * moment this was wired up.
+ */
+export function resolveServiceFeeRate(
+  configuredPercent: number | null | undefined
+) {
+  const value = Number(configuredPercent);
+  return Number.isFinite(value) && value > 0 && value <= 100
+    ? value / 100
+    : STANDARD_SERVICE_FEE_RATE;
+}
 
 export function addDays(date: Date, days: number) {
   const result = new Date(date);
@@ -69,14 +88,22 @@ export function isDormantReactivationEligible(
   );
 }
 
-export function getDormantReactivationAmounts(totalPaid: number) {
-  const serviceFee = Math.max(totalPaid, 0) * DORMANT_REACTIVATION_SERVICE_FEE_RATE;
+/** "32%", "12.5%": the rate as the customer documents should state it. */
+export function formatServiceFeeRate(rate: number) {
+  return `${Number((rate * 100).toFixed(2))}%`;
+}
+
+export function getDormantReactivationAmounts(
+  totalPaid: number,
+  serviceFeeRate = STANDARD_SERVICE_FEE_RATE
+) {
+  const serviceFee = Math.max(totalPaid, 0) * serviceFeeRate;
   const nextTotalPaid = Math.max(totalPaid - serviceFee, 0);
 
   return {
     serviceFee,
     nextTotalPaid,
-    serviceFeeRate: DORMANT_REACTIVATION_SERVICE_FEE_RATE,
+    serviceFeeRate,
   };
 }
 
@@ -188,13 +215,57 @@ export function getStatusAfterBalanceChange(
   return isFinishedStatus(status) ? AccountStatus.ACTIVE : status;
 }
 
-export function getClosureRefundAmounts(totalPaid: number) {
-  const serviceFee = totalPaid * CLOSURE_SERVICE_FEE_RATE;
+export function getClosureRefundAmounts(
+  totalPaid: number,
+  serviceFeeRate = STANDARD_SERVICE_FEE_RATE
+) {
+  const serviceFee = totalPaid * serviceFeeRate;
   const refundAmount = Math.max(totalPaid - serviceFee, 0);
 
   return {
     refundAmount,
     serviceFee,
-    serviceFeeRate: CLOSURE_SERVICE_FEE_RATE,
+    serviceFeeRate,
+  };
+}
+
+/**
+ * When a paid-off plan was paid off. No payment can be recorded on a completed
+ * plan, so its latest payment is the one that cleared it (payments newest
+ * first). A plan completed by a price change rather than a payment reads from
+ * its last payment, which is as close as the records allow.
+ */
+export function getPaidOffDate(account: {
+  startDate: Date;
+  payments: Array<{ paymentDate: Date }>;
+}) {
+  return account.payments[0]?.paymentDate ?? account.startDate;
+}
+
+/**
+ * How long a paid-off plan has waited for its product, against the delivery
+ * target in Settings > Business Rules > Delivery Time After Completion. A
+ * target of 0 means none is set, so nothing is ever late; it only shows the
+ * wait. A plan is late from the day after its target is used up.
+ */
+export function getDeliveryWait(
+  paidOffAt: Date,
+  targetDays: number | null | undefined,
+  now = new Date()
+) {
+  const daysWaiting = Math.max(
+    Math.floor((now.getTime() - paidOffAt.getTime()) / DAY_MS),
+    0
+  );
+  const target = Number(targetDays);
+  const deliveryTargetDays =
+    Number.isFinite(target) && target > 0 ? Math.floor(target) : 0;
+
+  return {
+    daysWaiting,
+    deliveryTargetDays,
+    late: deliveryTargetDays > 0 && daysWaiting > deliveryTargetDays,
+    dueBy:
+      deliveryTargetDays > 0 ? addDays(paidOffAt, deliveryTargetDays) : null,
   };
 }

@@ -6,7 +6,7 @@ import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
 import { PaymentModal } from "@/components/payment-modal";
 import { Button } from "@/components/ui/button";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { ensureLifecycleStatusesFresh } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -113,7 +113,7 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   let loadError = false;
 
   try {
-    await refreshAccountLifecycleStatuses();
+    await ensureLifecycleStatusesFresh();
 
     // Sequential to avoid exhausting Neon connections
     customers = await prisma.customer.findMany({
