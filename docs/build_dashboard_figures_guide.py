@@ -66,7 +66,7 @@ def build():
     doc.add_paragraph("This guide explains what each figure represents, the records included in its calculation, and the management decision it supports. Dashboard values summarize records entered in GLV. If a payment, account status, product cost, salary, deposit, or refund is missing or incorrect, the related figure will also be incomplete or incorrect.")
     heading(doc, "How to use the figures")
     doc.add_paragraph("Use counts to monitor workload and account health. Use collection and receivable figures to understand customer cash flow. Use product cost, procurement, payroll, and profit figures together; no single card represents cash in the bank or final accounting profit. Currency figures use the system’s configured currency, normally Ghana cedis.")
-    doc.add_paragraph("Account cost means product cost price plus transport cost. Included accounts exclude cancelled, closed, and archived accounts unless a figure explicitly says otherwise. The salary due month is the previous calendar month, while current month payroll uses salaries effective in the current month.")
+    doc.add_paragraph("Account cost means product cost price plus transport cost. Included accounts exclude cancelled and closed accounts unless a figure explicitly says otherwise. Archived accounts are included: an archived plan is a completed plan that was delivered and filed away two days later, so it is a finished sale. Earlier versions left archived plans out, which made expected profit fall and net profit so far rise by the product cost each time a plan archived. The salary due month is the previous calendar month, while current month payroll uses salaries effective in the current month.")
 
     heading(doc, "Administrator dashboard figures")
     metric_table(doc, [
@@ -74,15 +74,16 @@ def build():
         ("Total Staff", "All staff profiles in GLV.", "Count of staff records, including active and inactive profiles.", "Recorded workforce, not only active staff."),
         ("Active Accounts", "Plans currently collecting normally.", "Count of accounts whose effective lifecycle status is Active.", "Current collection workload."),
         ("Completed and Delivered", "Plans fully completed and marked delivered.", "Delivered accounts with Completed or Archived status.", "Confirms fulfilment, not only payment completion."),
+        ("Paid, Awaiting Delivery", "Plans fully paid whose product has not been handed over.", "Accounts with Completed or Archived status, zero balance and delivery Pending. Opens the Awaiting delivery list.", "Delivery workload; should trend to zero."),
         ("Overdue Accounts", "Plans past expected end date with balance remaining.", "Count of accounts whose effective status is Overdue.", "Requires collection follow-up."),
         ("Open Credits or Refunds", "Unused customer credit still owed or available.", "Sum of remaining amounts on Open customer-credit records.", "Customer value still to resolve."),
         ("Payments Collected", "All recorded customer payments.", "Sum of every Payment amount in the system.", "Cumulative, not current-month collections."),
         ("Expected Receivables", "Balance expected from live plans.", "Balances on Active and Overdue accounts.", "Future collection focus."),
-        ("Profit Estimate", "Expected gross profit across included plans.", "Sum of target amount minus product and transport cost for each included account.", "Projection before payroll and other overheads."),
+        ("Profit Estimate", "Expected gross profit across included plans.", "Sum of target amount minus product and transport cost for each included account, archived plans included.", "Projection before payroll and other overheads."),
     ])
     heading(doc, "Dashboard gain and loss summary")
     metric_table(doc, [
-        ("Total Product Exposure", "Capital cost committed to included plans.", "Product cost plus transport cost for accounts not Cancelled, Closed, or Archived.", "Capital tied to plans."),
+        ("Total Product Exposure", "Capital cost committed to included plans.", "Product cost plus transport cost for accounts not Cancelled or Closed, archived plans included.", "Capital tied to plans."),
         ("Procurement Due Now", "Estimated cost of products ready to procure.", "Total procurement-list cost for qualifying accounts.", "Cash needed for current fulfilment."),
         ("Cash After Procurement", "Collections left after procurement due.", "All payments collected minus Procurement Due Now.", "Negative means procurement is not covered."),
         ("Total Expected Profit", "Projected gross profit on included plans.", "Targets minus product and transport costs.", "Compare with payroll and overheads."),
@@ -106,6 +107,7 @@ def build():
         ("Payments Today", "Payment entries recorded today.", "Count of today’s qualifying payment records.", "Transaction count, not value."),
         ("Collected Today", "Value collected today.", "Sum of today’s qualifying payment amounts.", "Compare with receipts and targets."),
         ("Collected This Week", "Value collected this week.", "Sum of qualifying payments in the current week.", "Weekly collection performance."),
+        ("Awaiting Delivery", "Assigned plans paid off but not yet handed over.", "Assigned accounts with Completed or Archived status, zero balance and delivery Pending.", "Products to hand over; opens the list."),
     ])
 
     heading(doc, "Reports Business Overview")
@@ -117,9 +119,10 @@ def build():
         ("Recorded This Week", "Payments credited to staff activity for the selected week.", "Weekly collection amounts across staff rows.", "Compare with weekly deposits."),
         ("Deposited This Week", "Staff deposits entered for the selected week.", "Sum of Staff Deposit amounts dated in that week.", "Deposits, not customer payment entries."),
         ("Weekly Deposit Variance", "Difference between deposits and collections.", "Deposited This Week minus Recorded This Week.", "Negative shortage; positive surplus; zero balanced."),
-        ("Outstanding Balance", "Balance on all included accounts.", "Balances excluding Cancelled, Closed, and Archived accounts.", "Broader than Expected Receivables."),
+        ("Outstanding Balance", "Balance on all included accounts.", "Balances excluding Cancelled and Closed accounts. Archived plans owe nothing, so they add zero.", "Broader than Expected Receivables."),
         ("Expected Receivables", "Balance on collectible live plans.", "Balances on Active and Overdue accounts.", "Expected future collections."),
-        ("Product Cost Exposure", "Product and transport capital across included plans.", "Product cost plus transport cost, excluding Cancelled, Closed, and Archived accounts.", "Recorded capital exposure."),
+        ("Owed on Delivered Goods", "Balance still owed on products released before full payment.", "Balances on delivered-with-balance accounts that still owe money.", "Credit extended; watch it fall to zero."),
+        ("Product Cost Exposure", "Product and transport capital across included plans.", "Product cost plus transport cost, excluding Cancelled and Closed accounts, archived plans included.", "Recorded capital exposure."),
         ("Current Month Payroll", "Salary commitment for active staff this month.", "Effective current-month salaries for active staff.", "Paid and unpaid obligation."),
         ("Salary Paid for Due Month", "Salary allocated to the previous month.", "Sum by salary month, not payment date.", "Use with Outstanding Salaries."),
         ("Outstanding Salaries", "Previous-month payroll still unpaid.", "Due payroll minus paid due-month salary, floored at zero.", "Payroll arrears."),
@@ -131,7 +134,7 @@ def build():
     heading(doc, "Common reasons a figure changes")
     for text in (
         "Recording, editing, or deleting a customer payment changes collection, balance, receivable, variance, and profit-related views.",
-        "Changing account lifecycle or delivery status changes counts and may include or exclude its balance and cost.",
+        "Changing account lifecycle or delivery status changes counts and may include or exclude its balance and cost. Archiving a delivered plan does not change any money figure.",
         "Updating product cost price or transport cost changes exposure and expected profit.",
         "Recording salary against a salary month changes due-month figures even when payment happens in another month.",
         "Recording staff deposits changes Deposited This Week and weekly variance; it does not create a customer payment.",

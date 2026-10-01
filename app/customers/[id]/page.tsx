@@ -27,7 +27,11 @@ import { ProductImagePreview } from "@/components/product-image-preview";
 import { PaymentModal } from "@/components/payment-modal";
 import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import {
+  isAwaitingDelivery,
+  isFinishedStatus,
+  refreshAccountLifecycleStatuses,
+} from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -387,10 +391,8 @@ export default async function CustomerProfilePage({
                 status !== AccountStatus.SUSPENDED &&
                 status !== AccountStatus.CLOSED &&
                 status !== AccountStatus.ARCHIVED;
-              const canMarkDelivered =
-                status === AccountStatus.COMPLETED &&
-                account.balance <= 0 &&
-                account.deliveryStatus === DeliveryStatus.PENDING;
+              // Archived plans that are still owed their product count too.
+              const canMarkDelivered = isAwaitingDelivery(account);
 
               return (
                 <tr key={account.id} className="border-t">
@@ -410,7 +412,7 @@ export default async function CustomerProfilePage({
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">{status}</td>
                   <td className="p-3">
-                    {status === AccountStatus.COMPLETED ||
+                    {isFinishedStatus(account.status) ||
                     account.deliveryStatus === DeliveryStatus.DELIVERED ? (
                       <DeliveryStatusIcon
                         status={account.deliveryStatus}

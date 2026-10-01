@@ -48,3 +48,14 @@ export function getAccountDaysProgress({
     progressPercentage,
   };
 }
+
+/**
+ * Whether an account's sale still stands for the money figures: contract value,
+ * product cost and expected profit. Cancelled and closed plans ended without a
+ * sale. An archived plan is a finished sale, paid and delivered, so it stays
+ * in. Leaving it out made expected profit fall, and net profit jump by the
+ * product's cost, two days after every delivery.
+ */
+export function countsAsSale(status: AccountStatus) {
+  return status !== AccountStatus.CANCELLED && status !== AccountStatus.CLOSED;
+}

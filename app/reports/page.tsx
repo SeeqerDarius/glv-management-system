@@ -389,9 +389,16 @@ export default async function ReportsPage({
               icon={Target}
             />
             <MetricCard
+              label="Owed on Delivered Goods"
+              value={formatMoney(summary.deliveredOnCreditBalance)}
+              hint="Balance still owed on products released early."
+              icon={CircleDollarSign}
+              tone={summary.deliveredOnCreditBalance > 0 ? "watch" : "neutral"}
+            />
+            <MetricCard
               label="Product Cost Exposure"
               value={formatMoney(summary.totalProductCost)}
-              hint="Cost of the goods behind those plans."
+              hint="Cost of the goods behind every plan that still stands, finished ones included."
               icon={Boxes}
             />
           </MetricGroup>

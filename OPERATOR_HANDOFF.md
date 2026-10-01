@@ -93,7 +93,9 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - `/accounts`: customer product accounts, lifecycle status, delivery status,
   payment entry points, product/price correction for admins. Admins can also
   deliver to a trusted customer before the plan is paid off. See "Delivery with
-  an outstanding balance" below.
+  an outstanding balance" below. The **Awaiting delivery** and **Delivered on
+  credit** filters are the delivery and credit work queues; see "Delivery Queue
+  and the Archive".
 - `/payments`: payment recording and grouped searchable payment history.
 - `/products`: product catalog plus procurement tab. Procurement items appear
   when product accounts cross the configured payment threshold, are not
@@ -280,19 +282,23 @@ claim it has changed records.
   inventory module, procurement, deliver-with-balance, SMS rule, Groq and
   settings changes. The training manual gained two feature pages, Inventory and
   Inventory Movements, with fresh screenshots; the procurement pages were
-  re-shot to show the new In stock / To buy columns. `soffice --headless --convert-to pdf` still cannot regenerate the
-  matching PDFs in this sandbox: it fails to load even a trivial one-line test
-  file (`Error: source file could not be loaded`, no PDF written, before it
-  touches either GLV file), so this remains a broken LibreOffice
-  install/sandbox limitation rather than a content problem, and no alternative
-  converter is installed. The two `.pdf` files under `docs/` and
-  `documentation/` are therefore stale relative to their `.docx`/generator
-  sources until someone re-runs
-  `soffice --headless --convert-to pdf --outdir <dir> <file>.docx` (or opens
-  and exports each `.docx` from Word/LibreOffice) on a machine with a working
-  install. Regenerating the training-manual DOCX also needs
+  re-shot to show the new In stock / To buy columns.
+- PDF regeneration: the earlier "`soffice` cannot load even a one-line file"
+  failure was a missing component, not a broken install. Sandboxes ship
+  `libreoffice-core` without Writer, so every document fails with
+  `Error: source file could not be loaded`. Install it with
+  `apt-get install -y --no-install-recommends libreoffice-writer`, then run
+  `soffice --headless --convert-to pdf --outdir <dir> <file>.docx`. All three
+  PDFs (`docs/GLV_System_Documentation.pdf`,
+  `docs/GLV_Dashboard_and_Business_Overview_Guide.pdf`,
+  `documentation/GLV_Management_System_Training_and_Feature_Guide.pdf`) were
+  regenerated this way on 2026-10-01 and match their DOCX sources. The sandbox
+  has no Aptos font, so those PDFs render in a fallback sans-serif; exporting
+  from Word on a machine with Aptos restores the intended typeface.
+  Regenerating the training-manual DOCX also needs
   `pip install --target documentation/.docx_deps python-docx Pillow`, because
-  `documentation/.docx_deps/` is gitignored.
+  `documentation/.docx_deps/` is gitignored; the dashboard figures guide needs
+  the same packages (`PYTHONPATH=documentation/.docx_deps`).
 - Prisma `package.json#prisma` config emits a deprecation warning during build.
   It is not currently blocking.
 
@@ -375,6 +381,39 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 
 - Configure Resend/Twilio credentials before enabling production email, SMS, or
   WhatsApp delivery. The queue and retry workflow are live.
+- Workflow review (2026-10-01) items not yet built, in rough priority order:
+  - **Move the lifecycle sweep off the request path.**
+    `refreshAccountLifecycleStatuses` runs on eight page/route entry points,
+    including the sidebar notification poll, and issues one transaction per
+    account that changes. Run it from a cron (hourly, or with the 09:00 SMS
+    job) and keep at most a cheap guard on pages.
+  - **Wire the Business Rules settings that are saved but not effective.**
+    `deliveryTimeAfterCompletionDays` (the archive delay is hard-coded at two
+    days), `refundDeductionPercent` (the closure and reactivation fee is
+    hard-coded at 32%), `administrationFeePercent`, `minimumDeposit`,
+    `commissionEnabled`/`commissionPercentage` and `sessionTimeoutMinutes` are
+    stored but nothing reads them. Owner decision needed before wiring.
+  - **Receipt numbers.** `generateReceiptNo` scans every receipt with the prefix
+    and takes max + 1, so two payments recorded at the same moment compute the
+    same number and the second fails on the unique constraint ("Unable to
+    record payment"). Use a counter row or database sequence.
+  - **Delivery lead time.** There is no "paid off on" date, so nobody can see
+    how long a customer has waited for delivery. Add `completedAt`, show the
+    wait on the Awaiting delivery list, and (with
+    `deliveryTimeAfterCompletionDays` as the target) alert on late deliveries.
+  - **"Ready for collection" SMS.** Customers are told about 70% progress but
+    not that their product is ready. A sixth SMS rule on payoff (or when stock
+    arrives for a paid-off plan) would close the loop.
+  - **Product correction on a delivered plan** resets delivery to pending but
+    does not return the original unit to stock or record what happened to it.
+    Decide whether a correction is an exchange (return old unit, deliver new)
+    or a data-entry fix, and make the stock follow.
+  - **Notification scope for admins with a staff profile.** The attention
+    counts scope to `session.user.staffId` regardless of role, so an admin
+    linked to a staff record sees only their own customers' counts.
+  - **Account status history.** Status has no history table, so status-based
+    dashboard figures cannot show week-over-week movement. The sweep's audit
+    entries could seed one.
 - Decide whether AI Support conversations should be stored in the database for
   auditability.
 - Add support actions only after strict permission checks and confirmation UI.
@@ -523,7 +562,10 @@ This is one loop, not two features. Read it as a loop.
 - **Delivery takes stock back off the shelf.** Confirming delivery on an account
   decrements that product by one and writes a `DELIVERED` movement linked to the
   account. Reversing a delivery with **Mark pending** puts the unit back with a
-  `RETURNED` movement.
+  `RETURNED` movement, but only when that account's most recent movement is the
+  `DELIVERED` one that took it. A past handover, a delivery made when the shelf
+  was already at zero, or a delivery recorded before stock was tracked never
+  took a unit, so reversing it returns nothing instead of inventing stock.
   - If stock is already zero the delivery still records — the customer is at the
     counter and must not be blocked. The count floors at zero, no phantom
     negative row is written, and the account page shows a warning telling the
@@ -599,6 +641,84 @@ correctly excluded.
     whose product was already delivered. Auto-closing such an account used to
     refund most of what the customer had paid while they kept the goods. What
     remains on a delivered account is a receivable, not a refundable deposit.
+
+## Delivery Queue and the Archive
+
+- **The archive holds finished work only: paid off and delivered.** The
+  lifecycle sweep archives a COMPLETED, DELIVERED, zero-balance plan two days
+  after delivery (`ARCHIVE_AFTER_DELIVERY_DAYS`), or straight away when the
+  delivery has no date. Nothing can be done to an archived account, so the
+  sweep also enforces the rule in reverse: an ARCHIVED plan that is not
+  delivered goes back to COMPLETED (the delivery queue) and one that owes money
+  goes back to ACTIVE (collection). Each repair is audit logged by `system` as
+  `RESTORE_ARCHIVED_ACCOUNT` with the reason. The rule is
+  `getArchiveRepairStatus` in `lib/account-lifecycle-rules.ts`, covered by
+  `scripts/account-lifecycle.test.ts`.
+- **Why this exists:** archived plans were showing "pending delivery" with no
+  way to mark them delivered, and they had dropped out of every delivery queue
+  and the procurement list. They came from three paths, all now closed: the
+  weekly-report recovery import set status but never delivery, so every
+  recovered archived plan arrived pending; **Mark pending** on an archived
+  delivered-with-balance plan left it archived; and deleting a payment or
+  raising the price on an archived plan left it archived with money owing,
+  where payments are refused.
+- **After deploying this change**, the first sweep moves any such plans back to
+  COMPLETED, so they appear under Accounts > Awaiting delivery and, being fully
+  paid, in procurement demand. Review that list before acting on the
+  procurement list. For a plan whose product was in fact handed over long ago,
+  an admin uses **Handed over earlier and never recorded?** on the account page
+  and enters the real date: the delivery is recorded on that date without
+  taking a unit off inventory (audit entry carries `pastHandover: true`), and
+  the plan archives on the next sweep.
+- **Delivery controls follow payment, not the status label.** Any fully paid
+  plan, COMPLETED or ARCHIVED, can be marked delivered by whoever can manage the
+  account: on the account page, from the customer profile, or with the package
+  icon on the Accounts list. **Mark pending** on an archived plan is
+  admin-only (`delivery-archived-requires-admin`) and moves it back to
+  COMPLETED. Recording a past handover is admin-only
+  (`delivery-past-requires-admin`) and the date cannot be in the future
+  (`delivery-past-date-invalid`).
+- **Balance changes never strand a plan in the archive.** Payment edit, delete
+  and undo, price override and product correction all use
+  `getStatusAfterBalanceChange`: paying off completes a plan (an archived plan
+  stays archived), owing again reopens a COMPLETED or ARCHIVED plan as ACTIVE.
+  A product correction resets delivery to pending, so it never leaves the plan
+  archived.
+- **Archived plans count as completed sales everywhere.** Completed counts
+  (dashboard Completed & Delivered, Reports staff Completed, product page
+  Completed Accounts, weekly report staff sheet) include ARCHIVED. The money
+  figures use `countsAsSale` in `lib/accounts.ts`, which excludes only CANCELLED
+  and CLOSED. Before this, Profit Estimate / Total Expected Profit dropped by a
+  plan's margin, and Net Profit So Far rose by its product cost, two days after
+  every delivery, because archiving removed the plan from the included set
+  while its cash stayed in Total Collected. Staff contract value, outstanding
+  balance and expected collection now also exclude CANCELLED plans, matching the
+  business-wide figures.
+- **Queues and alerts.** Accounts has two extra filters: **Awaiting delivery**
+  (COMPLETED or ARCHIVED, zero balance, delivery PENDING) and **Delivered on
+  credit** (delivered with balance, still owing). The admin dashboard has a
+  **Paid, Awaiting Delivery** card and the staff dashboard an **Awaiting
+  Delivery** tile, both linking to the queue. Reports > Overview > Receivables
+  and Exposure has **Owed on Delivered Goods**. The sidebar alert for Accounts
+  counts overdue accounts the same way the Overdue filter does (ACTIVE, owing,
+  past expected end date; the stored status is never OVERDUE, so the old count
+  missed them) plus suspended accounts, and a separate "paid-off accounts
+  awaiting delivery" alert.
+- **Weekly report export and recovery import carry delivery.** The Customer
+  Accounts sheet has **Delivery Status** (`DELIVERED`, `DELIVERED ON CREDIT`,
+  `PENDING`) and **Delivered On** columns, and the recovery import restores
+  them without moving stock. A report exported before these columns existed is
+  still accepted: its ARCHIVED rows are restored as delivered (GLV only ever
+  archived delivered plans) and other rows stay pending. Recovered OVERDUE rows
+  are stored as ACTIVE, because overdue is computed, never stored. The ledger's
+  Collection / Release Status column now reads DELIVERED, DELIVERED (ARCHIVED)
+  or DELIVERED ON CREDIT for handed-over plans instead of READY FOR RELEASE or a
+  red ARCHIVED flag.
+- **Concurrency.** The lifecycle sweep runs on most page loads, so two can
+  overlap. Every sweep write is now conditional on the status it read
+  (`updateMany` with the old status in the `where`), so the second sweep is a
+  no-op instead of archiving twice, or closing an account twice and minting two
+  closure refund credits.
 
 ## Account Reactivation and the Lifecycle Clock
 

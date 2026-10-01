@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import {
   getAccountActivityDate,
+  getArchiveRepairStatus,
   getClosureRefundAmounts,
   getDormantReactivationAmounts,
   getDormantReactivationCutoffDate,
   getNextLifecycleStatus,
+  getStatusAfterBalanceChange,
+  isAwaitingDelivery,
   isDormantReactivationEligible,
+  isFinishedStatus,
 } from "../lib/account-lifecycle-rules";
 
 const DAY = 86_400_000;
@@ -152,4 +156,75 @@ test("the 32% deduction never pushes a balance negative", () => {
 
   assert.equal(getClosureRefundAmounts(1000).refundAmount, 680);
   assert.equal(getClosureRefundAmounts(1000).serviceFee, 320);
+});
+
+test("archived plans count as completed, everything else does not", () => {
+  assert.equal(isFinishedStatus(AccountStatus.COMPLETED), true);
+  assert.equal(isFinishedStatus(AccountStatus.ARCHIVED), true);
+  for (const status of [
+    AccountStatus.ACTIVE,
+    AccountStatus.OVERDUE,
+    AccountStatus.DORMANT,
+    AccountStatus.PROBATION,
+    AccountStatus.CLOSED,
+    AccountStatus.CANCELLED,
+    AccountStatus.SUSPENDED,
+  ]) {
+    assert.equal(isFinishedStatus(status), false);
+  }
+});
+
+test("a paid-off plan is awaiting delivery until it is handed over, archived or not", () => {
+  const paidOff = { balance: 0, deliveryStatus: DeliveryStatus.PENDING };
+
+  assert.equal(isAwaitingDelivery({ ...paidOff, status: AccountStatus.COMPLETED }), true);
+  // The regression: an archived plan still owed its product dropped out of
+  // every delivery queue, and nothing on its page could mark it delivered.
+  assert.equal(isAwaitingDelivery({ ...paidOff, status: AccountStatus.ARCHIVED }), true);
+  assert.equal(
+    isAwaitingDelivery({ ...paidOff, status: AccountStatus.COMPLETED, deliveryStatus: DeliveryStatus.DELIVERED }),
+    false
+  );
+  // Money still owed means it is not ready, whatever its status says.
+  assert.equal(isAwaitingDelivery({ ...paidOff, status: AccountStatus.ACTIVE }), false);
+  assert.equal(isAwaitingDelivery({ ...paidOff, balance: 50, status: AccountStatus.COMPLETED }), false);
+});
+
+test("the archive keeps only plans that are paid off and delivered", () => {
+  assert.equal(
+    getArchiveRepairStatus({ status: AccountStatus.ARCHIVED, balance: 0, deliveryStatus: DeliveryStatus.DELIVERED }),
+    null
+  );
+  // Still owed its product: back to the delivery queue.
+  assert.equal(
+    getArchiveRepairStatus({ status: AccountStatus.ARCHIVED, balance: 0, deliveryStatus: DeliveryStatus.PENDING }),
+    AccountStatus.COMPLETED
+  );
+  // Owes money again: back to collection, delivered or not.
+  assert.equal(
+    getArchiveRepairStatus({ status: AccountStatus.ARCHIVED, balance: 120, deliveryStatus: DeliveryStatus.DELIVERED }),
+    AccountStatus.ACTIVE
+  );
+  assert.equal(
+    getArchiveRepairStatus({ status: AccountStatus.ARCHIVED, balance: 120, deliveryStatus: DeliveryStatus.PENDING }),
+    AccountStatus.ACTIVE
+  );
+  // Only archived accounts are ever touched.
+  assert.equal(
+    getArchiveRepairStatus({ status: AccountStatus.COMPLETED, balance: 0, deliveryStatus: DeliveryStatus.PENDING }),
+    null
+  );
+});
+
+test("a balance change reopens or completes a plan without stranding it in the archive", () => {
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.ACTIVE, 0), AccountStatus.COMPLETED);
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.COMPLETED, 0), AccountStatus.COMPLETED);
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.ARCHIVED, 0), AccountStatus.ARCHIVED);
+
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.COMPLETED, 75), AccountStatus.ACTIVE);
+  // The regression: deleting a payment on an archived plan left it archived
+  // with money owing, and archived plans refuse payments.
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.ARCHIVED, 75), AccountStatus.ACTIVE);
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.DORMANT, 75), AccountStatus.DORMANT);
+  assert.equal(getStatusAfterBalanceChange(AccountStatus.CLOSED, 75), AccountStatus.CLOSED);
 });

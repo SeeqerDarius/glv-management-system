@@ -5,8 +5,12 @@ import {
   DeliveryStatus,
   type CustomerAccount,
 } from "@prisma/client";
-import { getEffectiveAccountStatus } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { countsAsSale, getEffectiveAccountStatus } from "@/lib/accounts";
+import {
+  isAwaitingDelivery,
+  isFinishedStatus,
+  refreshAccountLifecycleStatuses,
+} from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
@@ -170,18 +174,20 @@ export async function getAdminReportSummary() {
       [AccountStatus.SUSPENDED]: 0,
     }
   );
-  const includedAccounts = accounts.filter(
-    (account) =>
-      account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED &&
-      account.status !== AccountStatus.ARCHIVED
+  // Archived plans are finished sales, so they stay in the money figures. See
+  // countsAsSale for why leaving them out moved profit every time one archived.
+  const includedAccounts = accounts.filter((account) =>
+    countsAsSale(account.status)
   );
   const completedDeliveredAccounts = accounts.filter(
     (account) =>
       account.deliveryStatus === DeliveryStatus.DELIVERED &&
-      (account.status === AccountStatus.COMPLETED ||
-        account.status === AccountStatus.ARCHIVED)
+      isFinishedStatus(account.status)
   ).length;
+  const finishedAccounts = accounts.filter((account) =>
+    isFinishedStatus(account.status)
+  ).length;
+  const awaitingDeliveryAccounts = accounts.filter(isAwaitingDelivery).length;
   const expectedReceivables = accounts
     .filter((account) => {
       const status = getEffectiveAccountStatus(account);
@@ -230,7 +236,9 @@ export async function getAdminReportSummary() {
     totalAccounts: accounts.length,
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
+    finishedAccounts,
     completedDeliveredAccounts,
+    awaitingDeliveryAccounts,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
@@ -471,13 +479,10 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
           payment.salaryMonth <= salaryDueMonthEnd
       )
       .reduce((total, payment) => total + payment.amount, 0);
-    const expectedProfit = memberAccounts
-      .filter(
-        (account) =>
-          account.status !== AccountStatus.CANCELLED &&
-          account.status !== AccountStatus.CLOSED &&
-          account.status !== AccountStatus.ARCHIVED
-      )
+    const memberSales = memberAccounts.filter((account) =>
+      countsAsSale(account.status)
+    );
+    const expectedProfit = memberSales
       .reduce(
         (total, account) => total + account.targetAmount - accountCost(account),
         0
@@ -513,29 +518,19 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
       activeAccounts: memberAccounts.filter(
         (account) => getEffectiveAccountStatus(account) === AccountStatus.ACTIVE
       ).length,
-      completedAccounts: memberAccounts.filter(
-        (account) => account.status === AccountStatus.COMPLETED
+      completedAccounts: memberAccounts.filter((account) =>
+        isFinishedStatus(account.status)
       ).length,
       accountsOpened: memberAccounts.filter(
         (account) => account.createdAt >= start && account.createdAt <= end
       ).length,
-      totalContractValue: memberAccounts
-        .filter(
-          (account) =>
-            account.status !== AccountStatus.CLOSED &&
-            account.status !== AccountStatus.ARCHIVED
-        )
+      totalContractValue: memberSales
         .reduce(
         (total, account) => total + account.targetAmount,
         0
       ),
       totalCollected,
-      outstandingBalance: memberAccounts
-        .filter(
-          (account) =>
-            account.status !== AccountStatus.CLOSED &&
-            account.status !== AccountStatus.ARCHIVED
-        )
+      outstandingBalance: memberSales
         .reduce(
         (total, account) => total + account.balance,
         0
@@ -549,12 +544,7 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
             payment.paymentDate >= month.start && payment.paymentDate <= month.end
         )
         .reduce((total, payment) => total + payment.amount, 0),
-      expectedTotalCollection: memberAccounts
-        .filter(
-          (account) =>
-            account.status !== AccountStatus.CLOSED &&
-            account.status !== AccountStatus.ARCHIVED
-        )
+      expectedTotalCollection: memberSales
         .reduce(
         (total, account) => total + account.targetAmount,
         0
@@ -609,11 +599,8 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
     (total, member) => total + getEffectiveMonthlySalary(member, month.start),
     0
   );
-  const includedAccounts = accounts.filter(
-    (account) =>
-      account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED &&
-      account.status !== AccountStatus.ARCHIVED
+  const includedAccounts = accounts.filter((account) =>
+    countsAsSale(account.status)
   );
   const totalProductCost = includedAccounts.reduce(
     (total, account) => total + accountCost(account),
@@ -689,6 +676,16 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
         (total, account) => total + account.balance,
         0
       ),
+      // Goods already handed over against an unpaid balance: the part of the
+      // receivables that is credit extended rather than a deposit held.
+      deliveredOnCreditBalance: accounts
+        .filter(
+          (account) =>
+            account.deliveryStatus === DeliveryStatus.DELIVERED &&
+            account.deliveredWithBalance &&
+            account.balance > 0
+        )
+        .reduce((total, account) => total + account.balance, 0),
       totalProductCost,
       totalExpectedProfit,
       totalSalaryPaid,
@@ -850,9 +847,9 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
   const completedDeliveredAccounts = accounts.filter(
     (account) =>
       account.deliveryStatus === DeliveryStatus.DELIVERED &&
-      (account.status === AccountStatus.COMPLETED ||
-        account.status === AccountStatus.ARCHIVED)
+      isFinishedStatus(account.status)
   ).length;
+  const awaitingDeliveryAccounts = accounts.filter(isAwaitingDelivery).length;
 
   return {
     staff,
@@ -861,6 +858,7 @@ export async function getStaffDashboardSummary(staffId: string, now = new Date()
     activeAccounts: statusCounts.ACTIVE,
     completedAccounts: statusCounts.COMPLETED,
     completedDeliveredAccounts,
+    awaitingDeliveryAccounts,
     overdueAccounts: statusCounts.OVERDUE,
     dormantAccounts: statusCounts.DORMANT,
     probationAccounts: statusCounts.PROBATION,
@@ -1022,11 +1020,7 @@ export async function getActivityReport({
         expectedWeeklyCollection,
         outstanding: includeFinancialValues
           ? memberAccounts
-              .filter(
-                (account) =>
-                  account.status !== AccountStatus.CLOSED &&
-                  account.status !== AccountStatus.ARCHIVED
-              )
+              .filter((account) => countsAsSale(account.status))
               .reduce((total, account) => total + account.balance, 0)
           : null,
       };

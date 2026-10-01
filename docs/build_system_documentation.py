@@ -382,7 +382,7 @@ def build_body() -> str:
         ["Reports", "/reports, /api/reports/weekly-export", "Admin reports, salary tracking, and Excel workbook export including procurement list."],
         ["Audit Logs", "/audit-logs", "Read-only trail of important system actions."],
         ["Settings", "/settings?tab=..., /settings/legal, /settings/sms", "Super Admin control panel organised as tabs (Company, Business Rules, Payroll, Notifications, Security, Appearance, Product Categories, Data and System). Each tab saves only its own fields."],
-        ["Notifications", "/api/notifications", "Attention counts for modules such as procurement; sidebar clears opened notifications locally."],
+        ["Notifications", "/api/notifications", "Attention counts for modules such as procurement, overdue/suspended accounts (overdue computed from the expected end date) and paid-off accounts awaiting delivery; sidebar clears opened notifications locally."],
         ["AI Support", "/api/support/assistant, lib/ai-support.ts, components/ai-support-chat.tsx", "Admin-only Groq-backed support assistant for GLV workflows, with model fallback when a hosted model is retired."],
         ["Health/Logout", "/api/system/health, /api/logout", "Basic health check and logout/cookie cleanup."],
     ], [1700, 2600, 5060]))
@@ -417,7 +417,16 @@ def build_body() -> str:
       |
       +--> deliveryStatus becomes DELIVERED
       +--> stock on hand for the product decreases by one
+      |      (admin "past handover": dated, no stock movement)
       +--> account leaves the procurement list
+      |
+      v
+    Archive (lifecycle sweep, 2 days after delivery)
+      |
+      +--> only COMPLETED + DELIVERED + zero balance is archived
+      +--> an ARCHIVED account still owed its product returns to
+      |      COMPLETED (awaiting delivery); one owing money returns to ACTIVE
+      +--> archived plans still count as completed sales in every report
     """, "Diagram 4: Customer Account Lifecycle"))
     body.append(table([
         ["Flow step", "Server code", "Key controls"],
@@ -427,7 +436,9 @@ def build_body() -> str:
         ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit, and queues one receipt channel."],
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
-        ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts are confirmed by any account manager. Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Stock on hand drops by one and a DELIVERED movement is written; reversing the delivery returns the unit. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory screens."],
+        ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts, COMPLETED or ARCHIVED, are confirmed by any account manager from the account page, the customer profile or the Accounts list (Awaiting delivery filter). Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Stock on hand drops by one and a DELIVERED movement is written. An admin can instead record a past handover with its date, which writes no stock movement because the unit already left. Reversing a delivery (Mark pending) returns a unit only when that account's last stock movement took one, and on an archived plan it is admin-only and moves the plan back to COMPLETED. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory/dashboard screens."],
+        ["Archive", "lib/account-lifecycle.ts, lib/account-lifecycle-rules.ts", "The lifecycle sweep archives COMPLETED, DELIVERED, zero-balance plans two days after delivery (or at once when the delivery has no date), and returns any ARCHIVED plan that is undelivered (to COMPLETED) or owes money (to ACTIVE), audit logged as RESTORE_ARCHIVED_ACCOUNT. Every sweep write is conditional on the status it read, so overlapping sweeps cannot double-archive, double-close or mint two closure refund credits."],
+        ["Balance changes", "lib/payment-recording.ts, actions/accounts.ts", "Payment edit/delete/undo, price override and product correction share getStatusAfterBalanceChange: paying off completes a plan (an archived plan stays archived); owing again reopens a COMPLETED or ARCHIVED plan as ACTIVE so it can be collected."],
     ], [2200, 3100, 4060]))
 
     body.append(section("7. Product, Inventory, and Procurement Module"))

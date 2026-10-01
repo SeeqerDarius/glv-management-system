@@ -86,22 +86,36 @@ export async function GET() {
 
     const [
       accountAttentionCount,
+      awaitingDeliveryCount,
       customersWithoutAccountsCount,
       newCustomersToday,
       newAccountsToday,
       newPaymentsToday,
     ] =
       await Promise.all([
+        // Overdue is derived, not stored: an ACTIVE plan past its expected end
+        // date with money owing. Counting the stored OVERDUE status alone
+        // missed nearly every overdue account.
         prisma.customerAccount.count({
           where: {
             ...staffScope,
             OR: [
               { status: { in: [AccountStatus.OVERDUE, AccountStatus.SUSPENDED] } },
               {
-                status: AccountStatus.COMPLETED,
-                deliveryStatus: DeliveryStatus.PENDING,
+                status: AccountStatus.ACTIVE,
+                balance: { gt: 0 },
+                expectedEndDate: { lt: todayStart },
               },
             ],
+          },
+        }),
+        // Paid off and not yet handed over, archived plans included.
+        prisma.customerAccount.count({
+          where: {
+            ...staffScope,
+            status: { in: [AccountStatus.COMPLETED, AccountStatus.ARCHIVED] },
+            balance: { lte: 0 },
+            deliveryStatus: DeliveryStatus.PENDING,
           },
         }),
         prisma.customer.count({
@@ -137,6 +151,14 @@ export async function GET() {
       count: accountAttentionCount,
       label: `${plural(accountAttentionCount, "account")} need follow-up`,
       href: "/accounts?status=OVERDUE",
+    });
+  }
+
+  if (awaitingDeliveryCount > 0) {
+    addAttention(attention, "/accounts", {
+      count: awaitingDeliveryCount,
+      label: `${plural(awaitingDeliveryCount, "paid-off account")} awaiting delivery`,
+      href: "/accounts?status=AWAITING_DELIVERY",
     });
   }
 

@@ -9,6 +9,7 @@ import {
   CirclePlusIcon,
   ClockAlertIcon,
   HandCoinsIcon,
+  PackageIcon,
   TrendingUpIcon,
   UserRoundIcon,
   UsersIcon,
@@ -221,6 +222,15 @@ export default async function DashboardPage() {
               accent="#44a36f"
               mode={dashboardCards}
             />
+            <Link href="/accounts?status=AWAITING_DELIVERY" className="block">
+              <MetricCard
+                label="Paid, Awaiting Delivery"
+                value={report.awaitingDeliveryAccounts}
+                icon={PackageIcon}
+                accent="#d18b35"
+                mode={dashboardCards}
+              />
+            </Link>
             <MetricCard
               label="Overdue Accounts"
               value={report.overdueAccounts}
@@ -404,6 +414,10 @@ export default async function DashboardPage() {
                   <p className="text-xs font-medium uppercase text-gray-500">Completed & Delivered</p>
                   <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.completedDeliveredAccounts}</p>
                 </div>
+                <Link href="/accounts?status=AWAITING_DELIVERY" className="block rounded-lg bg-lime-50 p-4 transition hover:bg-lime-100">
+                  <p className="text-xs font-medium uppercase text-lime-900">Awaiting Delivery</p>
+                  <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.awaitingDeliveryAccounts}</p>
+                </Link>
                 <div className="rounded-lg bg-amber-50 p-4">
                   <p className="text-xs font-medium uppercase text-amber-800">Needs Attention</p>
                   <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.overdueAccounts + staffReport.suspendedAccounts}</p>

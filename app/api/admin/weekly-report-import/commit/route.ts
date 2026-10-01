@@ -1,4 +1,4 @@
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
@@ -20,9 +20,41 @@ function normalized(value: string) {
 }
 
 function accountStatus(value: string) {
+  // OVERDUE is worked out from the expected end date, never stored; the export
+  // writes the worked-out status, so it comes back here as ACTIVE.
+  if (value === AccountStatus.OVERDUE) return AccountStatus.ACTIVE;
   return Object.values(AccountStatus).includes(value as AccountStatus)
     ? (value as AccountStatus)
     : AccountStatus.ACTIVE;
+}
+
+/**
+ * Delivery as the report recorded it. Reports exported before the delivery
+ * columns existed carry none, and every recovered plan used to arrive as
+ * "pending delivery" — including archived plans, which GLV only ever archived
+ * after delivery. Those are restored as delivered; anything else unrecorded
+ * stays pending for staff to confirm.
+ */
+function accountDelivery(account: RecoveredAccountRow, status: AccountStatus) {
+  const recorded = account.deliveryStatus;
+  const delivered = recorded
+    ? recorded.startsWith("DELIVERED")
+    : status === AccountStatus.ARCHIVED;
+
+  if (!delivered) {
+    return { deliveryStatus: DeliveryStatus.PENDING };
+  }
+
+  const onCredit = recorded === "DELIVERED ON CREDIT" && account.balance > 0;
+  return {
+    deliveryStatus: DeliveryStatus.DELIVERED,
+    deliveredAt: account.deliveredAt,
+    deliveredBy: null,
+    deliveredWithBalance: onCredit,
+    deliveryNote: onCredit
+      ? "Restored from a weekly report: delivered before the plan was paid off."
+      : null,
+  };
 }
 
 function accountKey(customerId: string, productName: string) {
@@ -262,6 +294,8 @@ export async function POST(request: Request) {
               totalPaid: account.totalPaid,
               balance: account.balance,
               status: accountStatus(account.status),
+              // Restoring a delivery is a historical record, so no stock moves.
+              ...accountDelivery(account, accountStatus(account.status)),
               createdAt: account.startDate,
             },
             select: { id: true },
