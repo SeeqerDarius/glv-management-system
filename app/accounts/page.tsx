@@ -6,7 +6,8 @@ import {
   UserPermission,
   UserRole,
 } from "@prisma/client";
-import { Eye, HandCoins } from "lucide-react";
+import { Eye, HandCoins, PackageCheck } from "lucide-react";
+import { updateAccountDeliveryStatus } from "@/actions/accounts";
 import { bulkReassignCustomers } from "@/actions/customers";
 import { AccountDaysProgress } from "@/components/account-days-progress";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
@@ -14,8 +15,13 @@ import { DeliveryStatusIcon } from "@/components/delivery-status-icon";
 import { PaymentModal } from "@/components/payment-modal";
 import { ProductImagePreview } from "@/components/product-image-preview";
 import { Button } from "@/components/ui/button";
+import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import {
+  isAwaitingDelivery,
+  isFinishedStatus,
+  refreshAccountLifecycleStatuses,
+} from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -147,6 +153,21 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       status: AccountStatus.ACTIVE,
       balance: { gt: 0 },
       expectedEndDate: { lt: today },
+    });
+  } else if (selectedStatus === "AWAITING_DELIVERY") {
+    // Paid off and not handed over. Archived plans are included on purpose:
+    // one still owed its product must not drop out of the delivery queue.
+    filters.push({
+      status: { in: [AccountStatus.COMPLETED, AccountStatus.ARCHIVED] },
+      balance: { lte: 0 },
+      deliveryStatus: DeliveryStatus.PENDING,
+    });
+  } else if (selectedStatus === "DELIVERED_ON_CREDIT") {
+    // Released early and still owing: the debt the business carries.
+    filters.push({
+      deliveryStatus: DeliveryStatus.DELIVERED,
+      deliveredWithBalance: true,
+      balance: { gt: 0 },
     });
   } else if (selectedStatus === "ALL") {
     // no filter
@@ -338,6 +359,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           <option value={AccountStatus.DORMANT}>Dormant</option>
           <option value={AccountStatus.PROBATION}>Probation</option>
           <option value={AccountStatus.COMPLETED}>Completed</option>
+          <option value="AWAITING_DELIVERY">Awaiting delivery</option>
+          <option value="DELIVERED_ON_CREDIT">Delivered on credit</option>
           <option value={AccountStatus.CLOSED}>Closed</option>
           <option value={AccountStatus.ARCHIVED}>Archived</option>
           <option value={AccountStatus.CANCELLED}>Cancelled</option>
@@ -467,6 +490,19 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <p className="text-xs text-gray-400">Status</p>
                   <p className="font-medium text-gray-800">{status}</p>
                 </div>
+                {isFinishedStatus(account.status) ||
+                account.deliveryStatus === DeliveryStatus.DELIVERED ? (
+                  <div>
+                    <p className="text-xs text-gray-400">Delivery</p>
+                    <p className="font-medium text-gray-800">
+                      {account.deliveryStatus === DeliveryStatus.DELIVERED
+                        ? account.deliveredWithBalance
+                          ? "Delivered on credit"
+                          : "Delivered"
+                        : "Awaiting delivery"}
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-3">
@@ -485,6 +521,20 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                 >
                   View
                 </Link>
+
+                {isAwaitingDelivery(account) ? (
+                  <form action={updateAccountDeliveryStatus}>
+                    <input type="hidden" name="id" value={account.id} />
+                    <input
+                      type="hidden"
+                      name="deliveryStatus"
+                      value={DeliveryStatus.DELIVERED}
+                    />
+                    <PlainSubmitButton className="inline-flex h-9 items-center justify-center rounded-md border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                      Mark delivered
+                    </PlainSubmitButton>
+                  </form>
+                ) : null}
 
                 {account.balance > 0 &&
                 status !== AccountStatus.COMPLETED &&
@@ -580,7 +630,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                   <td className="p-3">{formatMoney(account.totalPaid)}</td>
                   <td className="p-3">{formatMoney(account.balance)}</td>
                   <td className="p-3">
-                    {status === AccountStatus.COMPLETED ||
+                    {isFinishedStatus(account.status) ||
                     account.deliveryStatus === DeliveryStatus.DELIVERED ? (
                       <DeliveryStatusIcon
                         status={account.deliveryStatus}
@@ -608,6 +658,25 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
                       >
                         <Eye className="size-4 transition-transform duration-200 group-hover/view:scale-125 group-hover/view:-rotate-6" />
                       </Link>
+
+                      {isAwaitingDelivery(account) ? (
+                        <form action={updateAccountDeliveryStatus}>
+                          <input type="hidden" name="id" value={account.id} />
+                          <input
+                            type="hidden"
+                            name="deliveryStatus"
+                            value={DeliveryStatus.DELIVERED}
+                          />
+                          <PlainSubmitButton
+                            iconOnly
+                            aria-label={`Mark ${account.product.name} for ${account.customer.fullName} as delivered`}
+                            title="Mark delivered"
+                            className="group/delivered flex size-8 items-center justify-center rounded-md text-gray-400 transition-all duration-150 hover:bg-green-50 hover:text-green-700"
+                          >
+                            <PackageCheck className="size-4 transition-transform duration-200 group-hover/delivered:scale-125 group-hover/delivered:-translate-y-0.5" />
+                          </PlainSubmitButton>
+                        </form>
+                      ) : null}
 
                       {account.balance > 0 &&
                       status !== AccountStatus.COMPLETED &&

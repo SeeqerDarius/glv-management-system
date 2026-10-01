@@ -15,6 +15,12 @@ export type RecoveredAccountRow = {
   status: string;
   startDate: Date;
   expectedEndDate: Date;
+  /**
+   * DELIVERED, DELIVERED ON CREDIT or PENDING; null when the report predates
+   * the delivery columns, so the importer has to infer it.
+   */
+  deliveryStatus: string | null;
+  deliveredAt: Date | null;
 };
 
 export type RecoveredPaymentRow = {
@@ -71,6 +77,12 @@ function date(value: ExcelJS.CellValue) {
   return parsed;
 }
 
+function optionalDate(value: ExcelJS.CellValue) {
+  if (value === null || value === undefined || text(value) === "") return null;
+  const parsed = date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 function rowsByHeader(workbook: ExcelJS.Workbook, sheetName: string) {
   const sheet = workbook.getWorksheet(sheetName);
   if (!sheet) throw new Error(`Missing worksheet: ${sheetName}`);
@@ -121,6 +133,8 @@ export async function parseWeeklyReport(
       status: text(row.value("Account Status")).toUpperCase(),
       startDate: date(row.value("Start Date")),
       expectedEndDate: date(row.value("Expected End Date")),
+      deliveryStatus: text(row.value("Delivery Status")).toUpperCase() || null,
+      deliveredAt: optionalDate(row.value("Delivered On")),
     }))
     .filter((row) => row.customerId && row.customerName && row.productName);
 

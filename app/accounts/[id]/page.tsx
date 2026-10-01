@@ -40,8 +40,10 @@ import {
   getDormantReactivationAmounts,
   getDormantReactivationCutoffDate,
   isDormantReactivationEligible,
+  isFinishedStatus,
   refreshAccountLifecycleStatuses,
 } from "@/lib/account-lifecycle";
+import { todayDateInputValue } from "@/lib/date-rules";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -166,8 +168,12 @@ export default async function AccountDetailsPage({
     account.status !== AccountStatus.SUSPENDED &&
     account.status !== AccountStatus.CLOSED &&
     account.status !== AccountStatus.ARCHIVED;
-  const isCompleted = status === "COMPLETED" && account.balance <= 0;
+  // Archived plans are paid off too, so they keep their delivery controls.
+  const isPaidOff = isFinishedStatus(account.status) && account.balance <= 0;
+  const isArchived = account.status === AccountStatus.ARCHIVED;
   const isDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
+  // Reopening a filed plan is an admin correction; the server enforces it too.
+  const canMarkPending = isDelivered && (!isArchived || isAdmin);
   // Trusted customers can receive the product before the plan is paid off.
   // Only an admin may release it, and only while the plan is still collectible.
   const canDeliverWithBalance =
@@ -361,19 +367,70 @@ export default async function AccountDetailsPage({
         </div>
       ) : null}
 
-      {status === "COMPLETED" ? (
-        <div className="flex flex-col gap-3 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900 sm:flex-row sm:items-center sm:justify-between">
+      {isPaidOff ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p className="font-medium">
               {isDelivered
-                ? "This product has been delivered."
-                : "This account is completed. Delivery is pending."}
+                ? `This product has been delivered${
+                    account.deliveredAt
+                      ? ` (${formatDate(account.deliveredAt)})`
+                      : ""
+                  }.`
+                : "This account is paid in full. Delivery is pending."}
             </p>
             <p className="mt-1 text-lime-800">
-              Mark the product as delivered after the customer receives it.
+              {isDelivered
+                ? isArchived
+                  ? "The plan is finished and archived."
+                  : "The plan archives automatically two days after delivery."
+                : "Mark the product as delivered after the customer receives it."}
             </p>
+            {!isDelivered && isAdmin ? (
+              <details className="mt-3 text-lime-900">
+                <summary className="cursor-pointer text-xs font-medium underline underline-offset-2">
+                  Handed over earlier and never recorded?
+                </summary>
+                <form
+                  action={updateAccountDeliveryStatus}
+                  className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end"
+                >
+                  <input type="hidden" name="id" value={account.id} />
+                  <input
+                    type="hidden"
+                    name="deliveryStatus"
+                    value={DeliveryStatus.DELIVERED}
+                  />
+                  <input type="hidden" name="pastHandover" value="yes" />
+                  <label className="text-xs font-medium">
+                    Date handed over
+                    <input
+                      type="date"
+                      name="deliveredOn"
+                      max={todayDateInputValue()}
+                      defaultValue={todayDateInputValue()}
+                      required
+                      className="mt-1 block rounded-md border border-lime-300 bg-white px-3 py-2 text-sm text-gray-950"
+                    />
+                  </label>
+                  <SubmitButton
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    pendingLabel="Recording"
+                  >
+                    <PackageCheck className="size-4" />
+                    Record past handover
+                  </SubmitButton>
+                </form>
+                <p className="mt-2 max-w-xl text-xs text-lime-800">
+                  Records the delivery on that date without taking a unit off
+                  inventory, because the unit already left the store room.
+                </p>
+              </details>
+            ) : null}
           </div>
-          {isCompleted ? (
+          {!isDelivered || canMarkPending ? (
             <form action={updateAccountDeliveryStatus}>
               <input type="hidden" name="id" value={account.id} />
               <input
@@ -539,6 +596,27 @@ export default async function AccountDetailsPage({
       {error === "delivery-reason-required" ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Give a reason before delivering a product that is not fully paid.
+        </div>
+      ) : null}
+
+      {error === "delivery-archived-requires-admin" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This plan is archived. Only an Admin or Super Admin can mark its
+          delivery pending again.
+        </div>
+      ) : null}
+
+      {error === "delivery-past-requires-admin" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Only an Admin or Super Admin can record a handover that happened
+          earlier.
+        </div>
+      ) : null}
+
+      {error === "delivery-past-date-invalid" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          Choose the date the product was handed over. It cannot be in the
+          future.
         </div>
       ) : null}
 

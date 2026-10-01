@@ -1,4 +1,4 @@
-import { AccountStatus } from "@prisma/client";
+import { AccountStatus, DeliveryStatus } from "@prisma/client";
 
 /**
  * Pure lifecycle arithmetic: the dormancy ladder, the closure deduction and the
@@ -116,6 +116,76 @@ export function getNextLifecycleStatus(
   }
 
   return AccountStatus.ACTIVE;
+}
+
+/**
+ * A plan the customer has paid off. ARCHIVED is not a separate outcome: it is a
+ * completed plan that was delivered and then filed away, so every count of
+ * completed plans has to include it or the figure shrinks each time the
+ * archive sweep runs.
+ */
+export function isFinishedStatus(status: AccountStatus) {
+  return status === AccountStatus.COMPLETED || status === AccountStatus.ARCHIVED;
+}
+
+/** Paid in full and still waiting for the product to be handed over. */
+export function isAwaitingDelivery(account: {
+  status: AccountStatus;
+  balance: number;
+  deliveryStatus: DeliveryStatus;
+}) {
+  return (
+    isFinishedStatus(account.status) &&
+    account.balance <= 0 &&
+    account.deliveryStatus === DeliveryStatus.PENDING
+  );
+}
+
+/**
+ * The archive holds finished work only: paid in full and handed over. An
+ * archived account that is still owed its product, or that owes money again
+ * (a payment deleted, a price raised), has to come back to the working list,
+ * because nothing can be done to an archived account. Returns the status it
+ * belongs in, or null when it still belongs in the archive.
+ */
+export function getArchiveRepairStatus(account: {
+  status: AccountStatus;
+  balance: number;
+  deliveryStatus: DeliveryStatus;
+}) {
+  if (account.status !== AccountStatus.ARCHIVED) {
+    return null;
+  }
+
+  if (account.balance > 0) {
+    return AccountStatus.ACTIVE;
+  }
+
+  if (account.deliveryStatus !== DeliveryStatus.DELIVERED) {
+    return AccountStatus.COMPLETED;
+  }
+
+  return null;
+}
+
+/**
+ * The status an account takes when the amount it owes changes underneath it:
+ * a price override, a product correction, or a payment edited, deleted or
+ * restored. Paying off completes the plan (an archived plan stays archived);
+ * owing again reopens a finished plan, archived included, so it can be
+ * collected on. Any other status is left for the lifecycle sweep to judge.
+ */
+export function getStatusAfterBalanceChange(
+  status: AccountStatus,
+  nextBalance: number
+) {
+  if (nextBalance <= 0) {
+    return status === AccountStatus.ARCHIVED
+      ? AccountStatus.ARCHIVED
+      : AccountStatus.COMPLETED;
+  }
+
+  return isFinishedStatus(status) ? AccountStatus.ACTIVE : status;
 }
 
 export function getClosureRefundAmounts(totalPaid: number) {

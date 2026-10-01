@@ -1,4 +1,5 @@
 import { AccountStatus, type Prisma } from "@prisma/client";
+import { getStatusAfterBalanceChange } from "@/lib/account-lifecycle-rules";
 import { queueAccountSms } from "@/lib/sms-notifications";
 
 async function generateReceiptNo(
@@ -171,12 +172,9 @@ export async function recalculateAccountAfterPaymentChange(
   });
   const nextTotalPaid = paymentTotals._sum.amount ?? 0;
   const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
-  const nextStatus =
-    nextBalance <= 0
-      ? AccountStatus.COMPLETED
-      : account.status === AccountStatus.COMPLETED
-        ? AccountStatus.ACTIVE
-        : account.status;
+  // Deleting a payment on an archived plan reopens it for collection; it used
+  // to stay archived with money owing, where no payment could be recorded.
+  const nextStatus = getStatusAfterBalanceChange(account.status, nextBalance);
 
   await tx.customerAccount.update({
     where: {

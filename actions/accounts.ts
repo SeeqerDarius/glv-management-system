@@ -16,7 +16,9 @@ import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
   getDormantReactivationAmounts,
+  getStatusAfterBalanceChange,
   isDormantReactivationEligible,
+  isFinishedStatus,
 } from "@/lib/account-lifecycle";
 import {
   createCustomerAccountForProduct,
@@ -423,12 +425,9 @@ export async function updateAccountPrice(formData: FormData): Promise<void> {
   }
 
   const nextBalance = Math.max(nextTargetAmount - account.totalPaid, 0);
-  const nextStatus =
-    nextBalance <= 0
-      ? AccountStatus.COMPLETED
-      : account.status === AccountStatus.COMPLETED
-        ? AccountStatus.ACTIVE
-        : account.status;
+  // Raising the price of an archived plan reopens it for collection rather
+  // than leaving a balance on a record that refuses payments.
+  const nextStatus = getStatusAfterBalanceChange(account.status, nextBalance);
 
   await prisma.$transaction(async (tx) => {
     await tx.customerAccount.update({
@@ -534,12 +533,14 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
   const nextDailyAmount = product.dailyAmount;
   const nextBalance = Math.max(nextTargetAmount - account.totalPaid, 0);
   const creditAmount = Math.max(account.totalPaid - nextTargetAmount, 0);
-  const nextStatus =
-    nextBalance <= 0
+  // The correction resets delivery to pending, so an archived plan cannot stay
+  // archived: paid off it waits for delivery, owing it is collected on again.
+  const nextStatus = getStatusAfterBalanceChange(
+    account.status === AccountStatus.ARCHIVED
       ? AccountStatus.COMPLETED
-      : account.status === AccountStatus.COMPLETED
-        ? AccountStatus.ACTIVE
-        : account.status;
+      : account.status,
+    nextBalance
+  );
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -657,6 +658,14 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   const allowOutstandingBalance =
     cleanInput(formData.get("allowOutstandingBalance")) === "yes";
   const deliveryNote = cleanInput(formData.get("deliveryNote")).slice(0, 500);
+  // A handover that happened earlier and was never recorded: the unit already
+  // left the shelf, so recording it now must not take a second one off stock.
+  const pastHandover =
+    nextStatus === DeliveryStatus.DELIVERED &&
+    cleanInput(formData.get("pastHandover")) === "yes";
+  const handedOverOn = pastHandover
+    ? parsePaymentDate(cleanInput(formData.get("deliveredOn")))
+    : null;
 
   const account = await prisma.customerAccount.findUnique({
     where: {
@@ -695,10 +704,33 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     throw new Error("Unauthorized");
   }
 
-  const fullyPaid =
-    account.status === AccountStatus.COMPLETED && account.balance <= 0;
+  // Archived plans are fully paid plans that were delivered and filed away, so
+  // they are as deliverable as a completed one. Treating only COMPLETED as paid
+  // left an archived plan that was still owed its product with no way to
+  // record the handover.
+  const fullyPaid = isFinishedStatus(account.status) && account.balance <= 0;
   const withBalance =
     nextStatus === DeliveryStatus.DELIVERED && !fullyPaid;
+  const isArchived = account.status === AccountStatus.ARCHIVED;
+
+  // Reopening a filed plan is a correction, not routine counter work.
+  if (
+    nextStatus === DeliveryStatus.PENDING &&
+    isArchived &&
+    !isAdminRole(user.role)
+  ) {
+    redirect(`/accounts/${account.id}?error=delivery-archived-requires-admin`);
+  }
+
+  if (pastHandover) {
+    if (!isAdminRole(user.role)) {
+      redirect(`/accounts/${account.id}?error=delivery-past-requires-admin`);
+    }
+
+    if (!handedOverOn || isFutureDate(handedOverOn)) {
+      redirect(`/accounts/${account.id}?error=delivery-past-date-invalid`);
+    }
+  }
 
   if (withBalance) {
     // A plan that is cancelled, closed, suspended or archived is not a plan the
@@ -730,8 +762,16 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   }
 
   const deliveredAt =
-    nextStatus === DeliveryStatus.DELIVERED ? new Date() : null;
+    nextStatus === DeliveryStatus.DELIVERED
+      ? (handedOverOn ?? new Date())
+      : null;
   const alreadyDelivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
+  // Marking an archived plan pending again puts it back in the delivery queue;
+  // the archive only holds plans that were handed over.
+  const nextAccountStatus =
+    nextStatus === DeliveryStatus.PENDING && isArchived
+      ? AccountStatus.COMPLETED
+      : account.status;
 
   const movement = await prisma.$transaction(async (tx) => {
     await tx.customerAccount.update({
@@ -751,6 +791,7 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
               deliveryNote: withBalance ? deliveryNote : null,
             }
           : {
+              status: nextAccountStatus,
               deliveryStatus: DeliveryStatus.PENDING,
               deliveredAt: null,
               deliveredBy: null,
@@ -769,6 +810,7 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
         entity: "CustomerAccount",
         entityId: account.id,
         oldValue: JSON.stringify({
+          status: account.status,
           deliveryStatus: account.deliveryStatus,
           deliveredAt: account.deliveredAt,
           deliveredBy: account.deliveredBy,
@@ -783,7 +825,8 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
           deliveredWithBalance: withBalance,
           balanceAtDelivery: withBalance ? account.balance : null,
           deliveryNote: withBalance ? deliveryNote : null,
-          accountStatus: account.status,
+          accountStatus: nextAccountStatus,
+          pastHandover,
         }),
       },
     });
@@ -791,7 +834,11 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     // Handing the product over takes it off the shelf; reversing a delivery
     // puts it back. Only a real change of state moves stock, so re-confirming
     // an already delivered account does not decrement twice.
-    if (nextStatus === DeliveryStatus.DELIVERED && !alreadyDelivered) {
+    if (
+      nextStatus === DeliveryStatus.DELIVERED &&
+      !alreadyDelivered &&
+      !pastHandover
+    ) {
       // Stock is allowed to be wrong: if the unit was never booked in, the
       // customer still walks away with it. The count floors at zero and the
       // operator is told, rather than the handover being blocked at the
@@ -808,8 +855,25 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
     }
 
     if (nextStatus === DeliveryStatus.PENDING && alreadyDelivered) {
+      // Put back only a unit this account actually took. A past handover, a
+      // delivery made when the shelf was already empty, or one recorded before
+      // stock was tracked never took a unit, and returning one would invent
+      // stock that is not in the store room.
+      const lastMovement = await tx.inventoryMovement.findFirst({
+        where: { accountId: account.id },
+        orderBy: { createdAt: "desc" },
+        select: { productId: true, reason: true, delta: true },
+      });
+
+      if (
+        lastMovement?.reason !== INVENTORY_REASONS.DELIVERED ||
+        lastMovement.delta >= 0
+      ) {
+        return null;
+      }
+
       return recordInventoryMovement(tx, {
-        productId: account.productId,
+        productId: lastMovement.productId,
         delta: 1,
         reason: INVENTORY_REASONS.RETURNED,
         createdBy: user.id,
@@ -827,6 +891,7 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   revalidatePath("/products");
   revalidatePath(`/products/${account.productId}`);
   revalidatePath("/inventory");
+  revalidatePath("/dashboard");
 
   // The delivery is recorded either way; this only tells the operator the shelf
   // count did not have the unit, so the books need a correction.

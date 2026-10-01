@@ -56,8 +56,11 @@ export default async function ProductDetailsPage({
   const activeAccounts = product.accounts.filter(
     (account) => account.status === AccountStatus.ACTIVE
   ).length;
+  // Archived plans are completed plans that were delivered and filed away.
   const completedAccounts = product.accounts.filter(
-    (account) => account.status === AccountStatus.COMPLETED
+    (account) =>
+      account.status === AccountStatus.COMPLETED ||
+      account.status === AccountStatus.ARCHIVED
   ).length;
   const cancelledAccounts = product.accounts.filter(
     (account) => account.status === AccountStatus.CANCELLED

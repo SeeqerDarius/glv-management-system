@@ -1,7 +1,11 @@
 import ExcelJS from "exceljs";
-import { AccountStatus } from "@prisma/client";
-import { getEffectiveAccountStatus } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { AccountStatus, DeliveryStatus } from "@prisma/client";
+import { countsAsSale, getEffectiveAccountStatus } from "@/lib/accounts";
+import {
+  isAwaitingDelivery,
+  isFinishedStatus,
+  refreshAccountLifecycleStatuses,
+} from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getCurrentWeekRange } from "@/lib/reports";
@@ -202,11 +206,9 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         item.status === AccountStatus.OVERDUE
     )
     .reduce((sum, item) => sum + item.account.balance, 0);
-  const reportableAccounts = accounts.filter(
-    (account) =>
-      account.status !== AccountStatus.CANCELLED &&
-      account.status !== AccountStatus.CLOSED &&
-      account.status !== AccountStatus.ARCHIVED
+  // Archived plans are finished sales and stay in the money figures.
+  const reportableAccounts = accounts.filter((account) =>
+    countsAsSale(account.status)
   );
   const outstandingBalance = reportableAccounts.reduce(
     (sum, account) => sum + account.balance,
@@ -270,9 +272,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     `Executive summary | Week: ${period} | Currency: Ghana Cedi (GHS)`,
     ["Metric", "Value"]
   );
-  summary.addRows([
-    ["Week start date", start],
-    ["Week end date", end],
+  type SummaryFormat = "date" | "currency" | "percent";
+  const summaryRows: Array<[string, Date | number, SummaryFormat?]> = [
+    ["Week start date", start, "date"],
+    ["Week end date", end, "date"],
     ["Total customers", customers.length],
     ["Total staff", staff.length],
     ["Total accounts", accounts.length],
@@ -285,37 +288,45 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     ["Archived accounts", statusCount(AccountStatus.ARCHIVED)],
     ["Cancelled accounts", statusCount(AccountStatus.CANCELLED)],
     ["Suspended accounts", statusCount(AccountStatus.SUSPENDED)],
-    ["Total collected", totalCollected],
-    ["Expected receivables", expectedReceivables],
-    ["Outstanding balance", outstandingBalance],
-    ["Total product exposure (not immediate)", totalProductCost],
+    [
+      "Paid off (completed + archived)",
+      accounts.filter((account) => isFinishedStatus(account.status)).length,
+    ],
+    [
+      "Paid off, awaiting delivery",
+      accounts.filter(isAwaitingDelivery).length,
+    ],
+    ["Total collected", totalCollected, "currency"],
+    ["Expected receivables", expectedReceivables, "currency"],
+    ["Outstanding balance", outstandingBalance, "currency"],
+    ["Total product exposure (not immediate)", totalProductCost, "currency"],
     ["Procurement products ready", procurement.items.length],
     ["Procurement units ready", procurement.totalQuantity],
-    ["Procurement estimated cost", procurement.totalCost],
-    ["Cash after procurement", cashAfterProcurement],
-    ["Current month payroll", currentMonthPayroll],
-    ["Salary paid for due month", salaryPaidThisMonth],
-    ["Total salaries paid", totalSalariesPaid],
-    ["Outstanding salaries", outstandingSalaries],
-    ["Payroll vs income", payrollVsIncome],
-    ["Payroll percentage of revenue", payrollPercentageOfRevenue],
-    ["Operating cash position", operatingCashPosition],
-    ["Projected profit / loss", projectedNetProfit],
-  ]);
-  for (let row = 5; row <= 34; row += 1) {
-    summary.getCell(row, 1).font = {
+    ["Procurement estimated cost", procurement.totalCost, "currency"],
+    ["Cash after procurement", cashAfterProcurement, "currency"],
+    ["Current month payroll", currentMonthPayroll, "currency"],
+    ["Salary paid for due month", salaryPaidThisMonth, "currency"],
+    ["Total salaries paid", totalSalariesPaid, "currency"],
+    ["Outstanding salaries", outstandingSalaries, "currency"],
+    ["Payroll vs income", payrollVsIncome, "currency"],
+    ["Payroll percentage of revenue", payrollPercentageOfRevenue, "percent"],
+    ["Operating cash position", operatingCashPosition, "currency"],
+    ["Projected profit / loss", projectedNetProfit, "currency"],
+  ];
+  // Formats follow the label, not a hard-coded row number, so adding a figure
+  // cannot shift a currency format onto a count.
+  summaryRows.forEach(([label, value, format]) => {
+    const row = summary.addRow([label, value]);
+    row.getCell(1).font = {
       name: "Aptos",
       size: 10,
       bold: true,
       color: { argb: palette.ink },
     };
-  }
-  summary.getCell("B5").numFmt = dateFormat;
-  summary.getCell("B6").numFmt = dateFormat;
-  [19, 20, 21, 22, 25, 26, 27, 28, 29, 30, 31, 33, 34].forEach((row) => {
-    summary.getCell(row, 2).numFmt = currencyFormat;
+    if (format === "date") row.getCell(2).numFmt = dateFormat;
+    if (format === "currency") row.getCell(2).numFmt = currencyFormat;
+    if (format === "percent") row.getCell(2).numFmt = "0.0%";
   });
-  summary.getCell("B32").numFmt = "0.0%";
   finishSheet(summary, [30, 23]);
 
   const staffRows = staff
@@ -342,8 +353,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
           .reduce((sum, payment) => sum + payment.amount, 0),
         completed: memberAccounts.filter(
           (account) =>
-            account.status === AccountStatus.COMPLETED &&
-            account.payments.length > 0
+            isFinishedStatus(account.status) && account.payments.length > 0
         ).length,
         outstanding: memberAccounts.reduce(
           (sum, account) => sum + account.balance,
@@ -363,12 +373,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
           .reduce((sum, payment) => sum + payment.amount, 0),
         projectedProfitAfterSalary:
           memberAccounts
-            .filter(
-              (account) =>
-                account.status !== AccountStatus.CANCELLED &&
-                account.status !== AccountStatus.CLOSED &&
-                account.status !== AccountStatus.ARCHIVED
-            )
+            .filter((account) => countsAsSale(account.status))
             .reduce(
               (sum, account) =>
                 sum + account.targetAmount - account.product.costPrice - account.product.transportCost,
@@ -448,6 +453,10 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       "Account Status",
       "Start Date",
       "Expected End Date",
+      // Carried so the recovery import can restore delivery as well as status.
+      // Without it every archived plan came back "pending delivery".
+      "Delivery Status",
+      "Delivered On",
     ]
   );
   effectiveAccounts.forEach(({ account, status }) => {
@@ -476,14 +485,20 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
       status,
       account.startDate,
       account.expectedEndDate,
+      account.deliveryStatus === DeliveryStatus.DELIVERED
+        ? account.deliveredWithBalance
+          ? "DELIVERED ON CREDIT"
+          : "DELIVERED"
+        : "PENDING",
+      account.deliveredAt ?? "",
     ]);
   });
   finishSheet(
     accountsSheet,
-    [18, 25, 17, 13, 25, 16, 17, 17, 17, 13, 13, 20, 17, 16, 18],
+    [18, 25, 17, 13, 25, 16, 17, 17, 17, 13, 13, 20, 17, 16, 18, 20, 16],
     {
       currencyColumns: [6, 7, 8, 9],
-      dateColumns: [14, 15],
+      dateColumns: [14, 15, 17],
       percentageColumns: [12],
     }
   );
@@ -671,18 +686,25 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
         ? Math.floor(account.totalPaid / account.dailyAmount)
         : 0;
     const daysLeft = account.product.duration - daysPaid;
-    const releaseStatus =
-      status === AccountStatus.COMPLETED
+    // Delivery decides the release column before status does: a completed
+    // plan already handed over is not "ready for release", and an archived
+    // plan is a finished sale, not a problem to flag.
+    const delivered = account.deliveryStatus === DeliveryStatus.DELIVERED;
+    const releaseStatus = delivered
+      ? account.deliveredWithBalance && account.balance > 0
+        ? "DELIVERED ON CREDIT"
+        : status === AccountStatus.ARCHIVED
+          ? "DELIVERED (ARCHIVED)"
+          : "DELIVERED"
+      : isAwaitingDelivery(account)
         ? "READY FOR RELEASE"
         : status === AccountStatus.CANCELLED
           ? "CANCELLED"
-        : status === AccountStatus.CLOSED
-          ? "CLOSED"
-          : status === AccountStatus.ARCHIVED
-            ? "ARCHIVED"
-          : status === AccountStatus.SUSPENDED
-            ? "SUSPENDED"
-            : "NOT READY";
+          : status === AccountStatus.CLOSED
+            ? "CLOSED"
+            : status === AccountStatus.SUSPENDED
+              ? "SUSPENDED"
+              : "NOT READY";
     ledgerSheet.addRow([
       account.customer.staff.code,
       account.customer.fullName,
@@ -710,7 +732,11 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
   );
   ledgerSheet.getColumn(13).eachCell((cell, rowNumber) => {
     if (rowNumber < 5) return;
-    if (cell.value === "READY FOR RELEASE") {
+    if (
+      cell.value === "READY FOR RELEASE" ||
+      cell.value === "DELIVERED" ||
+      cell.value === "DELIVERED (ARCHIVED)"
+    ) {
       cell.fill = {
         type: "pattern",
         pattern: "solid",
@@ -720,8 +746,7 @@ export async function buildWeeklyReportWorkbook(now = new Date()) {
     if (
       cell.value === "CANCELLED" ||
       cell.value === "SUSPENDED" ||
-      cell.value === "CLOSED" ||
-      cell.value === "ARCHIVED"
+      cell.value === "CLOSED"
     ) {
       cell.fill = {
         type: "pattern",
