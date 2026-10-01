@@ -5,7 +5,7 @@ import {
   missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone,
 } from "./sms-rules";
 import { sendSms, SmsSendError, smsProviderConfigured } from "./sms-provider";
-import { renderSmsTemplate, smsFirstName } from "./sms-templates";
+import { renderReadyForCollectionSms, renderSmsTemplate, smsFirstName } from "./sms-templates";
 
 type Client = Prisma.TransactionClient;
 const money = (value: number, currency = "GHS") => `${currency} ${value.toFixed(2)}`;
@@ -26,12 +26,40 @@ async function queue(tx: Client, data: {
   });
 }
 
-export async function queueAccountSms(tx: Client, accountId: string, type: "WELCOME" | "PROGRESS_70") {
+/** Paid off and still waiting for the product: the moment to say so. */
+function readyForCollection(account: { status: string; balance: number; deliveryStatus: string }) {
+  return account.status === "COMPLETED" && account.balance <= 0 && account.deliveryStatus === "PENDING";
+}
+
+export async function queueAccountSms(tx: Client, accountId: string, type: "WELCOME" | "PROGRESS_70" | "READY_FOR_COLLECTION") {
   const settings = await tx.setting.findFirst();
   if (!settings?.smsNotificationsEnabled) return;
-  const account = await tx.customerAccount.findUnique({ where: { id: accountId }, include: { customer: true, product: true } });
+  const account = await tx.customerAccount.findUnique({ where: { id: accountId }, include: { customer: { include: { staff: true } }, product: true } });
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return;
   if (type === "PROGRESS_70" && !reachedSmsMilestone(account.totalPaid, account.targetAmount)) return;
+  // A product released early on credit is already with the customer, so paying
+  // it off is not a "come and collect" moment.
+  if (type === "READY_FOR_COLLECTION" && !readyForCollection(account)) return;
+  if (type === "READY_FOR_COLLECTION") {
+    const body = renderReadyForCollectionSms({
+      customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
+      staffName: smsFirstName(account.customer.staff?.fullName ?? "GLV"),
+    });
+    const dedupeKey = `${type}:${account.id}`;
+    // Held for the payment edit window, so a mistyped final payment can be
+    // corrected before the customer is told to come for the product.
+    const scheduledAt = new Date(Date.now() + Number(settings.paymentEditWindowHours ?? 3) * 3_600_000);
+    await queue(tx, { type, sourceId: account.id, dedupeKey, recipient: account.customer.phone, body, scheduledAt });
+    // Re-arm a notice cancelled because the plan briefly stopped being paid off.
+    const recipient = normalizeSmsPhone(account.customer.phone);
+    if (recipient) {
+      await tx.smsNotification.updateMany({
+        where: { dedupeKey, status: "CANCELLED" },
+        data: { status: "PENDING", recipient, body, attempts: 0, scheduledAt, lastError: null },
+      });
+    }
+    return;
+  }
   const body = type === "WELCOME"
     ? renderSmsTemplate("welcome", settings.smsWelcomeTemplate, {
       customerName: smsFirstName(account.customer.fullName), productName: account.product.name,
@@ -201,6 +229,8 @@ async function currentRecipient(message: { type: string; sourceId: string; dedup
   const account = await prisma.customerAccount.findUnique({ where: { id: message.sourceId }, include: accountInclude });
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return null;
   if (message.type === "PROGRESS_70" && !reachedSmsMilestone(account.totalPaid, account.targetAmount)) return null;
+  // Delivered, reopened or corrected before dispatch: the notice no longer applies.
+  if (message.type === "READY_FOR_COLLECTION" && !readyForCollection(account)) return null;
   if (message.type === "MISSED_WEEK") {
     const period = missedPaymentPeriod(account);
     if (!period || message.dedupeKey !== `MISSED_WEEK:${account.id}:${period}`) return null;

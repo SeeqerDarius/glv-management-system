@@ -9,21 +9,22 @@ async function generateReceiptNo(
   const year = new Date().getFullYear().toString().slice(-2);
   const receiptPrefix = receiptPrefixValue.replace(/\/+$/, "");
   const prefix = `${receiptPrefix}/${year}/`;
-  const payments = await tx.payment.findMany({
-    where: {
-      receiptNo: {
-        startsWith: prefix,
-      },
-    },
-    select: {
-      receiptNo: true,
-    },
-  });
 
-  const maxNumber = payments.reduce((max, payment) => {
-    const value = Number(payment.receiptNo.replace(prefix, ""));
-    return Number.isFinite(value) && value > max ? value : max;
-  }, 0);
+  // Two payments recorded at the same moment used to read the same highest
+  // number and both take max + 1; the unique receipt number then failed the
+  // second ("Unable to record payment"). This lock makes every payment with
+  // this prefix wait for the one ahead of it until its transaction commits.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
+
+  // The highest numeric suffix, worked out in the database rather than by
+  // loading every receipt of the year into memory.
+  const [{ highest }] = await tx.$queryRaw<Array<{ highest: string | null }>>`
+    SELECT MAX(SUBSTRING("receiptNo" FROM char_length(${prefix}) + 1)::numeric)::text AS highest
+    FROM "Payment"
+    WHERE starts_with("receiptNo", ${prefix})
+      AND SUBSTRING("receiptNo" FROM char_length(${prefix}) + 1) ~ '^[0-9]+$'
+  `;
+  const maxNumber = highest ? Number(highest) : 0;
 
   return `${prefix}${String(maxNumber + 1).padStart(6, "0")}`;
 }
@@ -146,6 +147,9 @@ export async function recordPaymentForAccount({
   });
 
   await queueAccountSms(tx, account.id, "PROGRESS_70");
+  if (nextStatus === AccountStatus.COMPLETED) {
+    await queueAccountSms(tx, account.id, "READY_FOR_COLLECTION");
+  }
   return createdPayment;
 }
 
@@ -188,6 +192,9 @@ export async function recalculateAccountAfterPaymentChange(
   });
 
   await queueAccountSms(tx, account.id, "PROGRESS_70");
+  if (nextStatus === AccountStatus.COMPLETED) {
+    await queueAccountSms(tx, account.id, "READY_FOR_COLLECTION");
+  }
   return {
     nextTotalPaid,
     nextBalance,

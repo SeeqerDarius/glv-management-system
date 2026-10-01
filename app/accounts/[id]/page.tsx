@@ -37,11 +37,15 @@ import { listUndoableActions } from "@/lib/undo";
 import { PaymentModal } from "@/components/payment-modal";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
+  ensureLifecycleStatusesFresh,
+  formatServiceFeeRate,
+  getDeliveryWait,
   getDormantReactivationAmounts,
   getDormantReactivationCutoffDate,
+  getLifecycleBusinessRules,
+  getPaidOffDate,
   isDormantReactivationEligible,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
 } from "@/lib/account-lifecycle";
 import { todayDateInputValue } from "@/lib/date-rules";
 import { auth } from "@/lib/auth";
@@ -92,7 +96,9 @@ export default async function AccountDetailsPage({
   const settings = await getSettings();
   const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
 
-  await refreshAccountLifecycleStatuses();
+  await ensureLifecycleStatusesFresh();
+  const { serviceFeeRate, deliveryTargetDays } =
+    await getLifecycleBusinessRules();
 
   const account = await prisma.customerAccount.findFirst({
     where: {
@@ -194,7 +200,15 @@ export default async function AccountDetailsPage({
     ? await listUndoableActions({ entity: "CustomerAccount", entityId: account.id })
     : [];
   const reactivationCutoffDate = getDormantReactivationCutoffDate(account);
-  const reactivationAmounts = getDormantReactivationAmounts(account.totalPaid);
+  const reactivationAmounts = getDormantReactivationAmounts(
+    account.totalPaid,
+    serviceFeeRate
+  );
+  // Payments are loaded newest first, so the first is the one that paid it off.
+  const deliveryWait =
+    isPaidOff && !isDelivered
+      ? getDeliveryWait(getPaidOffDate(account), deliveryTargetDays)
+      : null;
   const reactivationBalance = Math.max(
     account.targetAmount - reactivationAmounts.nextTotalPaid,
     0
@@ -386,6 +400,22 @@ export default async function AccountDetailsPage({
                   : "The plan archives automatically two days after delivery."
                 : "Mark the product as delivered after the customer receives it."}
             </p>
+            {deliveryWait ? (
+              <p
+                className={`mt-1 font-medium ${
+                  deliveryWait.late ? "text-red-700" : "text-lime-800"
+                }`}
+              >
+                Paid off {formatDate(getPaidOffDate(account))}, waiting{" "}
+                {deliveryWait.daysWaiting} day
+                {deliveryWait.daysWaiting === 1 ? "" : "s"}
+                {deliveryWait.dueBy
+                  ? deliveryWait.late
+                    ? `. Late: the ${deliveryWait.deliveryTargetDays}-day delivery target passed on ${formatDate(deliveryWait.dueBy)}.`
+                    : `. Deliver by ${formatDate(deliveryWait.dueBy)} (${deliveryWait.deliveryTargetDays}-day target).`
+                  : "."}
+              </p>
+            ) : null}
             {!isDelivered && isAdmin ? (
               <details className="mt-3 text-lime-900">
                 <summary className="cursor-pointer text-xs font-medium underline underline-offset-2">
@@ -480,7 +510,8 @@ export default async function AccountDetailsPage({
               Reactivate this dormant account with the six-month service fee.
             </p>
             <p className="mt-1 text-amber-900">
-              Eligible from {formatDate(reactivationCutoffDate)}. A 32% service
+              Eligible from {formatDate(reactivationCutoffDate)}. A{" "}
+              {formatServiceFeeRate(reactivationAmounts.serviceFeeRate)} service
               fee ({formatMoney(reactivationAmounts.serviceFee)}) will be
               deducted from the old paid balance, leaving{" "}
               {formatMoney(reactivationAmounts.nextTotalPaid)} paid and{" "}
@@ -660,6 +691,15 @@ export default async function AccountDetailsPage({
       {refunded === "credit" ? (
         <div className="rounded-lg border border-lime-200 bg-lime-50 p-4 text-sm text-lime-900">
           Customer credit marked as refunded.
+        </div>
+      ) : null}
+
+      {error === "product-correction-delivered" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This product has already been handed over, so it cannot be corrected
+          in place. Mark the delivery pending first (the unit goes back into
+          stock if the delivery took one), correct the product, then mark the
+          right product delivered.
         </div>
       ) : null}
 

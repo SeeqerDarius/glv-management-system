@@ -68,14 +68,16 @@ def build():
     doc.add_paragraph("Use counts to monitor workload and account health. Use collection and receivable figures to understand customer cash flow. Use product cost, procurement, payroll, and profit figures together; no single card represents cash in the bank or final accounting profit. Currency figures use the system’s configured currency, normally Ghana cedis.")
     doc.add_paragraph("Account cost means product cost price plus transport cost. Included accounts exclude cancelled and closed accounts unless a figure explicitly says otherwise. Archived accounts are included: an archived plan is a completed plan that was delivered and filed away two days later, so it is a finished sale. Earlier versions left archived plans out, which made expected profit fall and net profit so far rise by the product cost each time a plan archived. The salary due month is the previous calendar month, while current month payroll uses salaries effective in the current month.")
 
+    doc.add_paragraph("Week-over-week arrows on Active Accounts, Completed and Delivered, Paid Awaiting Delivery and Overdue Accounts come from a daily status snapshot that GLV files each morning. Account status keeps no history of its own, so until a snapshot from a week earlier exists these cards show no arrow rather than an invented one. For Overdue and Awaiting Delivery a fall is good news, so a falling arrow is green and a rising one red.")
+
     heading(doc, "Administrator dashboard figures")
     metric_table(doc, [
         ("Total Customers", "All customer profiles in GLV.", "Count of customer records, whether or not each customer has an active plan.", "Size of the customer register."),
         ("Total Staff", "All staff profiles in GLV.", "Count of staff records, including active and inactive profiles.", "Recorded workforce, not only active staff."),
-        ("Active Accounts", "Plans currently collecting normally.", "Count of accounts whose effective lifecycle status is Active.", "Current collection workload."),
-        ("Completed and Delivered", "Plans fully completed and marked delivered.", "Delivered accounts with Completed or Archived status.", "Confirms fulfilment, not only payment completion."),
-        ("Paid, Awaiting Delivery", "Plans fully paid whose product has not been handed over.", "Accounts with Completed or Archived status, zero balance and delivery Pending. Opens the Awaiting delivery list.", "Delivery workload; should trend to zero."),
-        ("Overdue Accounts", "Plans past expected end date with balance remaining.", "Count of accounts whose effective status is Overdue.", "Requires collection follow-up."),
+        ("Active Accounts", "Plans currently collecting normally.", "Count of accounts whose effective lifecycle status is Active. The arrow compares with the daily status snapshot from a week earlier.", "Current collection workload."),
+        ("Completed and Delivered", "Plans fully completed and marked delivered.", "Delivered accounts with Completed or Archived status. The arrow compares with a week earlier.", "Confirms fulfilment, not only payment completion."),
+        ("Paid, Awaiting Delivery", "Plans fully paid whose product has not been handed over.", "Accounts with Completed or Archived status, zero balance and delivery Pending. The bracket counts those waiting longer than the Delivery Time After Completion target since their last payment. Opens the Awaiting delivery list.", "Delivery workload; should trend to zero. A rising arrow is shown red."),
+        ("Overdue Accounts", "Plans past expected end date with balance remaining.", "Count of accounts whose effective status is Overdue. The arrow compares with a week earlier; a rise is shown red.", "Requires collection follow-up."),
         ("Open Credits or Refunds", "Unused customer credit still owed or available.", "Sum of remaining amounts on Open customer-credit records.", "Customer value still to resolve."),
         ("Payments Collected", "All recorded customer payments.", "Sum of every Payment amount in the system.", "Cumulative, not current-month collections."),
         ("Expected Receivables", "Balance expected from live plans.", "Balances on Active and Overdue accounts.", "Future collection focus."),
@@ -107,7 +109,7 @@ def build():
         ("Payments Today", "Payment entries recorded today.", "Count of today’s qualifying payment records.", "Transaction count, not value."),
         ("Collected Today", "Value collected today.", "Sum of today’s qualifying payment amounts.", "Compare with receipts and targets."),
         ("Collected This Week", "Value collected this week.", "Sum of qualifying payments in the current week.", "Weekly collection performance."),
-        ("Awaiting Delivery", "Assigned plans paid off but not yet handed over.", "Assigned accounts with Completed or Archived status, zero balance and delivery Pending.", "Products to hand over; opens the list."),
+        ("Awaiting Delivery", "Assigned plans paid off but not yet handed over.", "Assigned accounts with Completed or Archived status, zero balance and delivery Pending; the line below counts those past the delivery target.", "Products to hand over; opens the list."),
     ])
 
     heading(doc, "Reports Business Overview")

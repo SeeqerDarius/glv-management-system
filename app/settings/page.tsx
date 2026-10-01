@@ -581,13 +581,22 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             title="Fees and deductions"
             description="Percentages applied to administration charges and refunds."
           >
-            <Field label="Administration Fee %" name="administrationFeePercent" type="number" min={0} max={100} step="0.01" defaultValue={values.administrationFeePercent} />
-            <Field label="Refund Deduction %" name="refundDeductionPercent" type="number" min={0} max={100} step="0.01" defaultValue={values.refundDeductionPercent} />
+            <Field label="Administration Fee %" name="administrationFeePercent" type="number" min={0} max={100} step="0.01" defaultValue={values.administrationFeePercent} hint="Stored for reference only. No charge uses it yet." />
+            <Field
+              label="Refund Deduction %"
+              name="refundDeductionPercent"
+              type="number"
+              min={0}
+              max={100}
+              step="0.01"
+              defaultValue={values.refundDeductionPercent}
+              hint="Service fee taken from a closure refund and charged on reactivation. Leave at 0 to keep the standard 32%."
+            />
           </FieldGroup>
 
           <FieldGroup
             title="Procurement and delivery"
-            description="Controls when a product appears on the procurement list."
+            description="Controls when a product appears on the procurement list and how fast paid-off products should be delivered."
           >
             <Field
               label="Procurement Threshold %"
@@ -599,7 +608,14 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               defaultValue={values.procurementThresholdPercent}
               hint="Accounts at or above this paid percentage appear on the procurement list."
             />
-            <Field label="Delivery Time After Completion (days)" name="deliveryTimeAfterCompletionDays" type="number" min={0} defaultValue={values.deliveryTimeAfterCompletionDays} />
+            <Field
+              label="Delivery Time After Completion (days)"
+              name="deliveryTimeAfterCompletionDays"
+              type="number"
+              min={0}
+              defaultValue={values.deliveryTimeAfterCompletionDays}
+              hint="Target days to hand over a paid-off product. Plans waiting longer are flagged late on Accounts, the dashboard and the sidebar. 0 turns the late flag off."
+            />
           </FieldGroup>
 
           <FieldGroup

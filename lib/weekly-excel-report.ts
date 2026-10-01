@@ -139,7 +139,9 @@ function finishSheet(
 }
 
 export async function buildWeeklyReportWorkbook(now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  // A full sweep on the real clock, never the report's week: sweeping "as of"
+  // a past week rewrote live statuses as they stood back then.
+  await refreshAccountLifecycleStatuses();
 
   const { start, end } = getCurrentWeekRange(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

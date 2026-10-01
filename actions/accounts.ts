@@ -11,11 +11,13 @@ import {
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { dispatchDueSms } from "@/lib/sms-notifications";
+import { dispatchDueSms, queueAccountSms } from "@/lib/sms-notifications";
 import bcrypt from "bcryptjs";
 import { auth } from "@/lib/auth";
 import {
+  formatServiceFeeRate,
   getDormantReactivationAmounts,
+  getLifecycleBusinessRules,
   getStatusAfterBalanceChange,
   isDormantReactivationEligible,
   isFinishedStatus,
@@ -441,6 +443,13 @@ export async function updateAccountPrice(formData: FormData): Promise<void> {
       },
     });
 
+    if (
+      nextStatus === AccountStatus.COMPLETED &&
+      account.status !== AccountStatus.COMPLETED
+    ) {
+      await queueAccountSms(tx, account.id, "READY_FOR_COLLECTION");
+    }
+
     await tx.auditLog.create({
       data: {
         userId: user.id,
@@ -526,6 +535,14 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
     redirect(`${returnTo}?updated=account-product`);
   }
 
+  // A handed-over product cannot be corrected in place: the unit that left was
+  // the old product, and silently resetting delivery stranded it outside the
+  // stock count. Reverse the delivery first (which returns the unit if the
+  // delivery took one), correct the product, then deliver the right one.
+  if (account.deliveryStatus === DeliveryStatus.DELIVERED) {
+    redirect(`${returnTo}?error=product-correction-delivered`);
+  }
+
   const expectedEndDate = new Date(account.startDate);
   expectedEndDate.setDate(expectedEndDate.getDate() + product.duration);
 
@@ -593,6 +610,10 @@ export async function updateAccountProduct(formData: FormData): Promise<void> {
               },
             })
           : null;
+
+      if (nextStatus === AccountStatus.COMPLETED) {
+        await queueAccountSms(tx, account.id, "READY_FOR_COLLECTION");
+      }
 
       await tx.auditLog.create({
         data: {
@@ -967,8 +988,9 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
   }
 
   const reactivatedAt = new Date();
+  const { serviceFeeRate: configuredFeeRate } = await getLifecycleBusinessRules();
   const { serviceFee, nextTotalPaid, serviceFeeRate } =
-    getDormantReactivationAmounts(account.totalPaid);
+    getDormantReactivationAmounts(account.totalPaid, configuredFeeRate);
   const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
   const nextStatus =
     nextBalance <= 0 ? AccountStatus.COMPLETED : AccountStatus.ACTIVE;
@@ -981,7 +1003,7 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
     dedupeBase: `REACTIVATION_CALCULATION:${account.id}:${Date.now()}`,
     values: {
       previousAmountPaid: formatMoney(account.totalPaid),
-      deductionRate: `${Math.round(serviceFeeRate * 100)}%`,
+      deductionRate: formatServiceFeeRate(serviceFeeRate),
       reactivationCharge: formatMoney(serviceFee),
       amountRemainingAfterCharge: formatMoney(nextTotalPaid),
       newBalance: formatMoney(nextBalance),

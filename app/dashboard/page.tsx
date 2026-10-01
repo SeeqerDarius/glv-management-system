@@ -33,6 +33,9 @@ import {
 } from "@/lib/reports";
 import { isAdminRole } from "@/lib/roles";
 import { fallbackSettings, getAppearanceSettings } from "@/lib/settings";
+import { TrendBadge } from "@/components/reports/chart-primitives";
+import { getStatusSnapshotWeekAgo } from "@/lib/status-snapshots";
+import type { StatusSnapshot } from "@/lib/status-snapshot-rules";
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -64,12 +67,18 @@ function MetricCard({
   icon: Icon,
   accent,
   mode = "standard",
+  trend,
 }: {
   label: string;
   value: string | number;
   icon: LucideIcon;
   accent: string;
   mode?: "compact" | "standard" | "detailed";
+  /**
+   * A week-over-week comparison from the daily status snapshots. Omitted until
+   * a snapshot from a week ago exists, so no arrow is ever invented.
+   */
+  trend?: { current: number; previous: number; higherIsBetter?: boolean };
 }) {
   const compact = mode === "compact";
   const detailed = mode === "detailed";
@@ -84,6 +93,15 @@ function MetricCard({
         <div>
           <p className={`${compact ? "text-xs" : "text-sm"} font-medium text-gray-500`}>{label}</p>
           <p className={`${compact ? "mt-1 text-xl" : "mt-2 text-2xl"} font-semibold text-gray-950`}>{value}</p>
+          {trend ? (
+            <div className="mt-1">
+              <TrendBadge
+                current={trend.current}
+                previous={trend.previous}
+                higherIsBetter={trend.higherIsBetter ?? true}
+              />
+            </div>
+          ) : null}
           {detailed ? (
             <p className="mt-3 text-xs text-gray-500">Updated from the latest operational records.</p>
           ) : null}
@@ -109,6 +127,10 @@ export default async function DashboardPage() {
   let staffReport: Awaited<ReturnType<typeof getStaffDashboardSummary>> | null = null;
   let staffTrend: Awaited<ReturnType<typeof getStaffDashboardTrend>> | null = null;
   let reportUnavailable = false;
+  // A missing or unreadable snapshot only hides the arrows.
+  const weekAgo: StatusSnapshot | null = await getStatusSnapshotWeekAgo().catch(
+    () => null
+  );
 
   if (isAdmin) {
     try {
@@ -197,6 +219,11 @@ export default async function DashboardPage() {
               icon={WalletCardsIcon}
               accent="#3b8d62"
               mode={dashboardCards}
+              trend={
+                weekAgo
+                  ? { current: report.activeAccounts, previous: weekAgo.active }
+                  : undefined
+              }
             />
             {trend ? (
               <GaugeMetricCard
@@ -221,14 +248,35 @@ export default async function DashboardPage() {
               icon={CircleCheckBigIcon}
               accent="#44a36f"
               mode={dashboardCards}
+              trend={
+                weekAgo
+                  ? {
+                      current: report.completedDeliveredAccounts,
+                      previous: weekAgo.completedDelivered,
+                    }
+                  : undefined
+              }
             />
             <Link href="/accounts?status=AWAITING_DELIVERY" className="block">
               <MetricCard
                 label="Paid, Awaiting Delivery"
-                value={report.awaitingDeliveryAccounts}
+                value={
+                  report.lateDeliveryAccounts > 0
+                    ? `${report.awaitingDeliveryAccounts} (${report.lateDeliveryAccounts} late)`
+                    : report.awaitingDeliveryAccounts
+                }
                 icon={PackageIcon}
                 accent="#d18b35"
                 mode={dashboardCards}
+                trend={
+                  weekAgo
+                    ? {
+                        current: report.awaitingDeliveryAccounts,
+                        previous: weekAgo.awaitingDelivery,
+                        higherIsBetter: false,
+                      }
+                    : undefined
+                }
               />
             </Link>
             <MetricCard
@@ -237,6 +285,15 @@ export default async function DashboardPage() {
               icon={ClockAlertIcon}
               accent="#d18b35"
               mode={dashboardCards}
+              trend={
+                weekAgo
+                  ? {
+                      current: report.overdueAccounts,
+                      previous: weekAgo.overdue,
+                      higherIsBetter: false,
+                    }
+                  : undefined
+              }
             />
             <MetricCard
               label="Open Credits / Refunds"
@@ -355,7 +412,21 @@ export default async function DashboardPage() {
               <MetricCard mode={dashboardCards} label="My Customers" value={staffReport.totalCustomers} icon={UserRoundIcon} accent={appearance.primaryColor} />
             )}
             <MetricCard mode={dashboardCards} label="My Accounts" value={staffReport.totalAccounts} icon={WalletCardsIcon} accent={appearance.secondaryColor} />
-            <MetricCard mode={dashboardCards} label="Active Accounts" value={staffReport.activeAccounts} icon={CircleCheckBigIcon} accent="#3b8d62" />
+            <MetricCard
+              mode={dashboardCards}
+              label="Active Accounts"
+              value={staffReport.activeAccounts}
+              icon={CircleCheckBigIcon}
+              accent="#3b8d62"
+              trend={
+                weekAgo && session?.user?.staffId
+                  ? {
+                      current: staffReport.activeAccounts,
+                      previous: weekAgo.byStaff[session.user.staffId]?.active ?? 0,
+                    }
+                  : undefined
+              }
+            />
             <MetricCard mode={dashboardCards} label="Payments Today" value={staffReport.paymentsRecordedToday} icon={HandCoinsIcon} accent="#846ab3" />
             {staffTrend ? (
               <GaugeMetricCard
@@ -417,6 +488,9 @@ export default async function DashboardPage() {
                 <Link href="/accounts?status=AWAITING_DELIVERY" className="block rounded-lg bg-lime-50 p-4 transition hover:bg-lime-100">
                   <p className="text-xs font-medium uppercase text-lime-900">Awaiting Delivery</p>
                   <p className="mt-1 text-2xl font-bold text-gray-950">{staffReport.awaitingDeliveryAccounts}</p>
+                  {staffReport.lateDeliveryAccounts > 0 ? (
+                    <p className="text-xs font-medium text-red-700">{staffReport.lateDeliveryAccounts} past the {staffReport.deliveryTargetDays}-day target</p>
+                  ) : null}
                 </Link>
                 <div className="rounded-lg bg-amber-50 p-4">
                   <p className="text-xs font-medium uppercase text-amber-800">Needs Attention</p>

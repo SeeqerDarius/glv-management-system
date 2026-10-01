@@ -54,6 +54,29 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
 
 const placeholderPattern = /{{\s*([A-Za-z0-9]+)\s*}}/g;
 
+/**
+ * Sent once when a plan is paid off and its product is still to be handed
+ * over. The wording is fixed for now: every editable message is stored in its
+ * own Setting column, so making this one editable needs a database migration
+ * (a `smsReadyForCollectionTemplate` column) applied before the release.
+ */
+export const READY_FOR_COLLECTION_SMS = {
+  label: "Ready for collection",
+  template:
+    "Rock Frost Group: Congratulations {{customerName}}! Your {{productName}} is fully paid. Please contact {{staffName}} to arrange collection or delivery. Thank you for paying with GLV.",
+} as const;
+
+export function renderReadyForCollectionSms(values: {
+  customerName: string;
+  productName: string;
+  staffName: string;
+}) {
+  return READY_FOR_COLLECTION_SMS.template.replace(
+    placeholderPattern,
+    (_match, name: string) => values[name as keyof typeof values] ?? ""
+  );
+}
+
 export function validateSmsTemplate(key: SmsTemplateKey, template: string) {
   const value = template.trim();
   if (!value) throw new Error(`${SMS_TEMPLATE_DEFINITIONS[key].label} message cannot be empty.`);

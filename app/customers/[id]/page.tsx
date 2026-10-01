@@ -28,9 +28,9 @@ import { PaymentModal } from "@/components/payment-modal";
 import { PlainSubmitButton } from "@/components/ui/plain-submit-button";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
+  ensureLifecycleStatusesFresh,
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
 } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -58,7 +58,7 @@ export default async function CustomerProfilePage({
     UserPermission.MANAGE_CUSTOMERS,
   );
 
-  await refreshAccountLifecycleStatuses();
+  await ensureLifecycleStatusesFresh();
 
   const customer = await prisma.customer.findFirst({
     where: {
@@ -254,6 +254,15 @@ export default async function CustomerProfilePage({
       {error === "invalid-account-price" ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
           Enter a valid account price greater than zero.
+        </div>
+      ) : null}
+
+      {error === "product-correction-delivered" ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          This product has already been handed over, so it cannot be corrected
+          in place. Mark the delivery pending first (the unit goes back into
+          stock if the delivery took one), correct the product, then mark the
+          right product delivered.
         </div>
       ) : null}
 

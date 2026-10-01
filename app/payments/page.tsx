@@ -9,7 +9,7 @@ import { UndoNotice, UndoPanel } from "@/components/undo-panel";
 import { listUndoableActions } from "@/lib/undo";
 import { PaymentModalLauncher } from "@/components/payment-modal-launcher";
 import { formatMoney } from "@/lib/accounts";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { ensureLifecycleStatusesFresh } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -222,7 +222,7 @@ export default async function PaymentsPage({ searchParams }: PaymentsPageProps) 
   let loadError = false;
 
   try {
-    await refreshAccountLifecycleStatuses();
+    await ensureLifecycleStatusesFresh();
 
     payments = await prisma.payment.findMany({
       where: paymentFilter,

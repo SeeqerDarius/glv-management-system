@@ -7,7 +7,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isSuperAdminRole } from "@/lib/roles";
 import { smsProviderConfigured } from "@/lib/sms-provider";
-import { smsTemplateValue } from "@/lib/sms-templates";
+import { READY_FOR_COLLECTION_SMS, smsTemplateValue } from "@/lib/sms-templates";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +51,11 @@ export default async function SmsPage() {
         <SmsTemplateEditor templateKey="missedWeek" initialValue={smsTemplateValue("missedWeek", settings?.smsMissedWeekTemplate)} />
         <SmsTemplateEditor templateKey="weeklySummary" initialValue={smsTemplateValue("weeklySummary", settings?.smsWeeklySummaryTemplate)} />
         <SmsTemplateEditor templateKey="weeklySummaryShort" initialValue={smsTemplateValue("weeklySummaryShort", settings?.smsWeeklySummaryShortTemplate)} />
+        <div className="space-y-2 rounded border border-dashed p-3">
+          <p className="font-medium">{READY_FOR_COLLECTION_SMS.label}</p>
+          <p className="text-sm text-gray-600">Sent once to the customer when a plan is paid off and the product has not been handed over yet. This wording is fixed for now and cannot be edited here.</p>
+          <p className="rounded bg-gray-50 p-2 text-sm">{READY_FOR_COLLECTION_SMS.template}</p>
+        </div>
       </div>
       <div className="flex flex-wrap gap-3">
         <PlainSubmitButton pendingLabel="Saving" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</PlainSubmitButton>
@@ -68,6 +73,7 @@ export default async function SmsPage() {
           ["Missed payment", "An active or overdue account has no payment for 14 full days (2 weeks)", "Once per further unpaid two-week period"],
           ["Weekly summary — target met", "A staff deposit is recorded and the customer paid at least their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
           ["Weekly summary — below target", "A staff deposit is recorded and the customer paid less than their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
+          ["Ready for collection", "A plan is paid off and its product has not been handed over. Held for the payment edit window, and cancelled if the product is delivered or the plan reopens first", "Once per account"],
         ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
       </table></div>
     </section>

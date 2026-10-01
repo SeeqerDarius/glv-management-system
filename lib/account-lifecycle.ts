@@ -8,29 +8,102 @@ import { prisma } from "@/lib/prisma";
 import { createAccountDocument } from "@/lib/customer-documents";
 import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
 import { formatMoney } from "@/lib/accounts";
+import { getSettings } from "@/lib/settings";
+import { recordDailyStatusSnapshot } from "@/lib/status-snapshots";
 import {
   ARCHIVE_AFTER_DELIVERY_DAYS,
   addDays,
   getAccountActivityDate,
+  formatServiceFeeRate,
   getArchiveRepairStatus,
   getClosureRefundAmounts,
   getNextLifecycleStatus,
+  resolveServiceFeeRate,
 } from "@/lib/account-lifecycle-rules";
 
 // The lifecycle rules are re-exported so callers keep a single import site.
 export {
   DORMANT_REACTIVATION_SERVICE_FEE_RATE,
+  formatServiceFeeRate,
   getAccountActivityDate,
   getArchiveRepairStatus,
   getClosureRefundAmounts,
   getDormantReactivationAmounts,
+  getDeliveryWait,
   getDormantReactivationCutoffDate,
   getNextLifecycleStatus,
+  getPaidOffDate,
   getStatusAfterBalanceChange,
   isAwaitingDelivery,
   isDormantReactivationEligible,
   isFinishedStatus,
 } from "@/lib/account-lifecycle-rules";
+
+/**
+ * The two Business Rules settings the account lifecycle reads: the service fee
+ * on closure refunds and reactivations (Refund Deduction %, 32% until set) and
+ * the delivery target for paid-off plans (Delivery Time After Completion, none
+ * until set).
+ */
+export async function getLifecycleBusinessRules() {
+  const settings = await getSettings();
+  const targetDays = Number(settings.deliveryTimeAfterCompletionDays);
+
+  return {
+    serviceFeeRate: resolveServiceFeeRate(settings.refundDeductionPercent),
+    deliveryTargetDays:
+      Number.isFinite(targetDays) && targetDays > 0 ? Math.floor(targetDays) : 0,
+  };
+}
+
+/** How often a page view may re-run the sweep on one server instance. */
+const LIFECYCLE_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+const lifecycleSweepState = globalThis as unknown as {
+  glvLifecycleSweep?: { lastRunAt: number; inFlight: Promise<void> | null };
+};
+
+/**
+ * Keeps lifecycle statuses fresh without sweeping on every request. The full
+ * sweep runs from the daily cron; pages call this, which runs it at most once
+ * every few minutes per server instance and lets concurrent page loads share
+ * one run. Before this the sweep ran on every list, detail page and sidebar
+ * notification poll, one transaction per changed account each time.
+ *
+ * Statuses an operator changes directly (a payment, a delivery, a
+ * reactivation) are written by that action, so only the time-based moves
+ * (dormancy, closure, archiving) can trail by those few minutes.
+ */
+export async function ensureLifecycleStatusesFresh() {
+  const state = (lifecycleSweepState.glvLifecycleSweep ??= {
+    lastRunAt: 0,
+    inFlight: null,
+  });
+
+  if (state.inFlight) {
+    return state.inFlight;
+  }
+
+  if (Date.now() - state.lastRunAt < LIFECYCLE_SWEEP_INTERVAL_MS) {
+    return;
+  }
+
+  state.inFlight = refreshAccountLifecycleStatuses()
+    .then(async () => {
+      state.lastRunAt = Date.now();
+      // The first sweep of the day also files the day's status snapshot, so
+      // the dashboard's week-over-week comparison does not depend on the cron
+      // alone. A failed snapshot never fails the page.
+      await recordDailyStatusSnapshot().catch((error) =>
+        console.error("STATUS_SNAPSHOT_ERROR", error)
+      );
+    })
+    .finally(() => {
+      state.inFlight = null;
+    });
+
+  return state.inFlight;
+}
 
 /**
  * Puts archived accounts that no longer meet the archive rule back on the
@@ -197,6 +270,10 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
     },
   });
 
+  const { serviceFeeRate: configuredFeeRate } = accounts.length
+    ? await getLifecycleBusinessRules()
+    : { serviceFeeRate: undefined };
+
   for (const account of accounts) {
     const nextStatus = getNextLifecycleStatus(account, now);
 
@@ -238,7 +315,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
         account.credits.length === 0
       ) {
         const { refundAmount, serviceFee, serviceFeeRate } =
-          getClosureRefundAmounts(account.totalPaid);
+          getClosureRefundAmounts(account.totalPaid, configuredFeeRate);
 
         if (refundAmount > 0) {
           const credit = await tx.customerCredit.create({
@@ -249,7 +326,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
               remainingAmount: refundAmount,
               status: CreditStatus.OPEN,
               source: CreditSource.ACCOUNT_CLOSURE_REFUND,
-              notes: `Account closed after inactivity. Service fee deducted: ${Math.round(serviceFeeRate * 100)}%.`,
+              notes: `Account closed after inactivity. Service fee deducted: ${formatServiceFeeRate(serviceFeeRate)}.`,
               createdBy: "system",
             },
           });
@@ -288,7 +365,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
       account.deliveryStatus !== DeliveryStatus.DELIVERED
     ) {
       const { refundAmount, serviceFee, serviceFeeRate } =
-        getClosureRefundAmounts(account.totalPaid);
+        getClosureRefundAmounts(account.totalPaid, configuredFeeRate);
       await createAccountDocument({
         accountId: account.id,
         templateKey: LEGAL_TEMPLATE_KEYS.CANCELLATION,
@@ -296,7 +373,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
         createdBy: "system",
         dedupeBase: `ACCOUNT_CLOSURE_CALCULATION:${account.id}`,
         values: {
-          deductionRate: `${Math.round(serviceFeeRate * 100)}%`,
+          deductionRate: formatServiceFeeRate(serviceFeeRate),
           deductionAmount: formatMoney(serviceFee),
           refundAmount: formatMoney(refundAmount),
           refundMethod: "Customer credit / approved payment channel",
