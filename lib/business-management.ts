@@ -4,8 +4,15 @@ function monthStart(date = new Date()) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-export async function getBusinessManagementOverview() {
+export async function getBusinessManagementOverview(expenseFrom?: Date, expenseTo?: Date) {
   const start = monthStart();
+  const expenseDate: { gte?: Date; lt?: Date } = {};
+  if (expenseFrom) expenseDate.gte = expenseFrom;
+  if (expenseTo) {
+    const exclusiveEnd = new Date(expenseTo);
+    exclusiveEnd.setDate(exclusiveEnd.getDate() + 1);
+    expenseDate.lt = exclusiveEnd;
+  }
   const [
     staff,
     pendingLeave,
@@ -14,6 +21,7 @@ export async function getBusinessManagementOverview() {
     salaryPayments,
     customerPayments,
     expenses,
+    monthlyExpenseTotal,
     allTimePayments,
     allTimeSalaries,
     allTimeExpenses,
@@ -42,7 +50,8 @@ export async function getBusinessManagementOverview() {
       orderBy: { paymentDate: "desc" },
     }),
     prisma.payment.aggregate({ where: { paymentDate: { gte: start } }, _sum: { amount: true } }),
-    prisma.businessExpense.findMany({ where: { expenseDate: { gte: start } }, orderBy: { expenseDate: "desc" } }),
+    prisma.businessExpense.findMany({ where: Object.keys(expenseDate).length ? { expenseDate } : undefined, orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }] }),
+    prisma.businessExpense.aggregate({ where: { expenseDate: { gte: start } }, _sum: { amount: true } }),
     prisma.payment.aggregate({ _sum: { amount: true } }),
     prisma.staffSalaryPayment.aggregate({ _sum: { amount: true } }),
     prisma.businessExpense.aggregate({ _sum: { amount: true } }),
@@ -51,7 +60,7 @@ export async function getBusinessManagementOverview() {
   const activeStaff = staff.filter((member) => member.active);
   const monthlyRevenue = customerPayments._sum.amount ?? 0;
   const monthlyPayrollPaid = salaryPayments.reduce((sum, row) => sum + row.amount, 0);
-  const monthlyExpenses = expenses.reduce((sum, row) => sum + row.amount, 0);
+  const monthlyExpenses = monthlyExpenseTotal._sum.amount ?? 0;
   const monthlyNetCash = monthlyRevenue - monthlyPayrollPaid - monthlyExpenses;
   const payrollCommitment = activeStaff.reduce((sum, member) => sum + member.monthlySalary, 0);
   const allTimeCashPosition =

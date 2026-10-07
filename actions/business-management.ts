@@ -92,3 +92,38 @@ export async function recordBusinessExpense(formData: FormData) {
   revalidatePath("/dashboard");
   redirect("/business?saved=expense#accounting");
 }
+
+export async function updateBusinessExpense(formData: FormData) {
+  const userId = await requireAdmin();
+  const id = clean(formData.get("id"));
+  const expenseDate = dateValue(formData.get("expenseDate"));
+  const category = clean(formData.get("category"));
+  const description = clean(formData.get("description"));
+  const amount = Number(clean(formData.get("amount")));
+  const method = clean(formData.get("method"));
+  const reference = clean(formData.get("reference"));
+  const notes = clean(formData.get("notes"));
+  if (!id || !expenseDate || isFutureDate(expenseDate) || !category || !description || !Number.isFinite(amount) || amount <= 0) {
+    redirect("/business?error=invalid-expense#accounting");
+  }
+  const previous = await prisma.businessExpense.findUnique({ where: { id } });
+  if (!previous) redirect("/business?error=expense-not-found#accounting");
+  const updated = await prisma.businessExpense.update({
+    where: { id },
+    data: { expenseDate, category, description, amount, method: method || null, reference: reference || null, notes: notes || null },
+  });
+  await prisma.auditLog.create({
+    data: {
+      userId,
+      action: "UPDATE_BUSINESS_EXPENSE",
+      entity: "BusinessExpense",
+      entityId: id,
+      oldValue: JSON.stringify(previous),
+      newValue: JSON.stringify(updated),
+    },
+  });
+  revalidatePath("/business");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports");
+  redirect("/business?saved=expense-updated#accounting");
+}
