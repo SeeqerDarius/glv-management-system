@@ -157,13 +157,19 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - The dashboard (`app/dashboard/page.tsx`) replaced its wall of plain numbers
   with real charts and week-over-week trend indicators. The admin view now
   has a "Trends" section (`components/dashboard-analytics.tsx`
-  `AdminDashboardCharts`) with a weekly collections line/area chart and an
-  account-status breakdown bar chart; the staff view gets its own scoped
-  weekly collections chart (`StaffDashboardTrendChart`). The existing
+  `AdminDashboardCharts`) with curved weekly collections and staff deposit
+  lines plus a keyed account-status donut. It includes an Amount Deposited
+  This Week card; staff see their own deposit total and scoped
+  collections-versus-deposits chart. Deposits use `StaffDeposit.depositDate` and
+  are not new revenue. Reports compares the same separate weekly series;
+  Activity uses curved daily trends, keyed donuts, and dot plots; Business
+  Management adds a six-month cash movement trend and current-month expense
+  category donut. The existing
   hand-rolled dependency-free SVG chart system from the Reports page
   (`components/reports/analytics-charts.tsx`) was extracted into
-  `components/reports/chart-primitives.tsx` (`ChartCard`, `TrendChart`,
-  `HorizontalBarChart`, `Tooltip`, plus a new `TrendBadge`) so both Reports
+  `components/reports/chart-primitives.tsx` (`ChartCard`, curved trend and
+  comparison charts, `DonutChart`, `DotPlotChart`, `Tooltip`, and `TrendBadge`)
+  so Reports
   and Dashboard share one implementation instead of duplicating ~300 lines
   of SVG. `TrendBadge` shows a green up-arrow / red down-arrow / grey dash
   comparing this week to last week; per the dataviz skill's contrast rule it
@@ -797,7 +803,7 @@ correctly excluded.
 - People uses the existing `Staff` record and adds leave requests with approve/reject decisions plus dated 1-to-5 performance reviews. Every write is administrator-only and audit logged.
 - Payroll uses the existing staff monthly salary and `StaffSalaryPayment` history. Recording salary from Business Management uses the same transaction, validation, and staff-only salary SMS as the detailed Reports workflow.
 - Accounting treats customer `Payment` rows as cash inflow and saved salary payments plus `BusinessExpense` rows as cash outflow. Staff deposits reconcile collections and are not counted again as revenue. Administrators can record dated expenses with category, payment method, reference, and notes; the expense cashbook can show all recorded expenses or filter by an inclusive date range. Use **Edit** on a row to correct it. Edits retain the original recorder and write before/after values plus the editor to the audit log.
-- Analytics calculates the current month revenue, payroll paid and outstanding, operating expenses, net cash, headcount, pending leave, review average, and all-time cash position directly from those shared records.
+- Analytics calculates the current month revenue, payroll paid and outstanding, operating expenses, net cash, headcount, pending leave, review average, and all-time cash position directly from those shared records. It also shows a six-month curved cash movement trend for collections, payroll, and expenses and a keyed donut of current-month expense categories. The cash movement chart is not an accounting profit statement.
 - Apply migration `20260909183000_integrated_business_management` before deploying the route. The legacy version-1 database restore does not yet include leave, review, or expense tables. Do not use an old full-database restore as the recovery method for these records; retain database-level backups until a versioned restore upgrade is released.
 - Verification: Prisma generate, TypeScript, lint, build, explicit migration deployment, authenticated `/business` review, and production error-log review.
 

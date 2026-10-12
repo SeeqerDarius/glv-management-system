@@ -78,6 +78,7 @@ def build():
         ("Overdue Accounts", "Plans past expected end date with balance remaining.", "Count of accounts whose effective status is Overdue.", "Requires collection follow-up."),
         ("Open Credits or Refunds", "Unused customer credit still owed or available.", "Sum of remaining amounts on Open customer-credit records.", "Customer value still to resolve."),
         ("Payments Collected", "All recorded customer payments.", "Sum of every Payment amount in the system.", "Cumulative, not current-month collections."),
+        ("Amount Deposited This Week", "Staff deposits entered for the current week.", "Sum of Staff Deposit amounts by deposit date for Monday through Sunday.", "Banked cash timing can differ from customer payment timing; this is not new revenue."),
         ("Expected Receivables", "Balance expected from live plans.", "Balances on Active and Overdue accounts.", "Future collection focus."),
         ("Profit Estimate", "Expected gross profit across included plans.", "Sum of target amount minus product and transport cost for each included account, archived plans included.", "Projection before payroll and other overheads."),
     ])
@@ -107,6 +108,7 @@ def build():
         ("Payments Today", "Payment entries recorded today.", "Count of today’s qualifying payment records.", "Transaction count, not value."),
         ("Collected Today", "Value collected today.", "Sum of today’s qualifying payment amounts.", "Compare with receipts and targets."),
         ("Collected This Week", "Value collected this week.", "Sum of qualifying payments in the current week.", "Weekly collection performance."),
+        ("My Deposits This Week", "Staff deposits recorded for the signed-in staff member.", "Sum of that staff member's Staff Deposit amounts by deposit date in the current week.", "Deposits are not customer collections; timing may differ."),
         ("Awaiting Delivery", "Assigned plans paid off but not yet handed over.", "Assigned accounts with Completed or Archived status, zero balance and delivery Pending.", "Products to hand over; opens the list."),
     ])
 
@@ -114,6 +116,8 @@ def build():
     image(doc, "10-reports.png", "Reports page showing Business Overview and weekly reporting controls")
     doc.add_paragraph("The Reports page combines lifetime, selected-week, current-month, and due-month measures. Read the period stated below before comparing cards.")
     doc.add_page_break()
+    heading(doc, "Trend and breakdown charts")
+    doc.add_paragraph("Dashboard, Reports, Activity, and Business Management charts use curved trend lines for values over time, with a color key and accessible hover/focus details. Donut charts show category shares with a value and percentage key. Ranked dot plots compare staff and product values along a shared numeric scale. Collections and deposits are separate series because deposit dates may differ from customer payment dates. The Business Management cash movement chart compares recorded payments, salary payments, and operating expenses by calendar month; it is a cash movement view, not an accounting profit statement. Expense category shares use recorded expense dates in the current month.")
     metric_table(doc, [
         ("Total Collected", "All customer payments recorded.", "Sum of all Payment amounts.", "Lifetime recorded collections."),
         ("Recorded This Week", "Payments credited to staff activity for the selected week.", "Weekly collection amounts across staff rows.", "Compare with weekly deposits."),

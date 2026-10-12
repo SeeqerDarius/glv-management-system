@@ -52,6 +52,7 @@ import { todayDateInputValue } from "@/lib/date-rules";
 import {
   getCurrentWeekRange,
   getWeeklyCollectionTrend,
+  getWeeklyDepositTrend,
   getWeeklyStaffPerformanceReport,
 } from "@/lib/reports";
 import { hasPermission, isAdminRole } from "@/lib/roles";
@@ -170,6 +171,7 @@ export default async function ReportsPage({
   const query = await searchParams;
   let report: Awaited<ReturnType<typeof getWeeklyStaffPerformanceReport>>;
   let trend: Awaited<ReturnType<typeof getWeeklyCollectionTrend>>;
+  let depositTrend: Awaited<ReturnType<typeof getWeeklyDepositTrend>>;
 
   if (!canViewReports) {
     return (
@@ -191,9 +193,10 @@ export default async function ReportsPage({
   const selectedDate = resolveSelectedDate(query.week);
 
   try {
-    [report, trend] = await Promise.all([
+    [report, trend, depositTrend] = await Promise.all([
       getWeeklyStaffPerformanceReport(selectedDate),
       getWeeklyCollectionTrend(TREND_WEEKS, selectedDate),
+      getWeeklyDepositTrend(TREND_WEEKS, selectedDate),
     ]);
   } catch (error) {
     console.error("REPORTS_LOAD_ERROR", error);
@@ -468,9 +471,10 @@ export default async function ReportsPage({
         description="Collection trends, account health, and top performers at a glance."
       >
         <ReportAnalyticsCharts
-          trend={trend.map((week) => ({
+          trend={trend.map((week, index) => ({
             label: formatDate(week.start),
             collected: week.collected,
+            deposited: depositTrend[index]?.deposited ?? 0,
             isSelected: week.isSelected,
           }))}
           accountStatus={report.accountStatusBreakdown}

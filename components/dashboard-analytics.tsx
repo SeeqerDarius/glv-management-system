@@ -3,10 +3,12 @@
 import type { CSSProperties, ReactNode } from "react";
 import {
   ChartCard,
-  HorizontalBarChart,
+  ComparisonTrendChart,
+  DonutChart,
+  MultiTrendChart,
   TrendBadge,
-  TrendChart,
-  type TrendPoint,
+  type ComparisonTrendPoint,
+  type MultiTrendPoint,
 } from "@/components/reports/chart-primitives";
 import { AnimatedMeter } from "@/components/reports/meter-gauge";
 import { STATUS_META } from "@/components/reports/analytics-charts";
@@ -72,7 +74,7 @@ export function AdminDashboardCharts({
   trend,
   accountStatus,
 }: {
-  trend: TrendPoint[];
+  trend: ComparisonTrendPoint[];
   accountStatus: StatusItem[];
 }) {
   const statusItems = accountStatus
@@ -88,29 +90,57 @@ export function AdminDashboardCharts({
   return (
     <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
       <ChartCard
-        title="Weekly Collections Trend"
-        description={`Total collected per week, last ${trend.length} weeks (current week highlighted).`}
+        title="Collections and deposits"
+        description={`Customer payments and staff deposits by week, last ${trend.length} weeks. Deposit timing can differ from collection timing.`}
       >
-        <TrendChart points={trend} />
+        <ComparisonTrendChart points={trend} />
       </ChartCard>
-      <ChartCard title="Account Status Breakdown" description="Customer accounts grouped by current status.">
-        <HorizontalBarChart
+      <ChartCard title="Account mix" description="Customer accounts grouped by their current lifecycle status.">
+        <DonutChart
           items={statusItems}
-          formatValue={(value) => value.toLocaleString()}
           emptyMessage="No accounts yet."
+          centerLabel="Accounts"
         />
       </ChartCard>
     </div>
   );
 }
 
-export function StaffDashboardTrendChart({ trend }: { trend: TrendPoint[] }) {
+export function StaffDashboardTrendChart({ trend }: { trend: ComparisonTrendPoint[] }) {
   return (
     <ChartCard
-      title="My Weekly Collections"
-      description={`Total collected per week for your assigned customers, last ${trend.length} weeks.`}
+      title="My collections and deposits"
+      description={`Payments on your accounts and deposits recorded for you by week, last ${trend.length} weeks.`}
     >
-      <TrendChart points={trend} />
+      <ComparisonTrendChart points={trend} />
     </ChartCard>
+  );
+}
+
+export function BusinessAnalyticsCharts({
+  cashflowTrend,
+  expenseBreakdown,
+}: {
+  cashflowTrend: MultiTrendPoint[];
+  expenseBreakdown: { key: string; label: string; value: number; color: string }[];
+}) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
+      <ChartCard title="Monthly cash movement" description="Recorded customer payments, salary payments, and operating expenses. Net cash is not the same as accounting profit.">
+        <MultiTrendChart points={cashflowTrend} series={[
+          { key: "collections", label: "Customer collections", color: "var(--chart-blue)" },
+          { key: "payroll", label: "Payroll paid", color: "var(--chart-good)", dash: "6 4" },
+          { key: "expenses", label: "Operating expenses", color: "var(--chart-critical)", dash: "2 4" },
+        ]} />
+      </ChartCard>
+      <ChartCard title="Operating expenses by category" description="Share of recorded expense amounts for the current month.">
+        <DonutChart
+          items={expenseBreakdown}
+          formatValue={formatMoney}
+          emptyMessage="No operating expenses recorded this month."
+          centerLabel="This month"
+        />
+      </ChartCard>
+    </div>
   );
 }

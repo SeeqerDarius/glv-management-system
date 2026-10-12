@@ -2,10 +2,11 @@
 
 import {
   ChartCard,
-  HorizontalBarChart,
-  TrendChart,
+  ComparisonTrendChart,
+  DonutChart,
+  DotPlotChart,
   formatCompact,
-  type TrendPoint,
+  type ComparisonTrendPoint,
 } from "@/components/reports/chart-primitives";
 
 type StatusItem = { status: string; count: number };
@@ -29,7 +30,7 @@ export function ReportAnalyticsCharts({
   staffPerformance,
   productProfitability,
 }: {
-  trend: TrendPoint[];
+  trend: ComparisonTrendPoint[];
   accountStatus: StatusItem[];
   staffPerformance: RankedItem[];
   productProfitability: RankedItem[];
@@ -68,19 +69,19 @@ export function ReportAnalyticsCharts({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <ChartCard
-        title="Weekly Collections Trend"
-        description={`Total collected per week, last ${trend.length} weeks (selected week highlighted).`}
+        title="Collections and deposits trend"
+        description={`Customer payments and staff deposits by week, last ${trend.length} weeks; the selected week is highlighted.`}
       >
-        <TrendChart points={trend} />
+        <ComparisonTrendChart points={trend} />
       </ChartCard>
       <ChartCard title="Account Status Breakdown" description="Customer accounts grouped by current status.">
-        <HorizontalBarChart items={statusItems} formatValue={(value) => value.toLocaleString()} emptyMessage="No accounts yet." />
+        <DonutChart items={statusItems} emptyMessage="No accounts yet." centerLabel="Accounts" />
       </ChartCard>
       <ChartCard title="Staff Performance" description="Weekly collection by staff member, top 8.">
-        <HorizontalBarChart items={staffItems} formatValue={formatCompact} emptyMessage="No staff collections this week." />
+        <DotPlotChart items={staffItems} formatValue={formatCompact} emptyMessage="No staff collections this week." />
       </ChartCard>
       <ChartCard title="Product Profitability" description="Expected layaway profit by product, top 8.">
-        <HorizontalBarChart items={productItems} formatValue={formatCompact} emptyMessage="No product data yet." />
+        <DotPlotChart items={productItems} formatValue={formatCompact} emptyMessage="No product data yet." />
       </ChartCard>
     </div>
   );

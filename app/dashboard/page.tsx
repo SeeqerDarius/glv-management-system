@@ -191,6 +191,16 @@ export default async function DashboardPage() {
                 mode={dashboardCards}
               />
             )}
+            {trend ? (
+              <GaugeMetricCard
+                label="Amount Deposited This Week"
+                value={trend.depositedThisWeek}
+                previousValue={trend.depositedLastWeek}
+                formatAs="money"
+                icon={<WalletCardsIcon className="size-5" />}
+                accent="#3b8d62"
+              />
+            ) : null}
             <MetricCard
               label="Active Accounts"
               value={report.activeAccounts}
@@ -291,13 +301,14 @@ export default async function DashboardPage() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-950">Trends</h2>
                 <p className="text-sm text-gray-600">
-                  Collections over time and how accounts are currently distributed by status.
+                  Customer collections compared with staff deposits; account status is shown by share.
                 </p>
               </div>
               <AdminDashboardCharts
-                trend={trend.collectionTrend.map((week) => ({
+                trend={trend.cashflowTrend.map((week) => ({
                   label: formatDate(week.start),
                   collected: week.collected,
+                  deposited: week.deposited,
                   isSelected: week.isSelected,
                 }))}
                 accountStatus={[
@@ -382,13 +393,24 @@ export default async function DashboardPage() {
             ) : (
               <MetricCard mode={dashboardCards} label="Collected This Week" value={formatMoney(staffReport.totalCollectedThisWeek)} icon={TrendingUpIcon} accent={appearance.primaryColor} />
             )}
+            {staffTrend ? (
+              <GaugeMetricCard
+                label="My Deposits This Week"
+                value={staffTrend.depositedThisWeek}
+                previousValue={staffTrend.depositedLastWeek}
+                formatAs="money"
+                icon={<HandCoinsIcon className="size-5" />}
+                accent="#3b8d62"
+              />
+            ) : null}
           </section>
 
           {staffTrend ? (
             <StaffDashboardTrendChart
-              trend={staffTrend.collectionTrend.map((week) => ({
+              trend={staffTrend.cashflowTrend.map((week) => ({
                 label: formatDate(week.start),
                 collected: week.collected,
+                deposited: week.deposited,
                 isSelected: week.isSelected,
               }))}
             />

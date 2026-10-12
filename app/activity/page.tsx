@@ -6,6 +6,7 @@ import { DatabaseUnavailable } from "@/components/database-unavailable";
 import { UndoNotice, UndoPanel } from "@/components/undo-panel";
 import { listUndoableActions } from "@/lib/undo";
 import { ProductImagePreview } from "@/components/product-image-preview";
+import { ActivityAnalyticsCharts } from "@/components/activity-analytics-charts";
 
 function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-GB", {
@@ -13,43 +14,6 @@ function formatDate(value: Date) {
     month: "short",
     year: "numeric",
   }).format(value);
-}
-
-function BarRow({
-  label,
-  value,
-  target,
-  display,
-  labelClassName = "",
-}: {
-  label: string;
-  value: number;
-  target: number;
-  display: string;
-  labelClassName?: string;
-}) {
-  const comparisonTarget = target > 0 ? target : value > 0 ? value * 2 : 0;
-  const width =
-    comparisonTarget > 0 && value > 0
-      ? Math.min(100, Math.max(4, (value / comparisonTarget) * 100))
-      : 0;
-
-  return (
-    <div className="grid gap-2 text-sm sm:grid-cols-[minmax(6rem,10rem)_minmax(0,1fr)_minmax(7rem,12rem)] sm:items-center sm:gap-3">
-      <p className={`min-w-0 break-words font-medium text-gray-700 ${labelClassName}`}>
-        {label}
-      </p>
-      <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full rounded-full bg-lime-400"
-          style={{ width: `${width}%` }}
-        />
-      </div>
-      <p className="text-left font-semibold tabular-nums text-gray-950 sm:text-right">
-        {display}
-      </p>
-    </div>
-  );
 }
 
 export default async function ActivityPage({
@@ -105,54 +69,12 @@ export default async function ActivityPage({
           </>
         ) : null}
 
-        <section className="grid gap-5 xl:grid-cols-2">
-          <div className="rounded-lg border bg-white p-5">
-            <h2 className="text-lg font-semibold text-gray-950">
-              {isAdmin ? "Weekly Collections" : "Payments This Week"}
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {isAdmin
-                ? "Payment collection value by day."
-                : "Recorded payment counts by day."}
-            </p>
-            <div className="mt-5 space-y-4">
-              {report.weeklyPayments.map((payment) => (
-                <BarRow
-                  key={payment.label}
-                  label={payment.label}
-                  value={isAdmin ? payment.amount : payment.count}
-                  target={isAdmin ? payment.expectedAmount : Math.max(payment.count, 1)}
-                  display={
-                    isAdmin
-                      ? formatMoney(payment.amount)
-                      : `${payment.count}`
-                  }
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-white p-5">
-            <h2 className="text-lg font-semibold text-gray-950">
-              Account Status
-            </h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Current installment account health.
-            </p>
-            <div className="mt-5 space-y-4">
-              {report.accountStatus.map((status) => (
-                <BarRow
-                  key={status.status}
-                  label={status.status}
-                  value={status.count}
-                  target={status.total}
-                  display={`${status.count} / ${status.total}`}
-                  labelClassName="text-xs sm:text-sm"
-                />
-              ))}
-            </div>
-          </div>
-        </section>
+        <ActivityAnalyticsCharts
+          weeklyPayments={report.weeklyPayments}
+          accountStatus={report.accountStatus}
+          staffPerformance={report.staffPerformance}
+          isAdmin={isAdmin}
+        />
 
         <section className="rounded-lg border bg-white p-5">
           <h2 className="text-lg font-semibold text-gray-950">
@@ -163,40 +85,17 @@ export default async function ActivityPage({
               ? "Collection strength, assigned accounts, and outstanding balances."
               : "Assigned customer and account workload."}
           </p>
-          <div className="mt-5 space-y-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {report.staffPerformance.map((row) => (
               <div
                 key={row.staffId}
-                className="grid gap-3 rounded-lg border border-gray-100 p-4 md:grid-cols-[8rem_minmax(0,1fr)_10rem]"
+                className="rounded-lg border border-gray-100 p-4"
               >
                 <div>
                   <p className="font-bold text-gray-950">{row.staffCode}</p>
                   <p className="text-xs text-gray-500">{row.staffName}</p>
                 </div>
-                <div className="space-y-2">
-                  <div className="h-3 overflow-hidden rounded-full bg-gray-100">
-                    <div
-                      className="h-full rounded-full bg-lime-400"
-                      style={{
-                        width: `${
-                          isAdmin && row.collected !== null
-                            ? row.expectedWeeklyCollection > 0 && row.collected > 0
-                              ? Math.min(
-                                  100,
-                                  Math.max(
-                                    4,
-                                    (row.collected / row.expectedWeeklyCollection) *
-                                      100
-                                  )
-                                )
-                              : 0
-                            : row.accounts > 0
-                              ? 100
-                              : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
+                <div className="mt-2 space-y-2">
                   <p className="text-xs text-gray-500">
                     {row.customers} customers • {row.accounts} accounts
                   </p>

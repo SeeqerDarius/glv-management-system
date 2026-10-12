@@ -6,6 +6,10 @@ function monthStart(date = new Date()) {
 
 export async function getBusinessManagementOverview(expenseFrom?: Date, expenseTo?: Date) {
   const start = monthStart();
+  const chartStart = new Date(start);
+  chartStart.setMonth(chartStart.getMonth() - 5);
+  const chartEnd = new Date(start);
+  chartEnd.setMonth(chartEnd.getMonth() + 1);
   const expenseDate: { gte?: Date; lt?: Date } = {};
   if (expenseFrom) expenseDate.gte = expenseFrom;
   if (expenseTo) {
@@ -25,6 +29,10 @@ export async function getBusinessManagementOverview(expenseFrom?: Date, expenseT
     allTimePayments,
     allTimeSalaries,
     allTimeExpenses,
+    chartPayments,
+    chartSalaries,
+    chartExpenses,
+    currentMonthExpenses,
   ] = await Promise.all([
     prisma.staff.findMany({
       orderBy: { fullName: "asc" },
@@ -55,6 +63,10 @@ export async function getBusinessManagementOverview(expenseFrom?: Date, expenseT
     prisma.payment.aggregate({ _sum: { amount: true } }),
     prisma.staffSalaryPayment.aggregate({ _sum: { amount: true } }),
     prisma.businessExpense.aggregate({ _sum: { amount: true } }),
+    prisma.payment.findMany({ where: { paymentDate: { gte: chartStart, lt: chartEnd } }, select: { amount: true, paymentDate: true } }),
+    prisma.staffSalaryPayment.findMany({ where: { paymentDate: { gte: chartStart, lt: chartEnd } }, select: { amount: true, paymentDate: true } }),
+    prisma.businessExpense.findMany({ where: { expenseDate: { gte: chartStart, lt: chartEnd } }, select: { amount: true, expenseDate: true } }),
+    prisma.businessExpense.findMany({ where: { expenseDate: { gte: start, lt: chartEnd } }, select: { amount: true, category: true } }),
   ]);
 
   const activeStaff = staff.filter((member) => member.active);
@@ -67,6 +79,23 @@ export async function getBusinessManagementOverview(expenseFrom?: Date, expenseT
     (allTimePayments._sum.amount ?? 0) -
     (allTimeSalaries._sum.amount ?? 0) -
     (allTimeExpenses._sum.amount ?? 0);
+  const monthlyBuckets = Array.from({ length: 6 }, (_, index) => {
+    const month = new Date(chartStart);
+    month.setMonth(month.getMonth() + index);
+    return {
+      label: new Intl.DateTimeFormat("en", { month: "short" }).format(month),
+      values: {
+        collections: chartPayments.filter((row) => row.paymentDate.getFullYear() === month.getFullYear() && row.paymentDate.getMonth() === month.getMonth()).reduce((sum, row) => sum + row.amount, 0),
+        payroll: chartSalaries.filter((row) => row.paymentDate.getFullYear() === month.getFullYear() && row.paymentDate.getMonth() === month.getMonth()).reduce((sum, row) => sum + row.amount, 0),
+        expenses: chartExpenses.filter((row) => row.expenseDate.getFullYear() === month.getFullYear() && row.expenseDate.getMonth() === month.getMonth()).reduce((sum, row) => sum + row.amount, 0),
+      },
+      isSelected: month.getFullYear() === start.getFullYear() && month.getMonth() === start.getMonth(),
+    };
+  });
+  const categoryColors = ["var(--chart-blue)", "var(--chart-good)", "var(--chart-warning)", "var(--chart-critical)", "var(--chart-serious)", "var(--chart-muted)"];
+  const categoryTotals = new Map<string, number>();
+  for (const row of currentMonthExpenses) categoryTotals.set(row.category, (categoryTotals.get(row.category) ?? 0) + row.amount);
+  const expenseBreakdown = Array.from(categoryTotals, ([label, value], index) => ({ key: label, label, value, color: categoryColors[index % categoryColors.length] }));
 
   return {
     start,
@@ -81,6 +110,8 @@ export async function getBusinessManagementOverview(expenseFrom?: Date, expenseT
     monthlyPayrollPaid,
     monthlyExpenses,
     monthlyNetCash,
+    cashflowTrend: monthlyBuckets,
+    expenseBreakdown,
     payrollCommitment,
     payrollOutstanding: Math.max(payrollCommitment - monthlyPayrollPaid, 0),
     allTimeCashPosition,

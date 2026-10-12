@@ -326,6 +326,44 @@ export async function getWeeklyCollectionTrend(
   });
 }
 
+export async function getWeeklyDepositTrend(
+  weeks: number,
+  now = new Date(),
+  staffId?: string
+) {
+  const { start: selectedWeekStart } = getCurrentWeekRange(now);
+  const earliestWeekStart = new Date(selectedWeekStart);
+  earliestWeekStart.setDate(earliestWeekStart.getDate() - (weeks - 1) * 7);
+  const rangeEnd = new Date(selectedWeekStart);
+  rangeEnd.setDate(rangeEnd.getDate() + 6);
+  rangeEnd.setHours(23, 59, 59, 999);
+
+  const deposits = await prisma.staffDeposit.findMany({
+    where: {
+      depositDate: { gte: earliestWeekStart, lte: rangeEnd },
+      ...(staffId ? { staffId } : {}),
+    },
+    select: { amount: true, depositDate: true },
+  });
+
+  return Array.from({ length: weeks }, (_, index) => {
+    const start = new Date(earliestWeekStart);
+    start.setDate(start.getDate() + index * 7);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    const deposited = deposits
+      .filter((deposit) => deposit.depositDate >= start && deposit.depositDate <= end)
+      .reduce((total, deposit) => total + deposit.amount, 0);
+    return {
+      start,
+      end,
+      deposited,
+      isSelected: start.getTime() === selectedWeekStart.getTime(),
+    };
+  });
+}
+
 const DASHBOARD_TREND_WEEKS = 8;
 
 function previousWeekRange(now: Date) {
@@ -350,6 +388,7 @@ export async function getAdminDashboardTrend(now = new Date()) {
 
   const [
     collectionTrend,
+    depositTrend,
     newCustomersThisWeek,
     newCustomersLastWeek,
     newStaffThisWeek,
@@ -358,6 +397,7 @@ export async function getAdminDashboardTrend(now = new Date()) {
     newAccountsLastWeek,
   ] = await Promise.all([
     getWeeklyCollectionTrend(DASHBOARD_TREND_WEEKS, now),
+    getWeeklyDepositTrend(DASHBOARD_TREND_WEEKS, now),
     prisma.customer.count({ where: { createdAt: { gte: weekStart, lte: weekEnd } } }),
     prisma.customer.count({ where: { createdAt: { gte: prevWeekStart, lte: prevWeekEnd } } }),
     prisma.staff.count({ where: { createdAt: { gte: weekStart, lte: weekEnd } } }),
@@ -368,11 +408,17 @@ export async function getAdminDashboardTrend(now = new Date()) {
 
   const collectedThisWeek = collectionTrend.at(-1)?.collected ?? 0;
   const collectedLastWeek = collectionTrend.at(-2)?.collected ?? 0;
+  const depositedThisWeek = depositTrend.at(-1)?.deposited ?? 0;
+  const depositedLastWeek = depositTrend.at(-2)?.deposited ?? 0;
 
   return {
     collectionTrend,
+    depositTrend,
+    cashflowTrend: collectionTrend.map((week, index) => ({ ...week, deposited: depositTrend[index]?.deposited ?? 0 })),
     collectedThisWeek,
     collectedLastWeek,
+    depositedThisWeek,
+    depositedLastWeek,
     newCustomersThisWeek,
     newCustomersLastWeek,
     newStaffThisWeek,
@@ -390,9 +436,10 @@ export async function getStaffDashboardTrend(staffId: string, now = new Date()) 
   const yesterdayEnd = new Date(dayStart.getTime() - 1);
   const { start: prevWeekStart, end: prevWeekEnd } = previousWeekRange(now);
 
-  const [collectionTrend, collectedYesterdayAgg, newCustomersLastWeek] =
+  const [collectionTrend, depositTrend, collectedYesterdayAgg, newCustomersLastWeek] =
     await Promise.all([
       getWeeklyCollectionTrend(DASHBOARD_TREND_WEEKS, now, staffId),
+      getWeeklyDepositTrend(DASHBOARD_TREND_WEEKS, now, staffId),
       prisma.payment.aggregate({
         where: {
           paymentDate: { gte: yesterdayStart, lte: yesterdayEnd },
@@ -407,11 +454,17 @@ export async function getStaffDashboardTrend(staffId: string, now = new Date()) 
 
   const collectedThisWeek = collectionTrend.at(-1)?.collected ?? 0;
   const collectedLastWeek = collectionTrend.at(-2)?.collected ?? 0;
+  const depositedThisWeek = depositTrend.at(-1)?.deposited ?? 0;
+  const depositedLastWeek = depositTrend.at(-2)?.deposited ?? 0;
 
   return {
     collectionTrend,
+    depositTrend,
+    cashflowTrend: collectionTrend.map((week, index) => ({ ...week, deposited: depositTrend[index]?.deposited ?? 0 })),
     collectedThisWeek,
     collectedLastWeek,
+    depositedThisWeek,
+    depositedLastWeek,
     collectedYesterday: collectedYesterdayAgg._sum.amount ?? 0,
     newCustomersLastWeek,
   };
