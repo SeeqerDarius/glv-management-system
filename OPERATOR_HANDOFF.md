@@ -155,8 +155,8 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   server action, so `useFormStatus` cannot see them, and the route's
   `loading.tsx` already covers the navigation.
 - The dashboard (`app/dashboard/page.tsx`) replaced its wall of plain numbers
-  with real charts and week-over-week trend indicators. The admin view now
-  has a "Trends" section (`components/dashboard-analytics.tsx`
+  with compact KPI cards before its charts. The admin view now has a "Trends"
+  section (`components/dashboard-analytics.tsx`
   `AdminDashboardCharts`) with curved weekly collections and staff deposit
   lines plus a keyed account-status donut. It includes an Amount Deposited
   This Week card; staff see their own deposit total and scoped
@@ -164,7 +164,9 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   are not new revenue. Reports compares the same separate weekly series;
   Activity uses curved daily trends, keyed donuts, and dot plots; Business
   Management adds a six-month cash movement trend and current-month expense
-  category donut. The existing
+  category donut. Admin KPI cards show the current figures without radial
+  meters; use the trend charts for period comparisons. Staff KPI cards retain
+  their own scoped week-over-week indicators. The existing
   hand-rolled dependency-free SVG chart system from the Reports page
   (`components/reports/analytics-charts.tsx`) was extracted into
   `components/reports/chart-primitives.tsx` (`ChartCard`, curved trend and

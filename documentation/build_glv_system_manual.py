@@ -28,8 +28,8 @@ RED = RGBColor(153, 27, 27)
 
 SECTIONS = [
     ("Business Dashboard", "01-dashboard.png",
-     "Provides an executive view of customers, staff, accounts, collections, deposits, receivables, product exposure, payroll, refunds, and projected profitability. Curved weekly lines compare customer collections with staff deposits; a keyed donut shows account status shares. Staff see their own deposit totals and scoped trend. Supported KPI cards retain week-over-week indicators.",
-     "Use it as the daily starting point for assessing business position and identifying areas that need attention. Read the chart keys to distinguish customer payments from staff deposits: deposit timing can differ and deposits are not new revenue. A green up arrow means that figure grew since last week; a red down arrow means it shrank; snapshot figures have no historical comparison."),
+     "Provides an executive view of customers, staff, accounts, collections, deposits, receivables, product exposure, payroll, refunds, and projected profitability. Compact administrator KPI cards precede curved weekly lines comparing customer collections with staff deposits and a keyed donut showing account status shares. Staff see scoped KPI indicators and their own deposit trend.",
+     "Use it as the daily starting point for assessing business position and identifying areas that need attention. Read the chart keys to distinguish customer payments from staff deposits: deposit timing can differ and deposits are not new revenue. Administrator KPI cards show current values; use the trend charts for period comparisons. Staff indicators compare dated values where reliable historical records exist."),
     ("Activity Monitoring", "02-activity.png",
      "Summarises recent customer, account, and payment activity so administrators can see what changed and when.",
      "Use it for operational awareness, follow-up, and quick investigation of newly recorded work."),
@@ -407,7 +407,7 @@ def build():
         ("Save one settings tab at a time",
          "Settings is split into tabs: Company, Business Rules, Payroll, Notifications, Security, Appearance, Product Categories, and Data and System. Each tab has its own Save button and saves only the fields on that tab, so changes on one tab are never affected by another. Finish and save the tab you are on before switching. On a brand-new system, save Company Information first, because the company name and phone number are required before anything else can be stored. The System Notes fields on the Data and System tab are labels the operator maintains by hand; editing them records a note and does not change anything about the live database or storage."),
         ("Read the dashboard trend charts and comparison indicators",
-         "Dashboard, Reports, Activity, and Business Management use curved trend lines for time series, donut charts with labeled keys for category shares, and ranked dot plots for comparisons. Collections and deposits are shown as separate series because deposit timing can differ from payment timing. The Amount Deposited This Week card compares staff deposits with the previous week. KPI arrows compare only values with reliable dated history; current-status figures remain snapshots."),
+         "Dashboard, Reports, Activity, and Business Management use curved trend lines for time series, donut charts with labeled keys for category shares, and ranked dot plots for comparisons. Collections and deposits are shown as separate series because deposit timing can differ from payment timing. Administrator dashboard KPI cards use the compact summary style; the trend chart carries week-to-week comparison. The Amount Deposited This Week card shows the current-week total. Staff KPI indicators compare dated values where reliable historical records exist."),
     ]:
         doc.add_paragraph(heading, style="Heading 2")
         doc.add_paragraph(body)
