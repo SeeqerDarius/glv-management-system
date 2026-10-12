@@ -76,10 +76,13 @@ export async function recordPaymentForAccount({
   const receiptNo = await generateReceiptNo(tx, receiptPrefix);
   const nextTotalPaid = account.totalPaid + amount;
   const rawBalance = account.balance - amount;
-  const creditAmount = rawBalance < 0 ? Math.abs(rawBalance) : 0;
-  const nextBalance = rawBalance <= 0 ? 0 : rawBalance;
+  // Monetary values are stored as floats. Treat tiny rounding residue as zero
+  // so a fully paid plan cannot remain open because of binary rounding.
+  const paidOff = rawBalance <= 1e-9;
+  const creditAmount = rawBalance < -1e-9 ? Math.abs(rawBalance) : 0;
+  const nextBalance = paidOff ? 0 : rawBalance;
   const nextStatus =
-    rawBalance <= 0
+    paidOff
       ? AccountStatus.COMPLETED
       : account.status === AccountStatus.DORMANT ||
           account.status === AccountStatus.PROBATION

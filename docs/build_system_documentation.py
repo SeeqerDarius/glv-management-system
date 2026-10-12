@@ -529,6 +529,7 @@ def build_body() -> str:
         ["Probation", "Account becomes PROBATION after 4 months without payment activity."],
         ["Closed", "Account becomes CLOSED after 6 months without payment activity."],
         ["Activity clock", "Inactivity is measured from the latest of start date, last payment date, and last reactivation date (CustomerAccount.reactivatedAt)."],
+        ["Paid-off precision", "When a payment settles the remaining amount, the balance is set to exactly zero and the account becomes COMPLETED. Payment recording and lifecycle refresh treat floating-point residue up to 0.000000001 as zero; a backdated payment still uses its payment date for lifecycle timing."],
         ["Closure refund", "When closing with paid amount and no prior closure credit, 32% service fee is deducted and remaining amount becomes an open credit."],
         ["Reactivation", "An admin may reactivate a DORMANT, PROBATION or CLOSED account once 6 months of inactivity have passed. A 32% service fee is deducted from the paid amount, open closure-refund credits are voided, and reactivatedAt is stamped so the ladder restarts from that date instead of re-closing the account on the next sweep."],
         ["Overpayment credit", "Payment amount beyond remaining balance creates CustomerCredit linked to the payment/account."],

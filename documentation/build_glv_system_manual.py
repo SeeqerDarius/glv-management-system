@@ -344,7 +344,10 @@ def build():
     doc.add_paragraph(
         "Products define the commercial terms. Staff are assigned customers. Customers "
         "receive one or more product accounts. Payments reduce account balances and create "
-        "receipts. Completed accounts move into delivery control and are archived two days "
+        "receipts. A payment that settles the remaining amount sets the balance to zero and "
+        "completes the account, including when only a tiny decimal-rounding residue remains. "
+        "Lifecycle refresh also corrects existing sub-cent rounding residue to zero. "
+        "Completed accounts move into delivery control and are archived two days "
         "after delivery; an archived plan still counts as a completed sale. Collections feed reports, "
         "procurement readiness, payroll analysis, deposits, reconciliation, credits, and audits."
     )

@@ -215,6 +215,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
         },
         data: {
           status: nextStatus,
+          ...(account.balance <= 1e-9 ? { balance: 0 } : {}),
         },
       });
 
@@ -272,6 +273,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
           }),
           newValue: JSON.stringify({
             status: nextStatus,
+            ...(account.balance <= 1e-9 ? { balance: 0 } : {}),
             closureCreditId,
             closureRefundAmount,
             closureServiceFee,

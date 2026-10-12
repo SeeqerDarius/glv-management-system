@@ -757,6 +757,13 @@ correctly excluded.
   (`<paymentId>:r<timestamp>:<period>`) so the restarted period count cannot
   collide with a reminder sent before closure. Accounts that were never
   reactivated keep their original key.
+- A payment that settles the remaining amount completes the account and sets
+  its balance to exactly zero. Payment recording treats floating-point residue
+  up to `0.000000001` as zero, preventing a fully paid account from returning
+  to DORMANT or creating a tiny overpayment credit. The lifecycle refresh also
+  normalizes old sub-epsilon balances to zero and COMPLETED. Lifecycle timing
+  still uses the payment date, so a backdated payment does not restart the
+  inactivity clock.
 - Pure lifecycle arithmetic lives in `lib/account-lifecycle-rules.ts` (no database
   or server-only imports, so it is unit testable); `lib/account-lifecycle.ts`
   applies it to real accounts and re-exports it so callers keep one import site.

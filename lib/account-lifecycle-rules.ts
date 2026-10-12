@@ -95,10 +95,15 @@ export function getNextLifecycleStatus(
     account.status === AccountStatus.CANCELLED ||
     account.status === AccountStatus.SUSPENDED ||
     account.status === AccountStatus.CLOSED ||
-    account.status === AccountStatus.ARCHIVED ||
-    account.balance <= 0
+    account.status === AccountStatus.ARCHIVED
   ) {
     return account.status;
+  }
+
+  // Float-backed money can leave a tiny positive remainder after an exact
+  // payoff. Treat it as paid so lifecycle refresh can normalize the record.
+  if (account.balance <= 1e-9) {
+    return AccountStatus.COMPLETED;
   }
 
   const lastActivityDate = getAccountActivityDate(account);
