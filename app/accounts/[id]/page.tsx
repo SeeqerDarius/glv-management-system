@@ -3,6 +3,8 @@ import { BackButton } from "@/components/back-button";
 import { notFound } from "next/navigation";
 import {
   AccountStatus,
+  CreditSource,
+  CreditStatus,
   DeliveryStatus,
   UserPermission,
   UserRole,
@@ -37,6 +39,8 @@ import { listUndoableActions } from "@/lib/undo";
 import { PaymentModal } from "@/components/payment-modal";
 import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
+  blocksPayments,
+  canDeliverWithBalance as canDeliverWithBalanceRule,
   getDormantReactivationAmounts,
   getDormantReactivationCutoffDate,
   isDormantReactivationEligible,
@@ -175,15 +179,15 @@ export default async function AccountDetailsPage({
   // Reopening a filed plan is an admin correction; the server enforces it too.
   const canMarkPending = isDelivered && (!isArchived || isAdmin);
   // Trusted customers can receive the product before the plan is paid off.
-  // Only an admin may release it, and only while the plan is still collectible.
-  const canDeliverWithBalance =
-    isAdmin &&
-    !isDelivered &&
-    account.balance > 0 &&
-    (status === AccountStatus.ACTIVE ||
-      status === AccountStatus.OVERDUE ||
-      status === AccountStatus.PROBATION ||
-      status === AccountStatus.COMPLETED);
+  // Only an admin may release it; any account status qualifies.
+  const canDeliverWithBalance = isAdmin && canDeliverWithBalanceRule(account);
+  const openClosureRefund = account.credits
+    .filter(
+      (credit) =>
+        credit.source === CreditSource.ACCOUNT_CLOSURE_REFUND &&
+        credit.status === CreditStatus.OPEN
+    )
+    .reduce((total, credit) => total + credit.remainingAmount, 0);
   const canReactivateDormant =
     isAdmin && isDormantReactivationEligible(account);
   const canGenerateCancellation =
@@ -357,6 +361,20 @@ export default async function AccountDetailsPage({
               customers can receive the product now and keep paying the
               balance. The amount owed at handover is recorded.
             </p>
+            {blocksPayments(account.status) ? (
+              <p className="mt-1 font-medium text-amber-800">
+                This account is {account.status.toLowerCase()}, so payments
+                cannot be recorded on it. The balance can only be collected
+                after the account is reactivated or its status is changed.
+              </p>
+            ) : null}
+            {openClosureRefund > 0 ? (
+              <p className="mt-1 font-medium text-amber-800">
+                The open closure refund of {formatMoney(openClosureRefund)} will
+                be voided, because a customer who holds the product is not owed
+                a refund.
+              </p>
+            ) : null}
           </div>
           <DeliverWithBalanceForm
             accountId={account.id}
@@ -617,13 +635,6 @@ export default async function AccountDetailsPage({
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           Choose the date the product was handed over. It cannot be in the
           future.
-        </div>
-      ) : null}
-
-      {error === "delivery-not-collectible" ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          This account is not being collected on any more, so it cannot be
-          delivered with a balance owing.
         </div>
       ) : null}
 

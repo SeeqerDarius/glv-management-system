@@ -133,6 +133,32 @@ export function isFinishedStatus(status: AccountStatus) {
   return status === AccountStatus.COMPLETED || status === AccountStatus.ARCHIVED;
 }
 
+/**
+ * An admin may release the product early on any account that still owes money
+ * and has not been handed over, whatever its status: dormant, closed,
+ * suspended, cancelled or archived plans included. The status only decides
+ * whether payments can be recorded afterwards, not whether the handover can
+ * be recorded.
+ */
+export function canDeliverWithBalance(account: {
+  balance: number;
+  deliveryStatus: DeliveryStatus;
+}) {
+  return (
+    account.deliveryStatus !== DeliveryStatus.DELIVERED && account.balance > 0
+  );
+}
+
+/** Statuses on which payments cannot be recorded (see actions/payments.ts). */
+export function blocksPayments(status: AccountStatus) {
+  return (
+    status === AccountStatus.CANCELLED ||
+    status === AccountStatus.SUSPENDED ||
+    status === AccountStatus.CLOSED ||
+    status === AccountStatus.ARCHIVED
+  );
+}
+
 /** Paid in full and still waiting for the product to be handed over. */
 export function isAwaitingDelivery(account: {
   status: AccountStatus;

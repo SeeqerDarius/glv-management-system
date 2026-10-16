@@ -27,6 +27,8 @@ export {
   getDormantReactivationCutoffDate,
   getNextLifecycleStatus,
   getStatusAfterBalanceChange,
+  blocksPayments,
+  canDeliverWithBalance,
   isAwaitingDelivery,
   isDormantReactivationEligible,
   isFinishedStatus,

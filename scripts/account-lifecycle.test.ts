@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import {
+  blocksPayments,
+  canDeliverWithBalance,
   getAccountActivityDate,
   getArchiveRepairStatus,
   getClosureRefundAmounts,
@@ -227,4 +229,34 @@ test("a balance change reopens or completes a plan without stranding it in the a
   assert.equal(getStatusAfterBalanceChange(AccountStatus.ARCHIVED, 75), AccountStatus.ACTIVE);
   assert.equal(getStatusAfterBalanceChange(AccountStatus.DORMANT, 75), AccountStatus.DORMANT);
   assert.equal(getStatusAfterBalanceChange(AccountStatus.CLOSED, 75), AccountStatus.CLOSED);
+});
+
+test("delivery with a balance owing is available on every account status", () => {
+  // The regression: dormant, closed, suspended, cancelled and archived
+  // accounts could not be released on credit. The rule reads no status at all.
+  for (const status of Object.values(AccountStatus)) {
+    const account = { status, balance: 500, deliveryStatus: DeliveryStatus.PENDING };
+    assert.equal(canDeliverWithBalance(account), true, status);
+  }
+});
+
+test("delivery with a balance owing needs money owed and a product not yet handed over", () => {
+  assert.equal(
+    canDeliverWithBalance({ balance: 0, deliveryStatus: DeliveryStatus.PENDING }),
+    false
+  );
+  assert.equal(
+    canDeliverWithBalance({ balance: 500, deliveryStatus: DeliveryStatus.DELIVERED }),
+    false
+  );
+});
+
+test("payments are blocked only on cancelled, suspended, closed and archived accounts", () => {
+  const blocked = Object.values(AccountStatus).filter(blocksPayments).sort();
+  assert.deepEqual(blocked, [
+    AccountStatus.ARCHIVED,
+    AccountStatus.CANCELLED,
+    AccountStatus.CLOSED,
+    AccountStatus.SUSPENDED,
+  ].sort());
 });

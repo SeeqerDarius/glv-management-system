@@ -74,8 +74,21 @@ def cell(content: str, width: int, shade: str | None = None, align: str = "top")
 
 
 def table(rows: list[list[str]], widths: list[int], header: bool = True) -> str:
+    out = table_open(widths)
+    for r_index, row in enumerate(rows):
+        out.append("<w:tr>")
+        for c_index, value in enumerate(row):
+            shade = "E8EEF5" if header and r_index == 0 else None
+            style = "TableHeader" if header and r_index == 0 else "TableText"
+            out.append(cell(para(value, style=style, bold=(header and r_index == 0)), widths[c_index], shade))
+        out.append("</w:tr>")
+    out.append("</w:tbl>")
+    return "".join(out) + para("", "Tiny")
+
+
+def table_open(widths: list[int]) -> list[str]:
     grid = "".join(f'<w:gridCol w:w="{w}"/>' for w in widths)
-    out = [
+    return [
         "<w:tbl>",
         "<w:tblPr>"
         '<w:tblStyle w:val="TableGrid"/>'
@@ -90,15 +103,6 @@ def table(rows: list[list[str]], widths: list[int], header: bool = True) -> str:
         "</w:tblPr>",
         f"<w:tblGrid>{grid}</w:tblGrid>",
     ]
-    for r_index, row in enumerate(rows):
-        out.append("<w:tr>")
-        for c_index, value in enumerate(row):
-            shade = "E8EEF5" if header and r_index == 0 else None
-            style = "TableHeader" if header and r_index == 0 else "TableText"
-            out.append(cell(para(value, style=style, bold=(header and r_index == 0)), widths[c_index], shade))
-        out.append("</w:tr>")
-    out.append("</w:tbl>")
-    return "".join(out) + para("", "Tiny")
 
 
 def code_block(text: str, title: str | None = None) -> str:
@@ -107,7 +111,11 @@ def code_block(text: str, title: str | None = None) -> str:
         lines.append(para(title, "DiagramTitle", bold=True))
     for line in dedent(text).strip("\n").splitlines():
         lines.append(para(line.rstrip(), "CodeBlock"))
-    return table([["".join(lines)]], [9360], header=False)
+    # The lines are already paragraph XML, so they go into the cell as-is.
+    # Passing them through table() escaped them and printed raw XML.
+    out = table_open([9360])
+    out.append("<w:tr>" + cell("".join(lines), 9360) + "</w:tr></w:tbl>")
+    return "".join(out) + para("", "Tiny")
 
 
 def section(title: str, level: int = 1) -> str:
@@ -413,7 +421,7 @@ def build_body() -> str:
       |
       +--> fully paid account: any account manager may confirm
       +--> balance still owing: admin only, reason required,
-      |      balanceAtDelivery recorded, account stays open and collectible
+      |      any account status; balanceAtDelivery recorded, account stays open
       |
       +--> deliveryStatus becomes DELIVERED
       +--> stock on hand for the product decreases by one
@@ -436,7 +444,7 @@ def build_body() -> str:
         ["Record payment", "actions/payments.ts, lib/payment-recording.ts", "Rejects closed/suspended/cancelled/completed accounts, generates receipt, updates balance/status, creates overpayment credit, and queues one receipt channel."],
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
-        ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts, COMPLETED or ARCHIVED, are confirmed by any account manager from the account page, the customer profile or the Accounts list (Awaiting delivery filter). Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. Stock on hand drops by one and a DELIVERED movement is written. An admin can instead record a past handover with its date, which writes no stock movement because the unit already left. Reversing a delivery (Mark pending) returns a unit only when that account's last stock movement took one, and on an archived plan it is admin-only and moves the plan back to COMPLETED. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory/dashboard screens."],
+        ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts, COMPLETED or ARCHIVED, are confirmed by any account manager from the account page, the customer profile or the Accounts list (Awaiting delivery filter). Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. It is available on every account status (canDeliverWithBalance in lib/account-lifecycle-rules.ts): only a positive balance and an undelivered product are required. On a Closed account it voids any OPEN ACCOUNT_CLOSURE_REFUND credit in the same transaction and lists it in the audit entry; on Cancelled, Suspended, Closed or Archived accounts the panel warns that payments are blocked until the status changes. Stock on hand drops by one and a DELIVERED movement is written. An admin can instead record a past handover with its date, which writes no stock movement because the unit already left. Reversing a delivery (Mark pending) returns a unit only when that account's last stock movement took one, and on an archived plan it is admin-only and moves the plan back to COMPLETED. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory/dashboard screens."],
         ["Archive", "lib/account-lifecycle.ts, lib/account-lifecycle-rules.ts", "The lifecycle sweep archives COMPLETED, DELIVERED, zero-balance plans two days after delivery (or at once when the delivery has no date), and returns any ARCHIVED plan that is undelivered (to COMPLETED) or owes money (to ACTIVE), audit logged as RESTORE_ARCHIVED_ACCOUNT. Every sweep write is conditional on the status it read, so overlapping sweeps cannot double-archive, double-close or mint two closure refund credits."],
         ["Balance changes", "lib/payment-recording.ts, actions/accounts.ts", "Payment edit/delete/undo, price override and product correction share getStatusAfterBalanceChange: paying off completes a plan (an archived plan stays archived); owing again reopens a COMPLETED or ARCHIVED plan as ACTIVE so it can be collected."],
     ], [2200, 3100, 4060]))
