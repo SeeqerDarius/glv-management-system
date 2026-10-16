@@ -24,6 +24,7 @@ import {
 } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getProcurementAccounts } from "@/lib/procurement";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 
 // ============================================================================
@@ -113,6 +114,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   const selectedStatus = params.status || AccountStatus.ACTIVE;
   const selectedStaffId = params.staffId || "";
   const selectedProductId = params.productId || "";
+  const isProcurementFilter = params.status === "PROCUREMENT";
   const sortParam = params.sort ?? "";
   const selectedSort: AccountSort = isAccountSort(sortParam)
     ? sortParam
@@ -169,6 +171,8 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       deliveredWithBalance: true,
       balance: { gt: 0 },
     });
+  } else if (selectedStatus === "PROCUREMENT") {
+    // Match only accounts contributing units still to buy after stock allocation.
   } else if (selectedStatus === "ALL") {
     // no filter
   } else if (selectedStatus === AccountStatus.ACTIVE) {
@@ -212,6 +216,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   let staff: Array<{ id: string; code: string; fullName: string }> = [];
   let products: Array<{ id: string; name: string }> = [];
   let loadError = false;
+  let procurementThresholdPercent = 70;
 
   // ==========================================================================
   // SECTION: Database Queries
@@ -219,6 +224,18 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   // ==========================================================================
   try {
     await refreshAccountLifecycleStatuses();
+
+    if (isProcurementFilter) {
+      const procurement = await getProcurementAccounts(selectedProductId || undefined);
+      procurementThresholdPercent = procurement.thresholdPercent;
+      filters.push({
+        id: {
+          in: procurement.items
+            .filter((item) => !item.coveredByStock)
+            .map((item) => item.accountId),
+        },
+      });
+    }
 
     // Fetch accounts first (most important), then supporting data sequentially
     accounts = await prisma.customerAccount.findMany({
@@ -333,7 +350,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       {/* SECTION: Filter Form                                                   */}
       {/* Search input, staff/status/product dropdowns, and filter button        */}
       {/* ==================================================================== */}
-      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-6">
+      <form className="grid gap-3 rounded-lg border bg-white p-4 md:grid-cols-7">
         <input
           name="q"
           defaultValue={query}
@@ -354,6 +371,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
         <select name="status" defaultValue={selectedStatus} className="rounded border p-3">
           <option value="ALL">All statuses</option>
+          <option value="PROCUREMENT">To buy (procurement list)</option>
           <option value={AccountStatus.ACTIVE}>Active</option>
           <option value="OVERDUE">Overdue</option>
           <option value={AccountStatus.DORMANT}>Dormant</option>
@@ -390,6 +408,12 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
           Filter
         </Button>
       </form>
+      {isProcurementFilter ? (
+        <p className="-mt-4 text-sm text-gray-600">
+          Accounts at or above {procurementThresholdPercent}% paid whose products
+          are not already covered by stock.
+        </p>
+      ) : null}
 
       {/* ==================================================================== */}
       {/* SECTION: Toast Notifications                                           */}

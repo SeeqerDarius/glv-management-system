@@ -713,6 +713,12 @@ correctly excluded.
   past expected end date; the stored status is never OVERDUE, so the old count
   missed them) plus suspended accounts, and a separate "paid-off accounts
   awaiting delivery" alert.
+- **Procurement list account filter.** On Accounts, choose **To buy (procurement
+  list)** under status to see the pending-delivery accounts at or above the
+  configured procurement payment threshold whose units are not already covered
+  by stock. The threshold defaults to 70% and follows the same setting and stock
+  allocation as Products > Procurement, so fully stock-covered accounts and
+  products do not appear in this filter.
 - **Weekly report export and recovery import carry delivery.** The Customer
   Accounts sheet has **Delivery Status** (`DELIVERED`, `DELIVERED ON CREDIT`,
   `PENDING`) and **Delivered On** columns, and the recovery import restores
