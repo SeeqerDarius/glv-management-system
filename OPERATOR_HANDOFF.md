@@ -716,11 +716,21 @@ correctly excluded.
 - **Payment-threshold account filter.** On Accounts, choose **Payment threshold
   met (up to 100%)** under status to see every pending-delivery account at or
   above the configured procurement payment threshold, including fully paid
-  accounts. The threshold defaults to 70%. Stock allocation does not affect
-  this account filter; stock only determines which products and quantities
-  appear on Products > Procurement. Paid Progress on Accounts measures
-  installment days covered out of the plan duration. The threshold filter
-  separately compares the amount paid with the account target, in currency cents.
+  accounts. The threshold defaults to 70%. An account appears only when its
+  actual amount paid is at least the threshold percentage of its target amount,
+  compared in whole pesewas (cents): at 70%, GHS 210 paid toward GHS 1,840 is
+  11.41% and does not appear, while GHS 1,288.00 (exactly 70%) does. Eligible
+  accounts are pending delivery and Active, Overdue, Dormant, Probation or
+  Completed (fully paid, awaiting delivery); delivered, closed, archived,
+  cancelled and suspended accounts never appear. Every row is re-checked
+  against this rule immediately before the list is shown, and the account
+  count and page numbers reflect only the rows that pass. Stock allocation does
+  not affect this account filter; stock only determines which products and
+  quantities appear on Products > Procurement. Paid Progress on Accounts
+  measures installment days covered out of the plan duration and is unchanged;
+  it is a display only and does not decide who meets the amount threshold.
+  (Fixed 16 Oct 2026: with no search, staff or product filter set, the filter
+  had been listing every account, including ones far below the threshold.)
 - **Weekly report export and recovery import carry delivery.** The Customer
   Accounts sheet has **Delivery Status** (`DELIVERED`, `DELIVERED ON CREDIT`,
   `PENDING`) and **Delivered On** columns, and the recovery import restores

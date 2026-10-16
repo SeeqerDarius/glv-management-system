@@ -24,7 +24,11 @@ import {
 } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getProcurementAccounts } from "@/lib/procurement";
+import {
+  getProcurementAccounts,
+  isProcurementEligible,
+  procurementStatuses,
+} from "@/lib/procurement";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 
 // ============================================================================
@@ -172,7 +176,13 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       balance: { gt: 0 },
     });
   } else if (selectedStatus === "PROCUREMENT") {
-    // The shared procurement query supplies threshold-eligible, undelivered accounts.
+    // Undelivered and still owed a product. The threshold itself is applied by
+    // the shared procurement query (candidate ids below) and checked again on
+    // every row before rendering.
+    filters.push({
+      deliveryStatus: DeliveryStatus.PENDING,
+      status: { in: [...procurementStatuses] },
+    });
   } else if (selectedStatus === "ALL") {
     // no filter
   } else if (selectedStatus === AccountStatus.ACTIVE) {
@@ -184,9 +194,6 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   } else {
     filters.push({ status: selectedStatus as AccountStatus });
   }
-
-  const where: Prisma.CustomerAccountWhereInput =
-    filters.length > 0 ? { AND: filters } : {};
 
   // ==========================================================================
   // SECTION: Data Containers
@@ -235,12 +242,21 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       });
     }
 
+    // Built only after every filter is in place. Building it earlier once let
+    // the procurement ids above drop out whenever no other filter was set,
+    // which listed every account under "Payment threshold met".
+    const where: Prisma.CustomerAccountWhereInput =
+      filters.length > 0 ? { AND: filters } : {};
+
     // Fetch accounts first (most important), then supporting data sequentially
-    accounts = await prisma.customerAccount.findMany({
+    // The threshold filter loads every candidate so the final eligibility
+    // check can run before paging; the list is bounded by the threshold.
+    const fetchedAccounts = await prisma.customerAccount.findMany({
       where,
       orderBy: getAccountOrderBy(selectedSort),
-      skip: (currentPage - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
+      ...(isProcurementFilter
+        ? {}
+        : { skip: (currentPage - 1) * PAGE_SIZE, take: PAGE_SIZE }),
       select: {
         id: true,
         startDate: true,
@@ -265,7 +281,22 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       },
     });
 
-    totalAccounts = await prisma.customerAccount.count({ where });
+    if (isProcurementFilter) {
+      // Final guard: re-check each row's own paid amount, target, status and
+      // delivery state, so a stale or wrong candidate list cannot show an
+      // account below the threshold.
+      const eligibleAccounts = fetchedAccounts.filter((account) =>
+        isProcurementEligible(account, procurementThresholdPercent)
+      );
+      totalAccounts = eligibleAccounts.length;
+      accounts = eligibleAccounts.slice(
+        (currentPage - 1) * PAGE_SIZE,
+        currentPage * PAGE_SIZE
+      );
+    } else {
+      accounts = fetchedAccounts;
+      totalAccounts = await prisma.customerAccount.count({ where });
+    }
 
     if (isAdmin) {
       staff = await prisma.staff.findMany({
