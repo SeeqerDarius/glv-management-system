@@ -787,7 +787,6 @@ export default async function AccountDetailsPage({
       <section className="rounded-lg border bg-white p-5">
         <AccountDaysProgress
           totalPaid={account.totalPaid}
-          targetAmount={account.targetAmount}
           dailyAmount={account.dailyAmount}
           duration={account.product.duration}
           showLabel

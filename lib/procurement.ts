@@ -64,6 +64,30 @@ async function getThresholdPercent() {
     : 70;
 }
 
+/** Compare whole pesewas against the configured percentage of the account target. */
+export function hasReachedProcurementThreshold(
+  totalPaid: number,
+  targetAmount: number,
+  thresholdPercent: number
+) {
+  if (
+    !Number.isFinite(totalPaid) ||
+    !Number.isFinite(targetAmount) ||
+    !Number.isFinite(thresholdPercent) ||
+    targetAmount <= 0
+  ) {
+    return false;
+  }
+
+  const paidPesewas = Math.max(Math.round(totalPaid * 100), 0);
+  const targetPesewas = Math.round(targetAmount * 100);
+  const requiredPesewas = Math.ceil(
+    (targetPesewas * thresholdPercent) / 100 - 1e-9
+  );
+
+  return paidPesewas >= requiredPesewas;
+}
+
 /**
  * Every account that has paid far enough to be owed its product and has not
  * received it yet. This is demand, not a shopping list: stock on hand has not
@@ -71,7 +95,6 @@ async function getThresholdPercent() {
  */
 export async function getProcurementAccounts(productId?: string) {
   const thresholdPercent = await getThresholdPercent();
-  const threshold = thresholdPercent / 100;
 
   const accounts = await prisma.customerAccount.findMany({
     where: {
@@ -116,12 +139,19 @@ export async function getProcurementAccounts(productId?: string) {
   const items: ProcurementAccountItem[] = [];
 
   for (const account of accounts) {
-    const progress =
-      account.targetAmount > 0 ? account.totalPaid / account.targetAmount : 0;
-
-    if (progress < threshold) {
+    if (
+      !hasReachedProcurementThreshold(
+        account.totalPaid,
+        account.targetAmount,
+        thresholdPercent
+      )
+    ) {
       continue;
     }
+
+    const progress = account.targetAmount > 0
+      ? account.totalPaid / account.targetAmount
+      : 0;
 
     const landedUnitCost =
       account.product.costPrice + account.product.transportCost;

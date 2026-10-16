@@ -377,7 +377,7 @@ export default async function CustomerProfilePage({
               <th className="p-3 font-medium">Balance</th>
               <th className="p-3 font-medium">Status</th>
               <th className="p-3 font-medium">Delivery</th>
-              <th className="p-3 font-medium">Amount Paid Progress</th>
+              <th className="p-3 font-medium">Paid Progress</th>
               <th className="p-3 text-right font-medium">Actions</th>
             </tr>
           </thead>
@@ -425,7 +425,6 @@ export default async function CustomerProfilePage({
                   <td className="p-3">
                     <AccountDaysProgress
                       totalPaid={account.totalPaid}
-                      targetAmount={account.targetAmount}
                       dailyAmount={account.dailyAmount}
                       duration={account.product.duration}
                     />
