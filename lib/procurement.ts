@@ -2,7 +2,13 @@ import { AccountStatus, DeliveryStatus } from "@prisma/client";
 import { getSettings } from "@/lib/settings";
 import { prisma } from "@/lib/prisma";
 
-const procurementStatuses = [
+/**
+ * Statuses an account can hold while it is still owed its product. Fully paid
+ * accounts awaiting delivery are COMPLETED (the lifecycle sweep moves archived
+ * pending-delivery plans back to COMPLETED). Closed, archived, cancelled and
+ * suspended accounts are never owed a product here.
+ */
+export const procurementStatuses: readonly AccountStatus[] = [
   AccountStatus.ACTIVE,
   AccountStatus.COMPLETED,
   AccountStatus.OVERDUE,
@@ -89,6 +95,33 @@ export function hasReachedProcurementThreshold(
 }
 
 /**
+ * The full rule for "payment threshold met": still waiting for delivery, in a
+ * status that can be owed a product, and paid at least the threshold
+ * percentage of the target. Used by the procurement query and again by the
+ * Accounts page right before it renders, so a stale or wrong candidate list
+ * can never show an account below threshold.
+ */
+export function isProcurementEligible(
+  account: {
+    status: AccountStatus;
+    deliveryStatus: DeliveryStatus;
+    totalPaid: number;
+    targetAmount: number;
+  },
+  thresholdPercent: number
+) {
+  return (
+    account.deliveryStatus === DeliveryStatus.PENDING &&
+    procurementStatuses.includes(account.status) &&
+    hasReachedProcurementThreshold(
+      account.totalPaid,
+      account.targetAmount,
+      thresholdPercent
+    )
+  );
+}
+
+/**
  * Every account that has paid far enough to be owed its product and has not
  * received it yet. This is demand, not a shopping list: stock on hand has not
  * been taken off.
@@ -101,11 +134,13 @@ export async function getProcurementAccounts(productId?: string) {
       ...(productId ? { productId } : {}),
       deliveryStatus: DeliveryStatus.PENDING,
       status: {
-        in: procurementStatuses,
+        in: [...procurementStatuses],
       },
     },
     select: {
       id: true,
+      status: true,
+      deliveryStatus: true,
       targetAmount: true,
       totalPaid: true,
       balance: true,
@@ -139,13 +174,7 @@ export async function getProcurementAccounts(productId?: string) {
   const items: ProcurementAccountItem[] = [];
 
   for (const account of accounts) {
-    if (
-      !hasReachedProcurementThreshold(
-        account.totalPaid,
-        account.targetAmount,
-        thresholdPercent
-      )
-    ) {
+    if (!isProcurementEligible(account, thresholdPercent)) {
       continue;
     }
 
