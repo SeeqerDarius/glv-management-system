@@ -733,19 +733,8 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
   }
 
   if (withBalance) {
-    // A plan that is cancelled, closed, suspended or archived is not a plan the
-    // customer is still paying off, so early delivery does not apply to it.
-    const collectible = ([
-      AccountStatus.ACTIVE,
-      AccountStatus.OVERDUE,
-      AccountStatus.PROBATION,
-      AccountStatus.COMPLETED,
-    ] as AccountStatus[]).includes(account.status);
-
-    if (!collectible) {
-      redirect(`/accounts/${account.id}?error=delivery-not-collectible`);
-    }
-
+    // Early delivery is allowed whatever the account status (dormant, closed,
+    // suspended, cancelled and archived included); the admin decides.
     if (!allowOutstandingBalance) {
       redirect(`/accounts/${account.id}?error=delivery-not-completed`);
     }
@@ -774,6 +763,35 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
       : account.status;
 
   const movement = await prisma.$transaction(async (tx) => {
+    // A customer who holds the product is not owed a closure refund, so an
+    // open one on a closed plan is voided when the product goes out on credit.
+    // Without this the customer could take both the product and the refund.
+    const voidedClosureCredits = withBalance
+      ? await tx.customerCredit.findMany({
+          where: {
+            accountId: account.id,
+            source: CreditSource.ACCOUNT_CLOSURE_REFUND,
+            status: CreditStatus.OPEN,
+          },
+          select: { id: true, amount: true, remainingAmount: true },
+        })
+      : [];
+
+    if (voidedClosureCredits.length > 0) {
+      await tx.customerCredit.updateMany({
+        where: {
+          id: { in: voidedClosureCredits.map((credit) => credit.id) },
+          status: CreditStatus.OPEN,
+        },
+        data: {
+          status: CreditStatus.VOID,
+          remainingAmount: 0,
+          resolvedBy: user.id,
+          resolvedAt: new Date(),
+        },
+      });
+    }
+
     await tx.customerAccount.update({
       where: {
         id: account.id,
@@ -827,6 +845,7 @@ export async function updateAccountDeliveryStatus(formData: FormData): Promise<v
           deliveryNote: withBalance ? deliveryNote : null,
           accountStatus: nextAccountStatus,
           pastHandover,
+          voidedClosureCredits,
         }),
       },
     });

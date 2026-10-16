@@ -634,9 +634,28 @@ correctly excluded.
   archived, so the debt stays visible in the accounts list, on the customer page and
   in reports. Collection continues until the balance reaches zero, at which point
   the account completes and archives on the normal schedule.
-- Early delivery is only offered while the plan is still being collected on
-  (ACTIVE, OVERDUE, PROBATION or COMPLETED). A cancelled, closed, suspended or
-  archived plan is rejected server-side with `delivery-not-collectible`.
+- Early delivery is offered on **every account status**: Active, Overdue,
+  Dormant, Probation, Completed, Closed, Suspended, Cancelled and Archived. The
+  only conditions are an admin role, a balance still owing, a product not yet
+  handed over, and a written reason (`canDeliverWithBalance` in
+  `lib/account-lifecycle-rules.ts`, used by both the button and the server
+  action). The old `delivery-not-collectible` rejection is gone (changed 16 Oct
+  2026; before that Dormant accounts and the statuses below could not be
+  released on credit).
+- Payments cannot be recorded on Cancelled, Suspended, Closed or Archived
+  accounts. Delivering one of those on credit is allowed, and the delivery panel
+  warns that the balance can only be collected after the account is reactivated
+  or its status is changed. An Archived account that owes money is moved back
+  to Active by the lifecycle sweep, so it can be collected normally.
+- Delivering a Closed account on credit voids any OPEN closure refund credit on
+  it in the same transaction, because a customer who holds the product is not
+  owed a refund. The panel shows the amount that will be voided, and the voided
+  credits are listed in the `DELIVER_ACCOUNT_WITH_OUTSTANDING_BALANCE` audit
+  entry (`voidedClosureCredits`). Reversing the delivery with **Mark pending**
+  does not reopen those credits; an admin must re-issue a refund manually if it
+  is still owed. A closure refund that was already paid out (REFUNDED) is not
+  touched, so check the account's credits before releasing a product on a
+  closed plan.
 - The fully-paid path is unchanged: a COMPLETED account with a zero balance is
   marked delivered by anyone who can manage that account, with no reason required.
 - On-credit delivery shows as a blue truck badge, distinct from the green
