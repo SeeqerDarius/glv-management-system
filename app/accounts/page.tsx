@@ -172,7 +172,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       balance: { gt: 0 },
     });
   } else if (selectedStatus === "PROCUREMENT") {
-    // Match only accounts contributing units still to buy after stock allocation.
+    // The shared procurement query supplies threshold-eligible, undelivered accounts.
   } else if (selectedStatus === "ALL") {
     // no filter
   } else if (selectedStatus === AccountStatus.ACTIVE) {
@@ -230,9 +230,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       procurementThresholdPercent = procurement.thresholdPercent;
       filters.push({
         id: {
-          in: procurement.items
-            .filter((item) => !item.coveredByStock)
-            .map((item) => item.accountId),
+          in: procurement.items.map((item) => item.accountId),
         },
       });
     }
@@ -371,7 +369,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
 
         <select name="status" defaultValue={selectedStatus} className="rounded border p-3">
           <option value="ALL">All statuses</option>
-          <option value="PROCUREMENT">To buy (procurement list)</option>
+          <option value="PROCUREMENT">Payment threshold met (up to 100%)</option>
           <option value={AccountStatus.ACTIVE}>Active</option>
           <option value="OVERDUE">Overdue</option>
           <option value={AccountStatus.DORMANT}>Dormant</option>
@@ -410,8 +408,9 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
       </form>
       {isProcurementFilter ? (
         <p className="-mt-4 text-sm text-gray-600">
-          Accounts at or above {procurementThresholdPercent}% paid whose products
-          are not already covered by stock.
+          Accounts at or above {procurementThresholdPercent}% paid, including
+          fully paid accounts still awaiting delivery. Stock levels do not affect
+          this filter.
         </p>
       ) : null}
 
