@@ -718,7 +718,9 @@ correctly excluded.
   above the configured procurement payment threshold, including fully paid
   accounts. The threshold defaults to 70%. Stock allocation does not affect
   this account filter; stock only determines which products and quantities
-  appear on Products > Procurement.
+  appear on Products > Procurement. The Accounts progress percentage is amount
+  collected divided by the account target; covered installment days are shown
+  separately because a customer can pay ahead of or behind the daily schedule.
 - **Weekly report export and recovery import carry delivery.** The Customer
   Accounts sheet has **Delivery Status** (`DELIVERED`, `DELIVERED ON CREDIT`,
   `PENDING`) and **Delivered On** columns, and the recovery import restores
