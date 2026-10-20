@@ -109,7 +109,9 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   Inventory Details".
 - `/credits`: overpayment credits and refunds.
 - `/reports`: admin financial intelligence and salary tracking.
-- `/activity`: collection/activity charts.
+- `/activity`: collection/activity charts. Administrators see weekly daily
+  collection trends split into one curved line per staff member, with a keyed
+  legend; staff users see only their own payment-count trend.
 - `/audit-logs`: read-only audit history.
 - `/settings`: Super Admin control panel, organised as tabs driven by `?tab=`:
   Company, Business Rules, Payroll, Notifications, Security, Appearance,

@@ -1052,6 +1052,22 @@ export async function getActivityReport({
         (payment) =>
           payment.paymentDate >= week.start && payment.paymentDate <= week.end
       );
+      const weeklyCollectionsByDay = dayLabels.map((_, index) => {
+        const dayStart = new Date(week.start);
+        dayStart.setDate(week.start.getDate() + index);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setHours(23, 59, 59, 999);
+
+        return includeFinancialValues
+          ? memberWeeklyPayments
+              .filter(
+                (payment) =>
+                  payment.paymentDate >= dayStart &&
+                  payment.paymentDate <= dayEnd
+              )
+              .reduce((total, payment) => total + payment.amount, 0)
+          : null;
+      });
       const memberAccounts = accounts.filter(
         (account) => account.customer.staffId === member.id
       );
@@ -1070,6 +1086,7 @@ export async function getActivityReport({
               0
             )
           : null,
+        weeklyCollectionsByDay,
         expectedWeeklyCollection,
         outstanding: includeFinancialValues
           ? memberAccounts
