@@ -337,8 +337,13 @@ claim it has changed records.
 
 ## Migration Status
 
-**Nothing is pending.** Every migration in `prisma/migrations/` is applied to
-the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
+**Pending deployment** - the following migration has been created but not yet applied to production:
+
+|| Migration | Status | Effect |
+|| --- | --- | --- |
+|| `20261022100000_add_receipt_counter` | Created, not deployed | `ReceiptCounter` table for atomic receipt number generation, fixing race condition where concurrent payments could generate duplicate receipt numbers. |
+
+All previous migrations are applied to the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 
 | Migration | Applied (UTC) | Effect |
 | --- | --- | --- |
@@ -346,6 +351,16 @@ the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 | `20260917091000_procurement_confirmation` | 2026-09-17 20:40 | `CustomerAccount.procuredAt`, `procuredBy`, index on `procuredAt`. Superseded by the inventory migration, which drops all three, but still required in sequence. |
 | `20260917092000_delivery_with_outstanding_balance` | 2026-09-17 20:40 | `CustomerAccount.deliveredWithBalance`, `balanceAtDelivery`, `deliveryNote`. |
 | `20260917100000_inventory_module` | 2026-09-18 00:43 | `Product.stockOnHand`, the `InventoryMovement` table, opening stock seeded from units already marked procured, and the removal of `procuredAt`, `procuredBy` and `quantityOnSale`. |
+
+### What the receipt counter migration does
+
+The `ReceiptCounter` table stores one row per (prefix, year) combination with a
+`nextValue` counter. Payment recording now uses an atomic `upsert` with
+`increment: 1` to claim the next receipt number, eliminating the race condition
+where concurrent payments scanned the same max value and tried to create
+duplicate receipt numbers. The migration seeds counters from existing payment
+data by extracting the prefix and year from the highest receipt number for each
+combination.
 
 ### What the inventory migration did to live data
 
@@ -393,21 +408,27 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 - Configure Resend/Twilio credentials before enabling production email, SMS, or
   WhatsApp delivery. The queue and retry workflow are live.
 - Workflow review (2026-10-01) items not yet built, in rough priority order:
-  - **Move the lifecycle sweep off the request path.**
-    `refreshAccountLifecycleStatuses` runs on eight page/route entry points,
-    including the sidebar notification poll, and issues one transaction per
-    account that changes. Run it from a cron (hourly, or with the 09:00 SMS
-    job) and keep at most a cheap guard on pages.
-  - **Wire the Business Rules settings that are saved but not effective.**
-    `deliveryTimeAfterCompletionDays` (the archive delay is hard-coded at two
-    days), `refundDeductionPercent` (the closure and reactivation fee is
-    hard-coded at 32%), `administrationFeePercent`, `minimumDeposit`,
-    `commissionEnabled`/`commissionPercentage` and `sessionTimeoutMinutes` are
-    stored but nothing reads them. Owner decision needed before wiring.
-  - **Receipt numbers.** `generateReceiptNo` scans every receipt with the prefix
+- **Lifecycle sweep off request path. DONE (2026-10-22).**
+    `/api/cron/account-lifecycle` runs daily at 09:00 with `CRON_SECRET`, aligned with
+    the existing SMS schedule. Pages and reports register a cheap post-response
+    guard, so active use also refreshes at most hourly. `LifecycleSweepState`
+    uses a ten-minute database lease and a one-hour completion window to prevent
+    overlapping sweeps across serverless instances. Apply migration
+    `20261022110000_lifecycle_sweep_state` before release.
+  - **Business Rules settings. PARTLY EFFECTIVE (2026-10-22).**
+    `deliveryTimeAfterCompletionDays` controls the archive delay (zero retains
+    the existing two-day fallback); `refundDeductionPercent` controls closure
+    refunds and reactivation charges (zero retains 32%); `minimumDeposit` is
+    enforced on the first payment (plans may still be created without a payment);
+    and `sessionTimeoutMinutes` expires existing JWT sessions using the current
+    saved value. `administrationFeePercent` has no corresponding fee amount or
+    account ledger field, and commission has no defined calculation base. Per
+    the owner, both controls are disabled in Settings and server writes keep
+    them at zero until their rules are defined.
+  - ~~**Receipt numbers.** `generateReceiptNo` scans every receipt with the prefix
     and takes max + 1, so two payments recorded at the same moment compute the
     same number and the second fails on the unique constraint ("Unable to
-    record payment"). Use a counter row or database sequence.
+    record payment"). Use a counter row or database sequence.~~ **DONE (2026-10-22)** - Implemented `ReceiptCounter` table with atomic upsert increment. Migration `20261022100000_add_receipt_counter` created, pending deployment.
   - **Delivery lead time.** There is no "paid off on" date, so nobody can see
     how long a customer has waited for delivery. Add `completedAt`, show the
     wait on the Awaiting delivery list, and (with
@@ -428,8 +449,8 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 - Decide whether AI Support conversations should be stored in the database for
   auditability.
 - Add support actions only after strict permission checks and confirmation UI.
-- Continue wiring Settings fields downstream only when the owner asks for those
-  business rules to take effect.
+  - `administrationFeePercent` and commission remain disabled and are forced to
+  zero until their calculation bases and accounting treatment are defined.
 
 ## SMS integration with BMS Africa
 
@@ -675,8 +696,8 @@ correctly excluded.
 ## Delivery Queue and the Archive
 
 - **The archive holds finished work only: paid off and delivered.** The
-  lifecycle sweep archives a COMPLETED, DELIVERED, zero-balance plan two days
-  after delivery (`ARCHIVE_AFTER_DELIVERY_DAYS`), or straight away when the
+  lifecycle sweep archives a COMPLETED, DELIVERED, zero-balance plan after the
+  configured `deliveryTimeAfterCompletionDays` delay (two days when zero), or straight away when the
   delivery has no date. Nothing can be done to an archived account, so the
   sweep also enforces the rule in reverse: an ARCHIVED plan that is not
   delivered goes back to COMPLETED (the delivery queue) and one that owes money
@@ -762,7 +783,8 @@ correctly excluded.
   Collection / Release Status column now reads DELIVERED, DELIVERED (ARCHIVED)
   or DELIVERED ON CREDIT for handed-over plans instead of READY FOR RELEASE or a
   red ARCHIVED flag.
-- **Concurrency.** The lifecycle sweep runs on most page loads, so two can
+- **Concurrency.** The lifecycle sweep may be scheduled by cron and guarded after
+  requests, so two can
   overlap. Every sweep write is now conditional on the status it read
   (`updateMany` with the old status in the `where`), so the second sweep is a
   no-op instead of archiving twice, or closing an account twice and minting two
@@ -774,7 +796,8 @@ correctly excluded.
   payment date and `CustomerAccount.reactivatedAt` (migration
   `20260921090000_account_reactivation_clock`). That single clock drives the whole
   ladder: DORMANT at 21 days, PROBATION at 4 months, CLOSED at 6 months.
-- Reactivating a DORMANT, PROBATION or CLOSED account deducts a 32% service fee
+- Reactivating a DORMANT, PROBATION or CLOSED account deducts the configured
+  `refundDeductionPercent` service fee (32% when zero)
   from the paid amount, recalculates the balance, queues the customer's
   reactivation calculation, voids any open `ACCOUNT_CLOSURE_REFUND` credit, and
   stamps `reactivatedAt`. It is administrator-only and requires the admin
@@ -782,10 +805,11 @@ correctly excluded.
   `REACTIVATE_DORMANT_ACCOUNT` audit entry.
 - **Why the stamp matters, and what must not regress:** reactivation records no
   payment. Before `reactivatedAt` existed the clock still read the pre-closure
-  payment date, so the lifecycle sweep — which runs on the very page the operator
+  payment date, so the lifecycle sweep — which is scheduled daily and guarded
+  after requests
   is redirected to — immediately re-closed the account and, because the old
   closure credit had just been voided, minted a second closure credit on the
-  already-reduced paid amount. The customer lost 32% twice while the screen
+  already-reduced paid amount. The customer lost the configured fee twice while the screen
   showed "Account reactivated". Any change to the lifecycle clock must keep
   `scripts/account-lifecycle.test.ts` passing.
 - Reactivation eligibility is measured from the same clock, so a reactivated

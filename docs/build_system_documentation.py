@@ -429,7 +429,7 @@ def build_body() -> str:
       +--> account leaves the procurement list
       |
       v
-    Archive (lifecycle sweep, 2 days after delivery)
+    Archive (daily 09:00 lifecycle job plus hourly post-response freshness guard; configured delay after delivery; 2 days when setting is zero)
       |
       +--> only COMPLETED + DELIVERED + zero balance is archived
       +--> an ARCHIVED account still owed its product returns to
@@ -445,7 +445,7 @@ def build_body() -> str:
         ["Delete payment", "actions/payments.ts", "Recalculates account totals and balance; restricted to permitted users."],
         ["Correct account price/product", "actions/accounts.ts", "Admin password confirmation, recalculates balances, can create credit when product/price drops below paid amount."],
         ["Confirm delivery", "actions/accounts.ts, lib/inventory.ts", "Fully paid accounts, COMPLETED or ARCHIVED, are confirmed by any account manager from the account page, the customer profile or the Accounts list (Awaiting delivery filter). Delivering with a balance owing requires an admin role, an explicit opt-in, and a stored reason; it records balanceAtDelivery and leaves the account open. It is available on every account status (canDeliverWithBalance in lib/account-lifecycle-rules.ts): only a positive balance and an undelivered product are required. On a Closed account it voids any OPEN ACCOUNT_CLOSURE_REFUND credit in the same transaction and lists it in the audit entry; on Cancelled, Suspended, Closed or Archived accounts the panel warns that payments are blocked until the status changes. Stock on hand drops by one and a DELIVERED movement is written. An admin can instead record a past handover with its date, which writes no stock movement because the unit already left. Reversing a delivery (Mark pending) returns a unit only when that account's last stock movement took one, and on an archived plan it is admin-only and moves the plan back to COMPLETED. If stock is already zero the delivery still records, the count floors at zero, and the operator is warned to correct it. Revalidates account/customer/product/inventory/dashboard screens."],
-        ["Archive", "lib/account-lifecycle.ts, lib/account-lifecycle-rules.ts", "The lifecycle sweep archives COMPLETED, DELIVERED, zero-balance plans two days after delivery (or at once when the delivery has no date), and returns any ARCHIVED plan that is undelivered (to COMPLETED) or owes money (to ACTIVE), audit logged as RESTORE_ARCHIVED_ACCOUNT. Every sweep write is conditional on the status it read, so overlapping sweeps cannot double-archive, double-close or mint two closure refund credits."],
+        ["Archive", "lib/account-lifecycle.ts, lib/account-lifecycle-rules.ts", "A daily 09:00 CRON_SECRET-protected job runs the lifecycle sweep; page and report requests register a post-response freshness guard that keeps active systems fresh at most hourly. A database lease coordinates instances. The setting deliveryTimeAfterCompletionDays controls the delay; zero keeps the two-day default. A completed, delivered, zero-balance account with no delivery date is archived immediately. Misfiled archived accounts return to the correct work list. Writes are conditional on the status read, so overlapping work cannot duplicate a closure credit."],
         ["Balance changes", "lib/payment-recording.ts, actions/accounts.ts", "Payment edit/delete/undo, price override and product correction share getStatusAfterBalanceChange: paying off completes a plan (an archived plan stays archived); owing again reopens a COMPLETED or ARCHIVED plan as ACTIVE so it can be collected."],
     ], [2200, 3100, 4060]))
 
@@ -539,8 +539,8 @@ def build_body() -> str:
         ["Closed", "Account becomes CLOSED after 6 months without payment activity."],
         ["Activity clock", "Inactivity is measured from the latest of start date, last payment date, and last reactivation date (CustomerAccount.reactivatedAt)."],
         ["Paid-off precision", "When a payment settles the remaining amount, the balance is set to exactly zero and the account becomes COMPLETED. Payment recording and lifecycle refresh treat floating-point residue up to 0.000000001 as zero; a backdated payment still uses its payment date for lifecycle timing."],
-        ["Closure refund", "When closing with paid amount and no prior closure credit, 32% service fee is deducted and remaining amount becomes an open credit."],
-        ["Reactivation", "An admin may reactivate a DORMANT, PROBATION or CLOSED account once 6 months of inactivity have passed. A 32% service fee is deducted from the paid amount, open closure-refund credits are voided, and reactivatedAt is stamped so the ladder restarts from that date instead of re-closing the account on the next sweep."],
+        ["Closure refund", "When closing with paid amount and no prior closure credit, the configured refund deduction is applied (32% when the saved setting is zero) and the remainder becomes an open credit."],
+        ["Reactivation", "An admin may reactivate a DORMANT, PROBATION or CLOSED account once 6 months of inactivity have passed. The configured refund deduction (32% when zero) is charged against the paid amount, open closure-refund credits are voided, and reactivatedAt is stamped so the ladder restarts from that date."],
         ["Overpayment credit", "Payment amount beyond remaining balance creates CustomerCredit linked to the payment/account."],
         ["Refund action", "Credits can be marked refunded by permitted payment/admin users."],
         ["Retraction window", "Account reactivation, payment deletion, staff deposit deletion, salary deletion, and credit refunds are retractable by an administrator for 3 hours. Each writes a ReversibleAction row inside the action's own transaction; the reverse handler refuses when the record changed after the action rather than overwriting newer work. Retraction writes an UNDO_<ACTION> audit entry."],
@@ -548,7 +548,7 @@ def build_body() -> str:
 
     body.append(section("10. Reports, Weekly Export, and Activity"))
     body.append(para("The reports page is organised as an anchor-navigated sequence of sections: Overview, Analytics, Staff Performance, Deposits, Salaries, and Products. Overview presents its figures in four labelled groups - Collections and Banking, Receivables and Exposure, Payroll, and Profitability - rather than one undifferentiated grid, and colours each figure by whether it is favourable, adverse, or worth watching. The wide ledger tables pin the staff or product column while the money columns scroll sideways."))
-    body.append(para("Reports combine customer/account/payment/staff/salary data into admin-facing summaries and an Excel workbook. The weekly export refreshes lifecycle statuses first, then builds sheets for executive summary, staff performance, accounts, weekly payment history, product profitability, procurement list, and weekly ledger."))
+    body.append(para("Reports combine customer/account/payment/staff/salary data into admin-facing summaries and an Excel workbook. A daily 09:00 CRON_SECRET-protected lifecycle job refreshes statuses, with post-response freshness guards during active use; the weekly export registers its guard before building sheets for executive summary, staff performance, accounts, weekly payment history, product profitability, procurement list, and weekly ledger."))
     body.append(code_block("""
     Report page
       |
@@ -558,7 +558,7 @@ def build_body() -> str:
       v
     Weekly export route
       |
-      +--> refreshAccountLifecycleStatuses()
+      +--> register post-response lifecycle freshness guard
       +--> query staff, customers, accounts, payments, salaries, products
       +--> getProcurementList()
       |
@@ -611,15 +611,16 @@ def build_body() -> str:
     ], [2300, 7060]))
 
     body.append(section("12. Settings Module"))
-    body.append(para("Settings is the broad admin control panel. It persists company profile, layaway defaults, fees, procurement threshold, payroll defaults, receipt/customer/staff code prefixes, security toggles, notification preferences, theme settings, and system status labels. Some settings are actively consumed; others are stored for future or partial wiring, so operators should distinguish saved configuration from behavior that is actually enforced downstream."))
+    body.append(para("Settings is the broad admin control panel. It persists company profile, layaway defaults, fees, procurement threshold, payroll defaults, receipt/customer/staff code prefixes, security toggles, notification preferences, theme settings, and system status labels. Effective rules are listed below; administration fee and commission percentages remain saved-only until their calculation bases are defined."))
     body.append(table([
         ["Settings group", "Examples", "Current use"],
         ["Company profile", "companyName, tradingName, tagline, phone, address, tax IDs", "Used for branding and records; visible in shell and settings."],
-        ["Layaway rules", "installmentDurationDays, defaultDailyCollection, minimumDeposit", "Used as product/account creation defaults where wired."],
+        ["Layaway rules", "installmentDurationDays, defaultDailyCollection, minimumDeposit, deliveryTimeAfterCompletionDays", "Minimum deposit is enforced on a plan's first payment; delivery setting controls the archive delay (two-day fallback when zero)."],
+        ["Refunds", "refundDeductionPercent", "Applied to closure refunds and dormant-account reactivation charges; zero retains the 32% fallback."],
         ["Procurement", "procurementThresholdPercent", "Default and effective procurement readiness floor is 70%."],
-        ["Payroll", "defaultMonthlySalary, commission fields, payrollDay", "Salary defaults and reporting support."],
+        ["Payroll", "defaultMonthlySalary, commission fields, payrollDay", "Salary defaults and reporting support. Commission settings are saved-only until the calculation base and payroll treatment are defined."],
         ["IDs and receipts", "receiptPrefix, customerIdPrefix, staffCodeLength", "Receipt generation and ID/code helper logic."],
-        ["Security", "passwordLength, sessionTimeoutMinutes, requirePasswordChange, twoFactorEnabled", "Some fields are stored; password-change enforcement is live through Auth.js/session logic."],
+        ["Security", "passwordLength, sessionTimeoutMinutes, requirePasswordChange, twoFactorEnabled", "Session timeout is checked against the current saved setting on authenticated requests; password-change and 2FA enforcement remain active."],
         ["Legal documents", "editable terms/cancellation/reactivation/receipt templates", "Terms are generated for new accounts and managed in Settings; lifecycle calculations are account-stage gated."],
         ["Notifications", "email/sms/WhatsApp toggles", "Controls the live one-channel customer queue. Provider credentials are required for delivery."],
         ["Appearance/status", "theme, colors, loadingAnimation, currentVersion, databaseStatus", "Stored and partly consumed in UI branding/status surfaces."],

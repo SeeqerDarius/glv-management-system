@@ -9,23 +9,28 @@ async function generateReceiptNo(
   const year = new Date().getFullYear().toString().slice(-2);
   const receiptPrefix = receiptPrefixValue.replace(/\/+$/, "");
   const prefix = `${receiptPrefix}/${year}/`;
-  const payments = await tx.payment.findMany({
+
+  // Use atomic counter to avoid race conditions
+  const counter = await tx.receiptCounter.upsert({
     where: {
-      receiptNo: {
-        startsWith: prefix,
+      prefix_year: {
+        prefix: receiptPrefix,
+        year,
       },
     },
-    select: {
-      receiptNo: true,
+    create: {
+      prefix: receiptPrefix,
+      year,
+      nextValue: 1,
+    },
+    update: {
+      nextValue: {
+        increment: 1,
+      },
     },
   });
 
-  const maxNumber = payments.reduce((max, payment) => {
-    const value = Number(payment.receiptNo.replace(prefix, ""));
-    return Number.isFinite(value) && value > max ? value : max;
-  }, 0);
-
-  return `${prefix}${String(maxNumber + 1).padStart(6, "0")}`;
+  return `${prefix}${String(counter.nextValue).padStart(6, "0")}`;
 }
 
 type PaymentAccount = {

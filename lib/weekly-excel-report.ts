@@ -4,7 +4,7 @@ import { countsAsSale, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
+  scheduleAccountLifecycleSweep,
 } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
@@ -139,7 +139,7 @@ function finishSheet(
 }
 
 export async function buildWeeklyReportWorkbook(now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  scheduleAccountLifecycleSweep();
 
   const { start, end } = getCurrentWeekRange(now);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);

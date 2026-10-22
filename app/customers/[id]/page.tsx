@@ -30,7 +30,7 @@ import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
+  scheduleAccountLifecycleSweep,
 } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -58,7 +58,7 @@ export default async function CustomerProfilePage({
     UserPermission.MANAGE_CUSTOMERS,
   );
 
-  await refreshAccountLifecycleStatuses();
+  scheduleAccountLifecycleSweep();
 
   const customer = await prisma.customer.findFirst({
     where: {

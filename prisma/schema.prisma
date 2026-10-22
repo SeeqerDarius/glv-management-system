@@ -512,6 +512,26 @@ model Setting {
   restoreBackupStatus             String?
 }
 
+/// Shared schedule and lease state for the hourly account lifecycle sweep.
+/// The lease prevents overlapping work across serverless instances.
+model LifecycleSweepState {
+  id              String   @id @default("account-lifecycle")
+  lastCompletedAt DateTime?
+  lockExpiresAt   DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+model ReceiptCounter {
+  id        String   @id @default(cuid())
+  prefix    String
+  year      String
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt
+
+  @@unique([prefix, year])
+  @@index([prefix, year])
+}
+
 enum UserRole {
   ADMIN
   STAFF

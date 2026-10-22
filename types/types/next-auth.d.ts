@@ -30,5 +30,7 @@ declare module "next-auth/jwt" {
     staffId?: string | null;
     mustChangePassword?: boolean;
     twoFactorEnabled?: boolean;
+    glvSessionStartedAt?: number;
+    glvSessionExpired?: boolean;
   }
 }

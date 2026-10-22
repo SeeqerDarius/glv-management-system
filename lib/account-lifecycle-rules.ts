@@ -11,8 +11,8 @@ const DORMANT_AFTER_DAYS = 21;
 const PROBATION_AFTER_MONTHS = 4;
 const CLOSE_AFTER_MONTHS = 6;
 export const ARCHIVE_AFTER_DELIVERY_DAYS = 2;
-const CLOSURE_SERVICE_FEE_RATE = 0.32;
-export const DORMANT_REACTIVATION_SERVICE_FEE_RATE = 0.32;
+export const DEFAULT_REFUND_DEDUCTION_RATE = 0.32;
+export const DORMANT_REACTIVATION_SERVICE_FEE_RATE = DEFAULT_REFUND_DEDUCTION_RATE;
 
 export function addDays(date: Date, days: number) {
   const result = new Date(date);
@@ -69,14 +69,20 @@ export function isDormantReactivationEligible(
   );
 }
 
-export function getDormantReactivationAmounts(totalPaid: number) {
-  const serviceFee = Math.max(totalPaid, 0) * DORMANT_REACTIVATION_SERVICE_FEE_RATE;
+export function getDormantReactivationAmounts(
+  totalPaid: number,
+  serviceFeeRate = DORMANT_REACTIVATION_SERVICE_FEE_RATE
+) {
+  const safeRate = Number.isFinite(serviceFeeRate)
+    ? Math.min(Math.max(serviceFeeRate, 0), 1)
+    : DORMANT_REACTIVATION_SERVICE_FEE_RATE;
+  const serviceFee = Math.max(totalPaid, 0) * safeRate;
   const nextTotalPaid = Math.max(totalPaid - serviceFee, 0);
 
   return {
     serviceFee,
     nextTotalPaid,
-    serviceFeeRate: DORMANT_REACTIVATION_SERVICE_FEE_RATE,
+    serviceFeeRate: safeRate,
   };
 }
 
@@ -219,13 +225,19 @@ export function getStatusAfterBalanceChange(
   return isFinishedStatus(status) ? AccountStatus.ACTIVE : status;
 }
 
-export function getClosureRefundAmounts(totalPaid: number) {
-  const serviceFee = totalPaid * CLOSURE_SERVICE_FEE_RATE;
+export function getClosureRefundAmounts(
+  totalPaid: number,
+  serviceFeeRate = DEFAULT_REFUND_DEDUCTION_RATE
+) {
+  const safeRate = Number.isFinite(serviceFeeRate)
+    ? Math.min(Math.max(serviceFeeRate, 0), 1)
+    : DEFAULT_REFUND_DEDUCTION_RATE;
+  const serviceFee = Math.max(totalPaid, 0) * safeRate;
   const refundAmount = Math.max(totalPaid - serviceFee, 0);
 
   return {
     refundAmount,
     serviceFee,
-    serviceFeeRate: CLOSURE_SERVICE_FEE_RATE,
+    serviceFeeRate: safeRate,
   };
 }

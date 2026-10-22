@@ -11,6 +11,7 @@ import {
 import { normalizeOwnerRole } from "@/lib/owner";
 import { touchUserPresence } from "@/lib/presence";
 import { verifyTotpCode } from "@/lib/totp";
+import { getSettings } from "@/lib/settings";
 import {
   InvalidTwoFactorError,
   TwoFactorRequiredError,
@@ -25,6 +26,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     ...authConfig.callbacks,
     async jwt(params) {
       const token = await authConfig.callbacks.jwt(params);
+      const mutableToken = token as typeof token & {
+        glvSessionStartedAt?: number;
+        glvSessionExpired?: boolean;
+      };
+
+      if (mutableToken.glvSessionExpired) {
+        return token;
+      }
+
+      if (params.user) {
+        mutableToken.glvSessionStartedAt = Math.floor(Date.now() / 1000);
+      } else if (mutableToken.glvSessionStartedAt) {
+        const settings = await getSettings();
+        const timeoutMinutes = Math.max(
+          5,
+          Number(settings.sessionTimeoutMinutes) || 60
+        );
+        if (
+          Date.now() - mutableToken.glvSessionStartedAt * 1000 >=
+          timeoutMinutes * 60_000
+        ) {
+          mutableToken.glvSessionExpired = true;
+          delete mutableToken.id;
+          delete mutableToken.role;
+          delete mutableToken.email;
+          delete mutableToken.permissions;
+          delete mutableToken.staffId;
+          return token;
+        }
+      }
+
       if (params.user?.email && params.user.role) {
         token.email = params.user.email;
         token.role = normalizeOwnerRole(params.user.email, params.user.role);

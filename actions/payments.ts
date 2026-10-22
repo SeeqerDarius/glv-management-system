@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyAdminDeleteConfirmation } from "@/lib/admin-delete";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
+import { minimumInitialDepositError } from "@/lib/business-rules";
 import { isFutureDate } from "@/lib/date-rules";
 import { createAccountDocument } from "@/lib/customer-documents";
 import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
@@ -211,6 +212,19 @@ export async function recordPayment(
     createdAt: Date;
   };
   const settings = await getSettings();
+  if (Number(account.totalPaid) <= 0) {
+    const minimum = minimumInitialDepositError(
+      settings.minimumDeposit,
+      amount
+    );
+    if (minimum !== null) {
+      return {
+        errors: {
+          amount: `The first payment must be at least ${formatMoney(minimum)}.`,
+        },
+      };
+    }
+  }
   const receiptPrefix = settings.receiptPrefix;
 
   try {

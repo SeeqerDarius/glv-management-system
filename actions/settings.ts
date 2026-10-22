@@ -123,7 +123,7 @@ function operationsSection(formData: FormData): SectionResult {
     data: {
       installmentDurationDays,
       defaultDailyCollection,
-      administrationFeePercent,
+      administrationFeePercent: 0,
       refundDeductionPercent,
       deliveryTimeAfterCompletionDays: Math.max(0, deliveryTimeAfterCompletionDays || 0),
       procurementThresholdPercent,
@@ -161,8 +161,8 @@ function payrollSection(formData: FormData): SectionResult {
   return {
     data: {
       defaultMonthlySalary,
-      commissionEnabled: enabled(formData, "commissionEnabled"),
-      commissionPercentage,
+      commissionEnabled: false,
+      commissionPercentage: 0,
       payrollDay,
     },
   };

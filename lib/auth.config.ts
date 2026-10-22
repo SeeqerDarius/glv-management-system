@@ -27,7 +27,7 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request }) {
       const { pathname } = request.nextUrl;
-      const isLoggedIn = Boolean(auth?.user);
+      const isLoggedIn = Boolean(auth?.user?.role);
       const mustChangePassword = auth?.user?.mustChangePassword === true;
 
       if (pathname === "/login" && isLoggedIn) {

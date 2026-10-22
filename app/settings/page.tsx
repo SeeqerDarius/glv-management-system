@@ -573,16 +573,19 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           >
             <Field label="Installment Duration (days)" name="installmentDurationDays" type="number" min={1} defaultValue={values.installmentDurationDays} required />
             <Field label="Default Daily Collection" name="defaultDailyCollection" type="number" min={0} step="0.01" defaultValue={values.defaultDailyCollection} />
-            <Field label="Minimum Deposit" name="minimumDeposit" type="number" min={0} step="0.01" defaultValue={values.minimumDeposit} />
+            <Field label="Minimum Deposit" name="minimumDeposit" type="number" min={0} step="0.01" defaultValue={values.minimumDeposit} hint="Enforced as the minimum amount for a plan’s first payment. Plans may still be created without recording a payment." />
             <Field label="Default Currency" name="defaultCurrency" defaultValue={values.defaultCurrency} hint="Currency code used on receipts and SMS amounts." />
           </FieldGroup>
 
           <FieldGroup
             title="Fees and deductions"
-            description="Percentages applied to administration charges and refunds."
+            description="Refund deductions are active. The administration fee percentage remains saved until its charge base is defined."
           >
-            <Field label="Administration Fee %" name="administrationFeePercent" type="number" min={0} max={100} step="0.01" defaultValue={values.administrationFeePercent} />
-            <Field label="Refund Deduction %" name="refundDeductionPercent" type="number" min={0} max={100} step="0.01" defaultValue={values.refundDeductionPercent} />
+            <input type="hidden" name="administrationFeePercent" value="0" />
+            <fieldset disabled className="opacity-60">
+              <Field label="Administration Fee %" name="administrationFeePercentDisabled" type="number" min={0} max={100} step="0.01" defaultValue={values.administrationFeePercent} hint="Disabled until GLV defines the fee amount and how it is recorded on an account." />
+            </fieldset>
+            <Field label="Refund Deduction %" name="refundDeductionPercent" type="number" min={0} max={100} step="0.01" defaultValue={values.refundDeductionPercent} hint="Applied to closure refunds and reactivation charges. Zero keeps the current 32% default." />
           </FieldGroup>
 
           <FieldGroup
@@ -599,7 +602,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
               defaultValue={values.procurementThresholdPercent}
               hint="Accounts at or above this paid percentage appear on the procurement list."
             />
-            <Field label="Delivery Time After Completion (days)" name="deliveryTimeAfterCompletionDays" type="number" min={0} defaultValue={values.deliveryTimeAfterCompletionDays} />
+            <Field label="Delivery Time After Completion (days)" name="deliveryTimeAfterCompletionDays" type="number" min={0} defaultValue={values.deliveryTimeAfterCompletionDays} hint="Effective archive delay after delivery. Zero keeps the current 2 day default." />
           </FieldGroup>
 
           <FieldGroup
@@ -640,13 +643,17 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           </FieldGroup>
 
           <FieldGroup title="Commission" columns={2}>
-            <ToggleField
-              label="Commission Enabled"
-              name="commissionEnabled"
-              defaultChecked={values.commissionEnabled}
-              description="Stores the company policy for future commission calculations."
-            />
-            <Field label="Commission Percentage" name="commissionPercentage" type="number" min={0} max={100} step="0.01" defaultValue={values.commissionPercentage} />
+            <input type="hidden" name="commissionEnabled" value="off" />
+            <input type="hidden" name="commissionPercentage" value="0" />
+            <fieldset disabled className="contents opacity-60">
+              <ToggleField
+                label="Commission Enabled"
+                name="commissionEnabledDisabled"
+                defaultChecked={values.commissionEnabled}
+                description="Disabled until its calculation basis and payroll treatment are defined."
+              />
+              <Field label="Commission Percentage" name="commissionPercentageDisabled" type="number" min={0} max={100} step="0.01" defaultValue={values.commissionPercentage} />
+            </fieldset>
           </FieldGroup>
         </SectionForm>
       ) : null}
@@ -720,7 +727,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         >
           <FieldGroup title="Passwords and sessions" columns={2}>
             <Field label="Password Length" name="passwordLength" type="number" min={6} defaultValue={values.passwordLength} hint="Minimum 6 characters." />
-            <Field label="Session Timeout (minutes)" name="sessionTimeoutMinutes" type="number" min={5} defaultValue={values.sessionTimeoutMinutes} hint="Minimum 5 minutes." />
+            <Field label="Session Timeout (minutes)" name="sessionTimeoutMinutes" type="number" min={5} defaultValue={values.sessionTimeoutMinutes} hint="Effective immediately for signed-in users. Minimum 5 minutes." />
           </FieldGroup>
 
           <FieldGroup title="Access controls" columns={2}>

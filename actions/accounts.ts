@@ -44,6 +44,10 @@ import {
   readIdempotencyKey,
 } from "@/lib/idempotency";
 import { getSettings } from "@/lib/settings";
+import {
+  effectiveRefundDeductionRate,
+  minimumInitialDepositError,
+} from "@/lib/business-rules";
 import { recordReversibleAction } from "@/lib/undo";
 import { formatMoney } from "@/lib/accounts";
 
@@ -136,6 +140,7 @@ export async function createAccount(
   const wantsFirstPayment = Boolean(
     firstPaymentAmountValue || firstPaymentDateValue
   );
+  const settings = await getSettings();
   const errors: AccountFormState["errors"] = {};
 
   if (!customerId) errors.customerId = "Please select a customer.";
@@ -146,6 +151,15 @@ export async function createAccount(
   }
   if (wantsFirstPayment && (!Number.isFinite(firstPaymentAmount) || firstPaymentAmount <= 0)) {
     errors.amount = "Payment amount must be greater than zero.";
+  }
+  if (wantsFirstPayment) {
+    const minimum = minimumInitialDepositError(
+      settings.minimumDeposit,
+      firstPaymentAmount
+    );
+    if (minimum !== null) {
+      errors.amount = `The first payment must be at least ${formatMoney(minimum)}.`;
+    }
   }
   if (wantsFirstPayment && !firstPaymentDate) {
     errors.paymentDate = "Please choose a valid payment date.";
@@ -230,9 +244,7 @@ export async function createAccount(
   }
 
   let accountId: string;
-  const receiptPrefix = wantsFirstPayment
-    ? (await getSettings()).receiptPrefix
-    : "";
+  const receiptPrefix = wantsFirstPayment ? settings.receiptPrefix : "";
 
   try {
     accountId = await prisma.$transaction(
@@ -986,8 +998,12 @@ export async function reactivateDormantAccount(formData: FormData): Promise<void
   }
 
   const reactivatedAt = new Date();
+  const settings = await getSettings();
   const { serviceFee, nextTotalPaid, serviceFeeRate } =
-    getDormantReactivationAmounts(account.totalPaid);
+    getDormantReactivationAmounts(
+      account.totalPaid,
+      effectiveRefundDeductionRate(settings.refundDeductionPercent)
+    );
   const nextBalance = Math.max(account.targetAmount - nextTotalPaid, 0);
   const nextStatus =
     nextBalance <= 0 ? AccountStatus.COMPLETED : AccountStatus.ACTIVE;

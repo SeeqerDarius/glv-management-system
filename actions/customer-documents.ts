@@ -13,6 +13,8 @@ import { createAccountDocument } from "@/lib/customer-documents";
 import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
 import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
+import { getSettings } from "@/lib/settings";
+import { effectiveRefundDeductionRate } from "@/lib/business-rules";
 
 function clean(value: FormDataEntryValue | null) {
   return String(value ?? "").trim();
@@ -41,6 +43,10 @@ export async function generateCustomerDocument(formData: FormData) {
   let templateKey: string;
   let type: string;
   let values: Record<string, string>;
+  const settings = await getSettings();
+  const refundDeductionRate = effectiveRefundDeductionRate(
+    settings.refundDeductionPercent
+  );
   if (kind === "CANCELLATION") {
     if (
       account.status !== AccountStatus.CLOSED &&
@@ -48,7 +54,7 @@ export async function generateCustomerDocument(formData: FormData) {
     ) {
       redirect(`/accounts/${accountId}?error=document-not-eligible`);
     }
-    const calculation = getClosureRefundAmounts(account.totalPaid);
+    const calculation = getClosureRefundAmounts(account.totalPaid, refundDeductionRate);
     templateKey = LEGAL_TEMPLATE_KEYS.CANCELLATION;
     type = "CANCELLATION_CALCULATION";
     values = {
@@ -62,7 +68,7 @@ export async function generateCustomerDocument(formData: FormData) {
     if (!isDormantReactivationEligible(account)) {
       redirect(`/accounts/${accountId}?error=document-not-eligible`);
     }
-    const calculation = getDormantReactivationAmounts(account.totalPaid);
+    const calculation = getDormantReactivationAmounts(account.totalPaid, refundDeductionRate);
     templateKey = LEGAL_TEMPLATE_KEYS.REACTIVATION;
     type = "REACTIVATION_CALCULATION";
     values = {

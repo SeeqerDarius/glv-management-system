@@ -45,13 +45,14 @@ import {
   getDormantReactivationCutoffDate,
   isDormantReactivationEligible,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
+  scheduleAccountLifecycleSweep,
 } from "@/lib/account-lifecycle";
 import { todayDateInputValue } from "@/lib/date-rules";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { getSettings } from "@/lib/settings";
+import { effectiveRefundDeductionRate } from "@/lib/business-rules";
 
 type AccountDetailsPageProps = {
   params: Promise<{
@@ -96,7 +97,7 @@ export default async function AccountDetailsPage({
   const settings = await getSettings();
   const paymentEditWindowHours = Number(settings.paymentEditWindowHours ?? 3);
 
-  await refreshAccountLifecycleStatuses();
+  scheduleAccountLifecycleSweep();
 
   const account = await prisma.customerAccount.findFirst({
     where: {
@@ -198,7 +199,13 @@ export default async function AccountDetailsPage({
     ? await listUndoableActions({ entity: "CustomerAccount", entityId: account.id })
     : [];
   const reactivationCutoffDate = getDormantReactivationCutoffDate(account);
-  const reactivationAmounts = getDormantReactivationAmounts(account.totalPaid);
+  const reactivationRate = effectiveRefundDeductionRate(
+    settings.refundDeductionPercent
+  );
+  const reactivationAmounts = getDormantReactivationAmounts(
+    account.totalPaid,
+    reactivationRate
+  );
   const reactivationBalance = Math.max(
     account.targetAmount - reactivationAmounts.nextTotalPaid,
     0
@@ -401,7 +408,7 @@ export default async function AccountDetailsPage({
               {isDelivered
                 ? isArchived
                   ? "The plan is finished and archived."
-                  : "The plan archives automatically two days after delivery."
+                  : `The plan archives automatically ${Number(settings.deliveryTimeAfterCompletionDays) > 0 ? `${settings.deliveryTimeAfterCompletionDays} days` : "2 days"} after delivery.`
                 : "Mark the product as delivered after the customer receives it."}
             </p>
             {!isDelivered && isAdmin ? (
@@ -498,7 +505,7 @@ export default async function AccountDetailsPage({
               Reactivate this dormant account with the six-month service fee.
             </p>
             <p className="mt-1 text-amber-900">
-              Eligible from {formatDate(reactivationCutoffDate)}. A 32% service
+              Eligible from {formatDate(reactivationCutoffDate)}. A {Math.round(reactivationRate * 100)}% service
               fee ({formatMoney(reactivationAmounts.serviceFee)}) will be
               deducted from the old paid balance, leaving{" "}
               {formatMoney(reactivationAmounts.nextTotalPaid)} paid and{" "}

@@ -5,11 +5,16 @@ import {
   DeliveryStatus,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { after } from "next/server";
 import { createAccountDocument } from "@/lib/customer-documents";
 import { LEGAL_TEMPLATE_KEYS } from "@/lib/legal-templates";
 import { formatMoney } from "@/lib/accounts";
+import { getSettings } from "@/lib/settings";
 import {
-  ARCHIVE_AFTER_DELIVERY_DAYS,
+  effectiveDeliveryAfterCompletionDays,
+  effectiveRefundDeductionRate,
+} from "@/lib/business-rules";
+import {
   addDays,
   getAccountActivityDate,
   getArchiveRepairStatus,
@@ -103,9 +108,16 @@ async function restoreMisfiledArchivedAccounts() {
 }
 
 export async function refreshAccountLifecycleStatuses(now = new Date()) {
+  const settings = await getSettings();
+  const archiveAfterDays = effectiveDeliveryAfterCompletionDays(
+    settings.deliveryTimeAfterCompletionDays
+  );
+  const refundDeductionRate = effectiveRefundDeductionRate(
+    settings.refundDeductionPercent
+  );
   await restoreMisfiledArchivedAccounts();
 
-  const archiveCutoff = addDays(now, -ARCHIVE_AFTER_DELIVERY_DAYS);
+  const archiveCutoff = addDays(now, -archiveAfterDays);
   const deliveredCompletedAccounts = await prisma.customerAccount.findMany({
     where: {
       status: AccountStatus.COMPLETED,
@@ -158,7 +170,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
           }),
           newValue: JSON.stringify({
             status: AccountStatus.ARCHIVED,
-            archivedAfterDeliveryDays: ARCHIVE_AFTER_DELIVERY_DAYS,
+            archivedAfterDeliveryDays: archiveAfterDays,
             customerId: account.customerId,
             productId: account.productId,
           }),
@@ -241,7 +253,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
         account.credits.length === 0
       ) {
         const { refundAmount, serviceFee, serviceFeeRate } =
-          getClosureRefundAmounts(account.totalPaid);
+          getClosureRefundAmounts(account.totalPaid, refundDeductionRate);
 
         if (refundAmount > 0) {
           const credit = await tx.customerCredit.create({
@@ -292,7 +304,7 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
       account.deliveryStatus !== DeliveryStatus.DELIVERED
     ) {
       const { refundAmount, serviceFee, serviceFeeRate } =
-        getClosureRefundAmounts(account.totalPaid);
+        getClosureRefundAmounts(account.totalPaid, refundDeductionRate);
       await createAccountDocument({
         accountId: account.id,
         templateKey: LEGAL_TEMPLATE_KEYS.CANCELLATION,
@@ -311,4 +323,84 @@ export async function refreshAccountLifecycleStatuses(now = new Date()) {
       );
     }
   }
+}
+
+const LIFECYCLE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+const LIFECYCLE_SWEEP_LOCK_MS = 10 * 60 * 1000;
+
+/**
+ * Run at most once per hour across all server instances. A short lease prevents
+ * overlapping cron invocations and is reclaimed automatically after failure.
+ */
+export async function runAccountLifecycleSweepIfDue(now = new Date()) {
+  const id = "account-lifecycle";
+  const lockExpiresAt = new Date(now.getTime() + LIFECYCLE_SWEEP_LOCK_MS);
+  const dueBefore = new Date(now.getTime() - LIFECYCLE_SWEEP_INTERVAL_MS);
+
+  await prisma.lifecycleSweepState.upsert({
+    where: { id },
+    create: { id },
+    update: {},
+  });
+
+  const claim = await prisma.lifecycleSweepState.updateMany({
+    where: {
+      id,
+      AND: [
+        { OR: [{ lockExpiresAt: null }, { lockExpiresAt: { lte: now } }] },
+        {
+          OR: [
+            { lastCompletedAt: null },
+            { lastCompletedAt: { lte: dueBefore } },
+          ],
+        },
+      ],
+    },
+    data: { lockExpiresAt },
+  });
+
+  if (claim.count === 0) {
+    return { ran: false };
+  }
+
+  try {
+    await refreshAccountLifecycleStatuses(now);
+    await prisma.lifecycleSweepState.updateMany({
+      where: { id, lockExpiresAt },
+      data: { lastCompletedAt: new Date(), lockExpiresAt: null },
+    });
+    return { ran: true };
+  } catch (error) {
+    await prisma.lifecycleSweepState.updateMany({
+      where: { id, lockExpiresAt },
+      data: { lockExpiresAt: null },
+    });
+    throw error;
+  }
+}
+
+/**
+ * Cheap request-path guard: only read the completion timestamp, then schedule
+ * any overdue bulk work after the current response has been sent.
+ */
+export function scheduleAccountLifecycleSweep() {
+  after(async () => {
+    try {
+      const state = await prisma.lifecycleSweepState.findUnique({
+        where: { id: "account-lifecycle" },
+        select: { lastCompletedAt: true },
+      });
+      const now = new Date();
+      if (
+        state?.lastCompletedAt &&
+        now.getTime() - state.lastCompletedAt.getTime() <
+          LIFECYCLE_SWEEP_INTERVAL_MS
+      ) {
+        return;
+      }
+      await runAccountLifecycleSweepIfDue(now);
+    } catch (error) {
+      console.error("Account lifecycle sweep failed.", error);
+    }
+  });
 }

@@ -9,7 +9,7 @@ import { countsAsSale, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
+  scheduleAccountLifecycleSweep,
 } from "@/lib/account-lifecycle";
 import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
@@ -102,7 +102,7 @@ function expectedCollectionForRange(
 }
 
 export async function getAdminReportSummary() {
-  await refreshAccountLifecycleStatuses();
+  scheduleAccountLifecycleSweep();
 
   const month = getCurrentMonthRange();
   const salaryDueMonth = previousSalaryMonthStart();
@@ -471,7 +471,7 @@ export async function getStaffDashboardTrend(staffId: string, now = new Date()) 
 }
 
 export async function getWeeklyStaffPerformanceReport(now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  scheduleAccountLifecycleSweep();
 
   const { start, end } = getCurrentWeekRange(now);
   const month = getCurrentMonthRange(now);
@@ -765,7 +765,7 @@ export async function getWeeklyStaffPerformanceReport(now = new Date()) {
 }
 
 export async function getStaffDashboardSummary(staffId: string, now = new Date()) {
-  await refreshAccountLifecycleStatuses(now);
+  scheduleAccountLifecycleSweep();
 
   const week = getCurrentWeekRange(now);
   const dayStart = new Date(now);
@@ -942,7 +942,7 @@ export async function getActivityReport({
   includeFinancialValues?: boolean;
   now?: Date;
 }) {
-  await refreshAccountLifecycleStatuses(now);
+  scheduleAccountLifecycleSweep();
 
   const week = getCurrentWeekRange(now);
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

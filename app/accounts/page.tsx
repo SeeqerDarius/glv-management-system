@@ -20,7 +20,7 @@ import { formatMoney, getEffectiveAccountStatus } from "@/lib/accounts";
 import {
   isAwaitingDelivery,
   isFinishedStatus,
-  refreshAccountLifecycleStatuses,
+  scheduleAccountLifecycleSweep,
 } from "@/lib/account-lifecycle";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -230,7 +230,7 @@ export default async function AccountsPage({ searchParams }: AccountsPageProps) 
   // Fetches accounts (paginated), total count, staff list (admin only), and products
   // ==========================================================================
   try {
-    await refreshAccountLifecycleStatuses();
+    scheduleAccountLifecycleSweep();
 
     if (isProcurementFilter) {
       const procurement = await getProcurementAccounts(selectedProductId || undefined);

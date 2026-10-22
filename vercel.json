@@ -7,6 +7,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/account-lifecycle",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/daily-database-backup",
       "schedule": "0 2 * * *"
     }

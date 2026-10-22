@@ -9,7 +9,7 @@ import {
   ProfileChangeStatus,
 } from "@prisma/client";
 import { auth } from "@/lib/auth";
-import { refreshAccountLifecycleStatuses } from "@/lib/account-lifecycle";
+import { scheduleAccountLifecycleSweep } from "@/lib/account-lifecycle";
 import { getProcurementList } from "@/lib/procurement";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, isSuperAdminRole } from "@/lib/roles";
@@ -82,7 +82,7 @@ export async function GET() {
       : {};
     const todayStart = startOfToday();
 
-    await refreshAccountLifecycleStatuses();
+    scheduleAccountLifecycleSweep();
 
     const [
       accountAttentionCount,
