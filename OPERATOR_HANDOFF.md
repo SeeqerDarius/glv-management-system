@@ -337,11 +337,13 @@ claim it has changed records.
 
 ## Migration Status
 
-**Pending deployment** - the following migration has been created but not yet applied to production:
+The following migrations are applied to production:
 
 || Migration | Status | Effect |
 || --- | --- | --- |
-|| `20261022100000_add_receipt_counter` | Created, not deployed | `ReceiptCounter` table for atomic receipt number generation, fixing race condition where concurrent payments could generate duplicate receipt numbers. |
+|| `20261022100000_add_receipt_counter` | Applied 2026-10-22 | `ReceiptCounter` table for atomic receipt number generation, fixing race condition where concurrent payments could generate duplicate receipt numbers. |
+|| `20261022110000_lifecycle_sweep_state` | Applied 2026-10-22 | Shared lifecycle sweep lease and last-completed timestamp. |
+|| `20261022120000_receipt_counter_seed_prefixes` | Applied 2026-10-22 | Seeds counters for existing receipt numbers whose configured prefix contains slash-separated segments, such as `GLV/RCPT`. |
 
 All previous migrations are applied to the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 
@@ -359,8 +361,9 @@ The `ReceiptCounter` table stores one row per (prefix, year) combination with a
 `increment: 1` to claim the next receipt number, eliminating the race condition
 where concurrent payments scanned the same max value and tried to create
 duplicate receipt numbers. The migration seeds counters from existing payment
-data by extracting the prefix and year from the highest receipt number for each
-combination.
+data by extracting the full configurable prefix (including slash-separated
+segments) and year from the highest receipt number for each combination. The
+follow-up seed migration reconciles all existing receipts against those counters.
 
 ### What the inventory migration did to live data
 
@@ -428,7 +431,7 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   - ~~**Receipt numbers.** `generateReceiptNo` scans every receipt with the prefix
     and takes max + 1, so two payments recorded at the same moment compute the
     same number and the second fails on the unique constraint ("Unable to
-    record payment"). Use a counter row or database sequence.~~ **DONE (2026-10-22)** - Implemented `ReceiptCounter` table with atomic upsert increment. Migration `20261022100000_add_receipt_counter` created, pending deployment.
+    record payment"). Use a counter row or database sequence.~~ **DONE (2026-10-22)** - Implemented `ReceiptCounter` table with atomic upsert increment and seeded its starting value from existing receipts. Migrations `20261022100000_add_receipt_counter` and `20261022120000_receipt_counter_seed_prefixes` applied.
   - **Delivery lead time.** There is no "paid off on" date, so nobody can see
     how long a customer has waited for delivery. Add `completedAt`, show the
     wait on the Awaiting delivery list, and (with
