@@ -91,6 +91,9 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   assigned operational metrics. Main KPI cards use four columns from the `lg`
   breakpoint so the compact four-card desktop layout remains available at
   moderate browser zoom levels.
+- `/reports`: admin-only financial and salary reporting. Summary metric groups
+  also use four columns from the `lg` breakpoint to preserve the compact card
+  layout at moderate browser zoom levels.
 - `/customers`: customer list, filters, staff assignment, customer detail.
 - `/accounts`: customer product accounts, lifecycle status, delivery status,
   payment entry points, product/price correction for admins. Admins can also

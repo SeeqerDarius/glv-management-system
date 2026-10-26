@@ -387,7 +387,7 @@ def build_body() -> str:
         ["Staff", "/staff, /staff/new, /staff/[id], /staff/[id]/edit", "Staff records, permissions, assigned work, salary tracking, deactivation, deletion, and password resets."],
         ["Staff Applications", "/staff/applications", "Admin review queue for signup requests."],
         ["Credits & Refunds", "/credits", "Open credits from overpayments or closures and refund tracking."],
-        ["Reports", "/reports, /api/reports/weekly-export", "Admin reports, salary tracking, and Excel workbook export including procurement list."],
+        ["Reports", "/reports, /api/reports/weekly-export", "Admin reports, salary tracking, and Excel workbook export including procurement list. Report metric groups use a four-column desktop layout from the large breakpoint."],
         ["Audit Logs", "/audit-logs", "Read-only trail of important system actions."],
         ["Settings", "/settings?tab=..., /settings/legal, /settings/sms", "Super Admin control panel organised as tabs (Company, Business Rules, Payroll, Notifications, Security, Appearance, Product Categories, Data and System). Each tab saves only its own fields."],
         ["Notifications", "/api/notifications", "Attention counts for modules such as procurement, overdue/suspended accounts (overdue computed from the expected end date) and paid-off accounts awaiting delivery; sidebar clears opened notifications locally."],

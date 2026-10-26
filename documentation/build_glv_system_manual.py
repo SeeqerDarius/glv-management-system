@@ -103,7 +103,7 @@ SECTIONS = [
      "Allows authorised administrators to maintain staff details and operational privileges.",
      "Use it to adjust responsibilities carefully; permission changes affect which modules and actions the staff member can access."),
     ("Financial Intelligence and Reports", "10-reports.png",
-     "Combines business performance, weekly staff collections, physical deposits, shortage or surplus, payroll, product profitability, and Excel export. The page opens with a section menu and groups the headline figures under Collections and Banking, Receivables and Exposure, Payroll, and Profitability.",
+     "Combines business performance, weekly staff collections, physical deposits, shortage or surplus, payroll, product profitability, and Excel export. The page opens with a section menu and groups the headline figures under Collections and Banking, Receivables and Exposure, Payroll, and Profitability in a compact four-column desktop layout from the large breakpoint.",
      "Use it for weekly control meetings, staff accountability, salary tracking, reconciliation, and management reporting. Jump straight to a section from the menu under the page title, and read each group together rather than card by card."),
     ("Audit Logs", "11-audit-logs.png",
      "Records important system actions with user, entity, action, and timing information.",

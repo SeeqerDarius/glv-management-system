@@ -80,7 +80,7 @@ export function MetricGroup({
         <h3 className="text-sm font-semibold text-gray-950">{title}</h3>
         <p className="text-xs text-gray-600">{description}</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
     </div>
   );
 }
