@@ -28,7 +28,7 @@ RED = RGBColor(153, 27, 27)
 
 SECTIONS = [
     ("Business Dashboard", "01-dashboard.png",
-     "Provides an executive view of customers, staff, accounts, collections, deposits, receivables, product exposure, payroll, refunds, and projected profitability. Compact administrator KPI cards precede curved weekly lines comparing customer collections with staff deposits and a keyed donut showing account status shares. Staff see scoped KPI indicators and their own deposit trend.",
+     "Provides an executive view of customers, staff, accounts, collections, deposits, receivables, product exposure, payroll, refunds, and projected profitability. Administrator KPI cards use a compact four-column desktop layout, followed by curved weekly lines comparing customer collections with staff deposits and a keyed donut showing account status shares. Staff see scoped KPI indicators and their own deposit trend.",
      "Use it as the daily starting point for assessing business position and identifying areas that need attention. Read the chart keys to distinguish customer payments from staff deposits: deposit timing can differ and deposits are not new revenue. Administrator KPI cards show current values; use the trend charts for period comparisons. Staff indicators compare dated values where reliable historical records exist."),
     ("Activity Monitoring", "02-activity.png",
      "Summarises recent customer, account, and payment activity. Administrators can compare weekly daily collection trends using a separate curved line for each staff member, with a legend identifying each line.",

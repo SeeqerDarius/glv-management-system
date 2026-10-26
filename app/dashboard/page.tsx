@@ -156,7 +156,7 @@ export default async function DashboardPage() {
 
       {report ? (
         <div className="space-y-6">
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {trend ? (
               <GaugeMetricCard
                 label="Total Customers"
@@ -331,7 +331,7 @@ export default async function DashboardPage() {
               <h2 className="text-lg font-semibold text-gray-950">Gain / Loss Summary</h2>
               <p className="text-sm text-gray-600">Current cash position after procurement due now and payroll, plus projected profitability.</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <MetricCard mode={dashboardCards} label="Total Product Exposure" value={formatMoney(report.totalProductCost)} icon={WalletCardsIcon} accent="#d18b35" />
               <MetricCard mode={dashboardCards} label="Procurement Due Now" value={formatMoney(report.procurementEstimatedCost)} icon={WalletCardsIcon} accent="#317f9d" />
               <MetricCard mode={dashboardCards} label="Cash After Procurement" value={formatMoney(report.procurementCashBuffer)} icon={BadgeDollarSignIcon} accent={report.procurementCashBuffer < 0 ? "#c93636" : "#3b8d62"} />
@@ -353,7 +353,7 @@ export default async function DashboardPage() {
         <DatabaseUnavailable retryHref="/dashboard" />
       ) : staffReport ? (
         <div className="space-y-6">
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {staffTrend ? (
               <GaugeMetricCard
                 label="My Customers"

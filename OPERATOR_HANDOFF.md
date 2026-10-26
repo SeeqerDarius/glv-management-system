@@ -88,7 +88,9 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 ## Current System Shape
 
 - `/dashboard`: role-shaped dashboard; admins see business metrics, staff see
-  assigned operational metrics.
+  assigned operational metrics. Main KPI cards use four columns from the `lg`
+  breakpoint so the compact four-card desktop layout remains available at
+  moderate browser zoom levels.
 - `/customers`: customer list, filters, staff assignment, customer detail.
 - `/accounts`: customer product accounts, lifecycle status, delivery status,
   payment entry points, product/price correction for admins. Admins can also
