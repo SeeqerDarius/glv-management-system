@@ -188,6 +188,126 @@ export async function queueWeeklyCustomerSummarySms(tx: Client, staffId: string,
   return { queued };
 }
 
+/** Queue one Monday performance update for each staff member who deposited last week. */
+export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date()) {
+  if (now.getDay() !== 1) return { queued: 0 };
+  const settings = await tx.setting.findFirst();
+  if (!settings?.smsNotificationsEnabled) return { queued: 0 };
+
+  const { start: newWeekStart, end: newWeekEnd } = weekRange(now);
+  const previousWeekStart = new Date(newWeekStart);
+  previousWeekStart.setDate(previousWeekStart.getDate() - 7);
+  const previousWeekEnd = new Date(newWeekStart.getTime() - 1);
+  const staff = await tx.staff.findMany({ where: { active: true }, orderBy: { fullName: "asc" } });
+  if (!staff.length) return { queued: 0 };
+
+  const deposits = await tx.staffDeposit.findMany({
+    where: { depositDate: { gte: previousWeekStart, lt: newWeekStart }, staffId: { in: staff.map((member) => member.id) } },
+    select: { staffId: true, amount: true },
+  });
+  const staffWithDeposits = new Set<string>();
+  for (const deposit of deposits) {
+    staffWithDeposits.add(deposit.staffId);
+  }
+  const eligibleStaff = staff.filter((member) => staffWithDeposits.has(member.id));
+  if (!eligibleStaff.length) return { queued: 0 };
+
+  const payments = await tx.payment.findMany({
+    where: {
+      paymentDate: { gte: previousWeekStart, lt: newWeekStart },
+      account: { customer: { staffId: { in: staff.map((member) => member.id) } } },
+    },
+    select: { amount: true, account: { select: { customer: { select: { staffId: true } } } } },
+  });
+  const collectionsByStaff = new Map<string, number>();
+  for (const payment of payments) {
+    const staffId = payment.account.customer.staffId;
+    if (staffId) collectionsByStaff.set(staffId, (collectionsByStaff.get(staffId) ?? 0) + payment.amount);
+  }
+
+  const accounts = await tx.customerAccount.findMany({
+    where: {
+      status: "ACTIVE",
+      balance: { gt: 0 },
+      startDate: { lte: newWeekEnd },
+      expectedEndDate: { gte: previousWeekStart },
+      customer: { staffId: { in: staff.map((member) => member.id) } },
+    },
+    select: {
+      status: true,
+      startDate: true,
+      expectedEndDate: true,
+      balance: true,
+      dailyAmount: true,
+      customer: { select: { staffId: true } },
+    },
+  });
+  const previousWeekTargets = new Map<string, number>();
+  const newWeekTargets = new Map<string, number>();
+  for (const account of accounts) {
+    const staffId = account.customer.staffId;
+    if (staffId) {
+      if (account.startDate <= previousWeekStart && account.expectedEndDate >= previousWeekStart) {
+        previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + account.dailyAmount * 7);
+      }
+      if (account.startDate <= newWeekStart && account.expectedEndDate >= newWeekStart) {
+        newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + account.dailyAmount * 7);
+      }
+    }
+  }
+
+  const rankedStaff = eligibleStaff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
+
+  let queued = 0;
+  const weekKey = previousWeekStart.toISOString().slice(0, 10);
+  for (const member of eligibleStaff) {
+    const recipient = normalizeSmsPhone(member.phone);
+    if (!recipient) continue;
+    const target = previousWeekTargets.get(member.id) ?? 0;
+    const collected = collectionsByStaff.get(member.id) ?? 0;
+    const collectionCents = Math.round(collected * 100);
+    const targetCents = Math.round(target * 100);
+    const achievement = targetCents > 0 ? collectionCents / targetCents : null;
+    const rank = achievement !== null
+      ? 1 + rankedStaff.filter((other) => {
+        if (other.id === member.id) return false;
+        const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
+        const otherCollectionCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
+        return otherTargetCents > 0 &&
+          otherCollectionCents * targetCents > collectionCents * otherTargetCents;
+      }).length
+      : null;
+    const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
+      staffName: smsFirstName(member.fullName),
+      previousWeekCollection: money(collected, settings.defaultCurrency),
+      targetAchievement: achievement !== null
+        ? `${(achievement * 100).toFixed(2)}%`
+        : "N/A",
+      rank: rank === null ? "N/A" : String(rank),
+      rankedStaffCount: String(rankedStaff.length),
+      newWeekTarget: money(newWeekTargets.get(member.id) ?? 0, settings.defaultCurrency),
+      previousWeekStart: weekKey,
+      previousWeekEnd: previousWeekEnd.toISOString().slice(0, 10),
+      newWeekStart: newWeekStart.toISOString().slice(0, 10),
+      newWeekEnd: newWeekEnd.toISOString().slice(0, 10),
+    });
+    const dedupeKey = `WEEKLY_STAFF_PERFORMANCE:${member.id}:${weekKey}`;
+    const result = await queue(tx, {
+      type: "WEEKLY_STAFF_PERFORMANCE",
+      sourceId: member.id,
+      dedupeKey,
+      recipient: member.phone,
+      body,
+    });
+    queued += result.count;
+    await tx.smsNotification.updateMany({
+      where: { dedupeKey, status: "PENDING" },
+      data: { recipient, body, lastError: null },
+    });
+  }
+  return { queued };
+}
+
 async function currentRecipient(message: { type: string; sourceId: string; dedupeKey: string }) {
   if (message.type === "SALARY") {
     const payment = await prisma.staffSalaryPayment.findUnique({ where: { id: message.sourceId }, include: { staff: true } });
@@ -197,6 +317,10 @@ async function currentRecipient(message: { type: string; sourceId: string; dedup
     const staffId = message.dedupeKey.split(":")[1];
     const customer = await prisma.customer.findUnique({ where: { id: message.sourceId }, select: { phone: true, staffId: true } });
     return customer && customer.staffId === staffId ? { phone: customer.phone } : null;
+  }
+  if (message.type === "WEEKLY_STAFF_PERFORMANCE") {
+    const staff = await prisma.staff.findUnique({ where: { id: message.sourceId }, select: { phone: true, active: true } });
+    return staff?.active ? { phone: staff.phone } : null;
   }
   const account = await prisma.customerAccount.findUnique({ where: { id: message.sourceId }, include: accountInclude });
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return null;

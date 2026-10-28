@@ -34,6 +34,21 @@ test("weekly summary templates identify the customer total, target and week", ()
   // The shortfall figure only belongs in the below-target wording.
   assert.throws(() => validateSmsTemplate("weeklySummary", "Short by {{shortfallAmount}}"), /not available/);
 });
+test("weekly staff performance template reports collection achievement rank and new-week target", () => {
+  const message = renderSmsTemplate("weeklyStaffPerformance", null, {
+    staffName: "Ama", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2",
+    rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00",
+    previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25",
+    newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01",
+  });
+  assert.match(message, /collected GHS 1,250\.00, reaching 83\.33% of target/);
+  assert.match(message, /ranked 2 of 8 staff/);
+  assert.match(message, /target for this week is GHS 1,500\.00/);
+  assert.throws(
+    () => validateSmsTemplate("weeklyStaffPerformance", "Hello {{expectedAmount}}"),
+    /not available/
+  );
+});
 test("missed-payment template supports the assigned staff first name", () => {
   assert.equal(
     renderSmsTemplate("missedWeek", "Hello {{customerName}}, contact {{staffName}}.", { customerName: "Kwame", staffName: "Ama" }),

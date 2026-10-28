@@ -1,4 +1,4 @@
-export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek", "weeklySummary", "weeklySummaryShort"] as const;
+export const SMS_TEMPLATE_KEYS = ["salary", "welcome", "progress70", "missedWeek", "weeklySummary", "weeklySummaryShort", "weeklyStaffPerformance"] as const;
 export type SmsTemplateKey = (typeof SMS_TEMPLATE_KEYS)[number];
 
 export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
@@ -49,6 +49,13 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
     defaultTemplate: "Rock Frost Group: Hello {{customerName}}, you paid {{weeklyAmount}} from {{weekStart}} to {{weekEnd}}. Your weekly target is {{expectedAmount}}, so {{shortfallAmount}} is still short. Please contact {{staffName}} to catch up and protect your plan.",
     placeholders: ["customerName", "weeklyAmount", "expectedAmount", "shortfallAmount", "weekStart", "weekEnd", "staffName"],
     previewValues: { customerName: "Kwame", weeklyAmount: "GHS 90.00", expectedAmount: "GHS 175.00", shortfallAmount: "GHS 85.00", weekStart: "2026-09-07", weekEnd: "2026-09-13", staffName: "Ama" },
+  },
+  weeklyStaffPerformance: {
+    label: "Weekly staff performance",
+    description: "Sent on Monday after the staff member's deposit for the previous week is recorded. Rank is based on the percentage of the collection target achieved.",
+    defaultTemplate: "GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
+    placeholders: ["staffName", "previousWeekCollection", "targetAchievement", "rank", "rankedStaffCount", "newWeekTarget", "previousWeekStart", "previousWeekEnd", "newWeekStart", "newWeekEnd"],
+    previewValues: { staffName: "Ama", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2", rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00", previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25", newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01" },
   },
 };
 

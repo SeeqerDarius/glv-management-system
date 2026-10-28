@@ -349,6 +349,7 @@ The following migrations are applied to production:
 || `20261022100000_add_receipt_counter` | Applied 2026-10-22 | `ReceiptCounter` table for atomic receipt number generation, fixing race condition where concurrent payments could generate duplicate receipt numbers. |
 || `20261022110000_lifecycle_sweep_state` | Applied 2026-10-22 | Shared lifecycle sweep lease and last-completed timestamp. |
 || `20261022120000_receipt_counter_seed_prefixes` | Applied 2026-10-22 | Seeds counters for existing receipt numbers whose configured prefix contains slash-separated segments, such as `GLV/RCPT`. |
+|| `20261028120000_weekly_staff_performance_sms` | Applied 2026-10-28 | Adds the editable weekly staff performance SMS template to `Setting`; the checksum was recorded and verified after applying the additive SQL through Supabase. |
 
 All previous migrations are applied to the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 
@@ -494,6 +495,16 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   refreshes the amount and the wording only while the summary remains PENDING.
   Customers who paid nothing that week receive no summary, and no customer receives
   another staff member's totals.
+- Weekly staff performance: on Monday, after a prior-week staff deposit is recorded,
+  the protected SMS cron and deposit action queue one personalized summary for every
+  active staff member who has a prior-week deposit. Performance rank compares each
+  member's Monday-through-Sunday customer collections with their expected weekly
+  target; the highest percentage achieved ranks first and ties share a rank. The
+  new-week target sums each assigned ACTIVE plan's daily amount times
+  seven; only unpaid plans active at the start of Monday qualify. The target is a
+  full seven-day target and can differ from the week-prorated target shown in Staff
+  Performance when plans start or end midweek. Dedupe is by staff and week. A missing
+  or unusable staff phone prevents queueing.
 - The weekly summary has **two wordings** and GLV picks one per customer. The
   expected weekly amount is the daily amount of every plan that customer is still
   collecting on (ACTIVE, OVERDUE or PROBATION with a balance), multiplied by seven.
@@ -516,7 +527,7 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   of five. Qualifying mutations and authenticated notification polling also drain
   pending messages. Monitor backlog; larger deployments need a more frequent scheduler.
 - Super administrators open `/settings/sms` from Settings to configure the master
-  SMS enable switch, verify the BMS API/sender status, review all five automatic
+  SMS enable switch, verify the BMS API/sender status, review all seven automatic
   notification rules, inspect the latest 100 messages, and retry FAILED entries
   after fixing their cause. ACCEPTED means
   provider acceptance, not handset delivery; check BMS campaign history with its ID.
@@ -532,18 +543,19 @@ Support to answer. Without it the chat returns the "not configured yet" message.
 - Verification: `npx tsx --test scripts/*.test.ts`, `npx tsc --noEmit`, `npm run lint`,
   `npm run build`. Run `npm run db:deploy` separately before releasing schema changes.
   Production migration, authenticated UI and real SMS delivery remain separate gates.
-- Super administrators can edit six templates on Settings > SMS: Salary payment,
+- Super administrators can edit seven templates on Settings > SMS: Salary payment,
   Customer welcome, 70% progress, Missed payment, Weekly summary - target met, and
-  Weekly summary - below target. The below-target message is stored in
+  Weekly summary - below target, and Weekly staff performance. The below-target message is stored in
   `Setting.smsWeeklySummaryShortTemplate` (migration
   `20260917090000_sms_weekly_summary_short_template`) and is the only template that
-  offers `{{shortfallAmount}}`; both weekly templates offer `{{expectedAmount}}`. Each editor lists only the
+  offers `{{shortfallAmount}}`; the two customer weekly templates offer `{{expectedAmount}}`. Each editor lists only the
   placeholders valid for that message and shows a sample preview. Templates cannot
   be empty, exceed 612 characters, or contain an unavailable/incomplete placeholder.
   Saving affects newly queued notifications only; an existing queue row keeps its
-  reviewed message snapshot. Reset all restores GLV's six defaults. Salary messages
-  resolve only to the staff member on that salary payment; the other three resolve
-  only to the customer on the qualifying account. A missing or invalid phone number
+  reviewed message snapshot. Reset all restores GLV's seven defaults. Salary messages
+  resolve only to the staff member on that salary payment, weekly staff performance
+  resolves to the staff member on the report, and customer templates resolve only
+  to the customer on the qualifying account. A missing or invalid phone number
   means the message is never queued and never sent to anyone else.
 - Default message text is branded `Rock Frost Group`, and staff/customer name
   placeholders render only the first whitespace-delimited name. The BMS handset

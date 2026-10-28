@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isAdminRole } from "@/lib/roles";
 import { recordReversibleAction } from "@/lib/undo";
 import { formatMoney } from "@/lib/accounts";
-import { dispatchDueSms, queueWeeklyCustomerSummarySms } from "@/lib/sms-notifications";
+import { dispatchDueSms, queueWeeklyCustomerSummarySms, queueWeeklyStaffPerformanceSms } from "@/lib/sms-notifications";
 import {
   claimIdempotencyKey,
   completeIdempotencyKey,
@@ -113,6 +113,7 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
     });
     await completeIdempotencyKey(tx, claim.id, deposit.id);
     await queueWeeklyCustomerSummarySms(tx, staff.id, deposit.depositDate);
+    await queueWeeklyStaffPerformanceSms(tx);
   });
 
   after(() => dispatchDueSms().catch(() => console.error("Weekly customer SMS dispatch failed.")));

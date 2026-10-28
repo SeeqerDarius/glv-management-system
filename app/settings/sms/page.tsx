@@ -51,6 +51,7 @@ export default async function SmsPage() {
         <SmsTemplateEditor templateKey="missedWeek" initialValue={smsTemplateValue("missedWeek", settings?.smsMissedWeekTemplate)} />
         <SmsTemplateEditor templateKey="weeklySummary" initialValue={smsTemplateValue("weeklySummary", settings?.smsWeeklySummaryTemplate)} />
         <SmsTemplateEditor templateKey="weeklySummaryShort" initialValue={smsTemplateValue("weeklySummaryShort", settings?.smsWeeklySummaryShortTemplate)} />
+        <SmsTemplateEditor templateKey="weeklyStaffPerformance" initialValue={smsTemplateValue("weeklyStaffPerformance", settings?.smsWeeklyStaffPerformanceTemplate)} />
       </div>
       <div className="flex flex-wrap gap-3">
         <PlainSubmitButton pendingLabel="Saving" className="rounded bg-green-800 px-4 py-2 font-medium text-white">Save message templates</PlainSubmitButton>
@@ -68,6 +69,7 @@ export default async function SmsPage() {
           ["Missed payment", "An active or overdue account has no payment for 14 full days (2 weeks)", "Once per further unpaid two-week period"],
           ["Weekly summary — target met", "A staff deposit is recorded and the customer paid at least their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
           ["Weekly summary — below target", "A staff deposit is recorded and the customer paid less than their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
+          ["Weekly staff performance", "Monday: previous week’s deposit has been recorded for the staff member", "Once per staff member per week; ranks last week’s collections by percentage of target achieved and includes the new weekly target"],
         ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
       </table></div>
     </section>
