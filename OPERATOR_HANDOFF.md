@@ -114,6 +114,21 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   Inventory Details".
 - `/credits`: overpayment credits and refunds.
 - `/reports`: admin financial intelligence and salary tracking.
+- Customer Directory exports: PDF and Excel exports reapply the active search,
+  staff and sort filters to the entire matching result set rather than only the
+  current page. Admins can export all customers or one staff member; staff
+  exports remain scoped to their own customers unless granted
+  `MANAGE_CUSTOMERS`.
+- `/reports` includes Monthly Staff Performance. Deposits are summed by
+  `StaffDeposit.depositDate`; the monthly expected target sums assigned ACTIVE
+  or OVERDUE plans' daily amounts for eligible days in the month. Attainment is
+  deposits divided by expected collections. The overall score is 80 points for
+  attainment (capped at 120%) plus up to 20 points based on the staff member's
+  share of newly opened accounts that remain ACTIVE with a balance. The table
+  and PDF/Excel exports show deposits, target, attainment, new active accounts,
+  score and rank. Historical status has no effective-date history, so past
+  targets and active-new-account counts are reconstructed from current account
+  status and should be treated as current-state estimates.
 - `/activity`: collection/activity charts. Administrators see weekly daily
   collection trends split into one curved line per staff member, with a keyed
   legend; staff users see only their own payment-count trend.
@@ -133,6 +148,19 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   floating bubble.
 
 ## Recent Endpoint And UI Work
+
+- Customer Directory has PDF and Excel exports. They include every record
+  matching the current search/staff/sort filters, across every page, with staff
+  ownership, account counts, active account counts, balances and product names.
+- Reports has a selectable monthly staff performance report and PDF/Excel
+  exports. It compares recorded monthly deposits with expected daily collections
+  for assigned active/overdue plans over eligible dates. Ranking uses a visible
+  100-point formula: 80 points from target attainment capped at 120%, and 20
+  points from the staff member's share of new active account plans. New active
+  accounts are plans opened in the selected month that remain ACTIVE with a
+  positive balance. Because account status is not versioned, historical plan
+  eligibility is reconstructed from current state; the report labels this
+  limitation.
 
 - `app/api/notifications/route.ts` exposes protected computed attention counts.
   It groups module badges for account/customer follow-up, today's customer,

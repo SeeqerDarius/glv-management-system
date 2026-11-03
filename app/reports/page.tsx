@@ -10,6 +10,8 @@ import {
   ChevronRightIcon,
   CircleDollarSign,
   DownloadIcon,
+  FileSpreadsheet,
+  FileText,
   HandCoins,
   Landmark,
   PiggyBank,
@@ -55,6 +57,7 @@ import {
   getWeeklyDepositTrend,
   getWeeklyStaffPerformanceReport,
 } from "@/lib/reports";
+import { getMonthlyStaffPerformanceReport } from "@/lib/monthly-staff-performance";
 import { hasPermission, isAdminRole } from "@/lib/roles";
 import { salaryMonthInputValue } from "@/lib/salary-periods";
 
@@ -66,6 +69,7 @@ const SECTIONS = [
   { id: "overview", label: "Overview" },
   { id: "analytics", label: "Analytics" },
   { id: "staff-performance", label: "Staff Performance" },
+  { id: "monthly-staff-performance", label: "Monthly Performance" },
   { id: "staff-deposits", label: "Deposits" },
   { id: "salary-tracking", label: "Salaries" },
   { id: "product-profitability", label: "Products" },
@@ -172,6 +176,7 @@ export default async function ReportsPage({
   let report: Awaited<ReturnType<typeof getWeeklyStaffPerformanceReport>>;
   let trend: Awaited<ReturnType<typeof getWeeklyCollectionTrend>>;
   let depositTrend: Awaited<ReturnType<typeof getWeeklyDepositTrend>>;
+  let monthlyPerformance: Awaited<ReturnType<typeof getMonthlyStaffPerformanceReport>>;
 
   if (!canViewReports) {
     return (
@@ -191,12 +196,21 @@ export default async function ReportsPage({
   }
 
   const selectedDate = resolveSelectedDate(query.week);
+  const monthMatch = /^(\d{4})-(\d{2})$/.exec(query.month ?? "");
+  const requestedMonth = monthMatch
+    ? new Date(Number(monthMatch[1]), Number(monthMatch[2]) - 1, 1)
+    : new Date();
+  const selectedMonth = requestedMonth > new Date() || Number.isNaN(requestedMonth.getTime()) ||
+    (monthMatch !== null && (Number(monthMatch[2]) < 1 || Number(monthMatch[2]) > 12))
+    ? new Date()
+    : requestedMonth;
 
   try {
-    [report, trend, depositTrend] = await Promise.all([
+    [report, trend, depositTrend, monthlyPerformance] = await Promise.all([
       getWeeklyStaffPerformanceReport(selectedDate),
       getWeeklyCollectionTrend(TREND_WEEKS, selectedDate),
       getWeeklyDepositTrend(TREND_WEEKS, selectedDate),
+      getMonthlyStaffPerformanceReport(selectedMonth),
     ]);
   } catch (error) {
     console.error("REPORTS_LOAD_ERROR", error);
@@ -588,6 +602,64 @@ export default async function ReportsPage({
               <Cell align="right" numeric>
                 {formatMoney(row.projectedProfitAfterSalary)}
               </Cell>
+            </Row>
+          ))}
+        </ReportTable>
+      </ReportSection>
+
+      <ReportSection
+        id="monthly-staff-performance"
+        title="Monthly Staff Performance"
+        description="Monthly recorded deposits against expected active-plan collections, with a balanced score for target delivery and newly opened active accounts."
+      >
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-lg border bg-white p-4">
+          <form method="get" action="/reports" className="flex flex-wrap items-end gap-3">
+            <label className="space-y-1">
+              <span className="block text-xs font-medium text-gray-600">Report month</span>
+              <input
+                type="month"
+                name="month"
+                max={dateInputValue(new Date()).slice(0, 7)}
+                defaultValue={`${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, "0")}`}
+                className={inputClass}
+              />
+            </label>
+            <Button type="submit" variant="outline">Show month</Button>
+          </form>
+          <div className="flex flex-wrap gap-2">
+            {(["pdf", "xlsx"] as const).map((format) => (
+              <Button key={format} asChild variant="outline" size="sm">
+                <Link href={`/api/reports?kind=monthly-staff&month=${selectedMonth.getFullYear()}-${String(selectedMonth.getMonth() + 1).padStart(2, "0")}&format=${format}`}>
+                  {format === "pdf" ? <FileText className="size-4" /> : <FileSpreadsheet className="size-4" />}
+                  Export {format === "pdf" ? "PDF" : "Excel"}
+                </Link>
+              </Button>
+            ))}
+          </div>
+        </div>
+        <p className="mb-3 text-xs text-gray-500">
+          Score: 80% from target attainment (capped at 120%) and 20% from the staff member’s share of new active accounts. Targets use assigned active or overdue plans’ daily amounts for eligible days in {formatMonth(monthlyPerformance.start)}. The current month runs through today.
+          Historical account status is not versioned, so past-month targets and new active account counts are reconstructed from the current account status and should be treated as estimates.
+        </p>
+        <ReportTable
+          minWidthClass="min-w-[920px]"
+          isEmpty={monthlyPerformance.rows.length === 0}
+          emptyMessage="No staff records are available for this month."
+          columns={[
+            { label: "Rank" }, { label: "Staff" }, { label: "Deposited", align: "right" },
+            { label: "Collection Target", align: "right" }, { label: "Deposits / Target", align: "right" },
+            { label: "New Active Accounts", align: "right" }, { label: "Overall Score", align: "right" },
+          ]}
+        >
+          {monthlyPerformance.rows.map((row) => (
+            <Row key={row.staffId}>
+              <Cell><Badge variant={row.rank === 1 ? "default" : "secondary"}>#{row.rank}</Badge></Cell>
+              <Cell><p className="font-semibold">{row.staffCode}</p><p className="text-xs text-gray-500">{row.staffName}</p></Cell>
+              <Cell align="right" numeric>{formatMoney(row.monthlyDeposits)}</Cell>
+              <Cell align="right" numeric>{formatMoney(row.monthlyTarget)}</Cell>
+              <Cell align="right" numeric>{row.monthlyTarget > 0 ? `${(row.targetAttainment * 100).toFixed(1)}%` : "N/A"}</Cell>
+              <Cell align="right" numeric>{row.newActiveAccounts}</Cell>
+              <Cell align="right" numeric>{row.score.toFixed(2)} / 100</Cell>
             </Row>
           ))}
         </ReportTable>

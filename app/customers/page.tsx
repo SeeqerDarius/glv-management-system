@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AccountStatus, Prisma, UserPermission, UserRole } from "@prisma/client";
-import { Eye, HandCoins, SearchIcon, Trash2 } from "lucide-react";
+import { Eye, FileSpreadsheet, FileText, HandCoins, SearchIcon, Trash2 } from "lucide-react";
 import { bulkReassignCustomers, deleteCustomer } from "@/actions/customers";
 import { BulkReassignmentForm } from "@/components/bulk-reassignment-form";
 import { ConfirmDeleteForm } from "@/components/confirm-delete-form";
@@ -171,6 +171,12 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   if (query) urlParams.set("q", query);
   if (selectedStaffId) urlParams.set("staffId", selectedStaffId);
   if (selectedSort !== "name-az") urlParams.set("sort", selectedSort);
+  const customerExportHref = (format: "pdf" | "xlsx") => {
+    const params = new URLSearchParams(urlParams);
+    params.set("kind", "customers");
+    params.set("format", format);
+    return `/api/reports?${params.toString()}`;
+  };
 
   if (loadError) {
     return (
@@ -268,6 +274,24 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
           </Button>
         </div>
       </form>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white p-3">
+        <p className="text-sm text-gray-600">
+          Export all {totalCustomers} customers matching these filters, across every page.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={customerExportHref("pdf")}>
+              <FileText className="size-4" /> Export PDF
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={customerExportHref("xlsx")}>
+              <FileSpreadsheet className="size-4" /> Export Excel
+            </Link>
+          </Button>
+        </div>
+      </div>
 
       {/* Toasts */}
       {error === "delete-confirmation-required" ? (
