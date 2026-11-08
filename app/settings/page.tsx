@@ -78,7 +78,7 @@ const defaults = {
   customerIdPrefix: "GLV",
   staffCodeLength: 3,
   passwordLength: 8,
-  sessionTimeoutMinutes: 60,
+  sessionTimeoutMinutes: 0,
   requirePasswordChange: true,
   twoFactorEnabled: false,
   backupDatabaseEnabled: false,
@@ -727,7 +727,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         >
           <FieldGroup title="Passwords and sessions" columns={2}>
             <Field label="Password Length" name="passwordLength" type="number" min={6} defaultValue={values.passwordLength} hint="Minimum 6 characters." />
-            <Field label="Session Timeout (minutes)" name="sessionTimeoutMinutes" type="number" min={5} defaultValue={values.sessionTimeoutMinutes} hint="Effective immediately for signed-in users. Minimum 5 minutes." />
+            <Field label="Session Timeout (minutes)" name="sessionTimeoutMinutes" type="number" min={0} defaultValue={values.sessionTimeoutMinutes} hint="Set to 0 for no inactivity timeout. Positive values expire idle sessions after that many minutes." />
           </FieldGroup>
 
           <FieldGroup title="Access controls" columns={2}>

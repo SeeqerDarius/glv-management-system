@@ -247,8 +247,30 @@ export function AppShell({ children, user, brand }: {
     setOpenedAttention(null);
   }
 
-  if (!isProtected || !user) {
+  if (!isProtected) {
     return <div className="flex min-h-screen flex-col"><div className="flex-1">{children}</div><Footer /></div>;
+  }
+
+  if (!user) {
+    return (
+      <div className="flex min-h-screen flex-col bg-gray-50">
+        <main className="flex flex-1 items-center justify-center px-4 py-12">
+          <section className="w-full max-w-lg rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
+            <h1 className="text-xl font-semibold text-gray-950">Your session has ended</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              Sign in again to continue to the GLV Management System.
+            </p>
+            <Link
+              href="/login"
+              className="mt-5 inline-flex h-10 items-center justify-center rounded-md bg-green-800 px-5 text-sm font-semibold text-white hover:bg-green-900"
+            >
+              Sign in again
+            </Link>
+          </section>
+        </main>
+        <Footer />
+      </div>
+    );
   }
 
   const roleLabel = user.role === "SUPER_ADMIN" ? "Super Admin" : user.role === "ADMIN" ? "Admin" : "Staff";

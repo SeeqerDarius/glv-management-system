@@ -84,6 +84,12 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   a stale `mustChangePassword` token, so users are not trapped back at
   `/change-password`.
 - Debug the route, outgoing cookies, and `authorized()` callback together.
+- Security > Session Timeout now uses `0` to disable idle-session expiration;
+  this is the default for existing and new GLV settings. Positive values remain
+  available if the operator later wants an inactivity cutoff. A successful
+  sign-in clears any expired-token marker and starts a fresh timeout clock. If
+  a protected route has no valid session, AppShell shows a sign-in prompt and
+  does not render the protected page underneath it.
 
 ## Current System Shape
 

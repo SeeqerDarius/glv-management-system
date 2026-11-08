@@ -13,6 +13,10 @@ import { touchUserPresence } from "@/lib/presence";
 import { verifyTotpCode } from "@/lib/totp";
 import { getSettings } from "@/lib/settings";
 import {
+  resetSessionTimeoutOnSignIn,
+  sessionHasTimedOut,
+} from "@/lib/session-timeout-rules";
+import {
   InvalidTwoFactorError,
   TwoFactorRequiredError,
 } from "@/lib/auth-errors";
@@ -31,22 +35,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         glvSessionExpired?: boolean;
       };
 
-      if (mutableToken.glvSessionExpired) {
+      if (params.user) {
+        resetSessionTimeoutOnSignIn(mutableToken, Math.floor(Date.now() / 1000));
+      } else if (mutableToken.glvSessionExpired) {
         return token;
       }
 
-      if (params.user) {
-        mutableToken.glvSessionStartedAt = Math.floor(Date.now() / 1000);
-      } else if (mutableToken.glvSessionStartedAt) {
+      if (!params.user && mutableToken.glvSessionStartedAt) {
         const settings = await getSettings();
-        const timeoutMinutes = Math.max(
-          5,
-          Number(settings.sessionTimeoutMinutes) || 60
-        );
-        if (
-          Date.now() - mutableToken.glvSessionStartedAt * 1000 >=
-          timeoutMinutes * 60_000
-        ) {
+        const timeoutMinutes = Number(settings.sessionTimeoutMinutes);
+        if (sessionHasTimedOut(mutableToken.glvSessionStartedAt, timeoutMinutes, Date.now())) {
           mutableToken.glvSessionExpired = true;
           delete mutableToken.id;
           delete mutableToken.role;

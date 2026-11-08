@@ -186,7 +186,7 @@ function securitySection(formData: FormData): SectionResult {
     return { data: {}, error: "invalid-password-length" };
   }
 
-  if (sessionTimeoutMinutes < 5 || Number.isNaN(sessionTimeoutMinutes)) {
+  if (sessionTimeoutMinutes < 0 || Number.isNaN(sessionTimeoutMinutes)) {
     return { data: {}, error: "invalid-session-timeout" };
   }
 

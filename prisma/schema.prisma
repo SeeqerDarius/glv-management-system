@@ -485,7 +485,7 @@ model Setting {
   customerIdPrefix                String    @default("GLV")
   staffCodeLength                 Int       @default(3)
   passwordLength                  Int       @default(8)
-  sessionTimeoutMinutes           Int       @default(60)
+  sessionTimeoutMinutes           Int       @default(0)
   requirePasswordChange           Boolean   @default(true)
   twoFactorEnabled                Boolean   @default(false)
   backupDatabaseEnabled           Boolean   @default(false)

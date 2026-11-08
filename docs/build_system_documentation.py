@@ -622,7 +622,7 @@ def build_body() -> str:
         ["Procurement", "procurementThresholdPercent", "Default and effective procurement readiness floor is 70%."],
         ["Payroll", "defaultMonthlySalary, commission fields, payrollDay", "Salary defaults and reporting support. Commission settings are saved-only until the calculation base and payroll treatment are defined."],
         ["IDs and receipts", "receiptPrefix, customerIdPrefix, staffCodeLength", "Receipt generation and ID/code helper logic."],
-        ["Security", "passwordLength, sessionTimeoutMinutes, requirePasswordChange, twoFactorEnabled", "Session timeout is checked against the current saved setting on authenticated requests; password-change and 2FA enforcement remain active."],
+        ["Security", "passwordLength, sessionTimeoutMinutes, requirePasswordChange, twoFactorEnabled", "A sessionTimeoutMinutes value of 0 disables inactivity expiry; a positive value enforces that many idle minutes. Signing in clears any expired-session marker. Password-change and 2FA enforcement remain active."],
         ["Legal documents", "editable terms/cancellation/reactivation/receipt templates", "Terms are generated for new accounts and managed in Settings; lifecycle calculations are account-stage gated."],
         ["Notifications", "email/sms/WhatsApp toggles", "Controls the live one-channel customer queue. Provider credentials are required for delivery."],
         ["Appearance/status", "theme, colors, loadingAnimation, currentVersion, databaseStatus", "Stored and partly consumed in UI branding/status surfaces."],
