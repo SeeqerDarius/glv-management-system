@@ -46,12 +46,18 @@ test("staff deposits trigger weekly SMS, but recorded customer payments determin
       },
     },
     customerAccount: {
-      findMany: async () => Array.from({ length: 8 }, (_, index) => ({
+      findMany: async ({ where }: { where: { status: { notIn: string[] }; expectedEndDate?: unknown } }) => {
+        assert.deepEqual(where.status.notIn, ["CANCELLED", "CLOSED"]);
+        assert.equal(where.expectedEndDate, undefined);
+        return Array.from({ length: 8 }, (_, index) => ({
+          status: index === 2 ? "DORMANT" : "ACTIVE",
+          balance: 100,
           startDate: new Date("2026-11-02T00:00:00.000Z"),
-          expectedEndDate: new Date("2026-11-30T23:59:59.999Z"),
+          expectedEndDate: new Date("2026-11-01T23:59:59.999Z"),
           dailyAmount: index === 0 ? 10 : index === 1 ? 40 : 10,
           customer: { staffId: `staff-${index + 1}` },
-        })),
+        }));
+      },
     },
     smsNotification: {
       createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> }) => {

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { collectionTargetForWeek } from "@/lib/collection-targets";
 import {
   expectedWeeklyAmount, hasSmsRecipient, metWeeklyTarget, MISSED_PAYMENT_WINDOW_DAYS,
   missedPaymentPeriod, normalizeSmsPhone, reachedSmsMilestone,
@@ -144,7 +145,7 @@ export async function queueWeeklyCustomerSummarySms(tx: Client, staffId: string,
     ? await tx.customerAccount.findMany({
       where: {
         customerId: { in: Array.from(customers.keys()) },
-        status: { in: ["ACTIVE", "OVERDUE", "PROBATION"] },
+        status: { notIn: ["CANCELLED", "CLOSED"] },
         balance: { gt: 0 },
         startDate: { lte: end },
       },
@@ -248,16 +249,14 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
 
     const accounts = await tx.customerAccount.findMany({
       where: {
-        status: "ACTIVE",
+        status: { notIn: ["CANCELLED", "CLOSED"] },
         balance: { gt: 0 },
         startDate: { lte: newWeekEnd },
-        expectedEndDate: { gte: reportWeekStart },
         customer: { staffId: { in: staff.map((member) => member.id) } },
       },
       select: {
         status: true,
         startDate: true,
-        expectedEndDate: true,
         balance: true,
         dailyAmount: true,
         customer: { select: { staffId: true } },
@@ -268,12 +267,8 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
     for (const account of accounts) {
       const staffId = account.customer.staffId;
       if (staffId) {
-        if (account.startDate <= reportWeekStart && account.expectedEndDate >= reportWeekStart) {
-          previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + account.dailyAmount * 7);
-        }
-        if (account.startDate <= newWeekStart && account.expectedEndDate >= newWeekStart) {
-          newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + account.dailyAmount * 7);
-        }
+        previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, reportWeekStart));
+        newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, newWeekStart));
       }
     }
 

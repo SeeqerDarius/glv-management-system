@@ -126,8 +126,12 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   exports remain scoped to their own customers unless granted
   `MANAGE_CUSTOMERS`.
 - `/reports` includes Monthly Staff Performance. Deposits are summed by
-  `StaffDeposit.depositDate`; the monthly expected target sums assigned ACTIVE
-  or OVERDUE plans' daily amounts for eligible days in the month. Attainment is
+  `StaffDeposit.depositDate`; the monthly expected target sums daily amounts for
+  every assigned account with a positive balance, except CANCELLED and CLOSED,
+  from the plan start date through each eligible day in the selected month.
+  Expected end date and lifecycle labels do not stop the target while money is
+  still owed. The current month runs through today; future selected months show
+  the full month's target. Attainment is
   deposits divided by expected collections. The overall score is 80 points for
   attainment (capped at 120%) plus up to 20 points based on the staff member's
   share of newly opened accounts that remain ACTIVE with a balance. The table
@@ -155,12 +159,17 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 
 ## Recent Endpoint And UI Work
 
+- Geist Sans and Geist Mono are stored in `app/fonts/` and loaded with
+  `next/font/local`. Production builds no longer fetch fonts from Google Fonts;
+  keep `app/fonts/OFL.txt` with the font assets when updating them.
+
 - Customer Directory has PDF and Excel exports. They include every record
   matching the current search/staff/sort filters, across every page, with staff
   ownership, account counts, active account counts, balances and product names.
 - Reports has a selectable monthly staff performance report and PDF/Excel
   exports. It compares recorded monthly deposits with expected daily collections
-  for assigned active/overdue plans over eligible dates. Ranking uses a visible
+  for every assigned unpaid account except Cancelled and Closed over eligible
+  dates. Ranking uses a visible
   100-point formula: 80 points from target attainment capped at 120%, and 20
   points from the staff member's share of new active account plans. New active
   accounts are plans opened in the selected month that remain ACTIVE with a
@@ -544,21 +553,22 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   for rank calculation. A member's SMS is queued after that member has a staff
   deposit recorded. The trigger deposit amount does not affect the rank. This weekly
   SMS rank is separate from Monthly
-  Staff Performance, which ranks the selected month's deposits against prorated
-  monthly targets and includes new active accounts in its weighted score. The
+  Staff Performance, which ranks the selected month's deposits against monthly
+  targets and includes new active accounts in its weighted score. The
   weekly SMS default wording reports customer collections. The legacy
   `{{previousWeekDeposit}}` template placeholder remains an alias for that same
   customer-payment total, and the exact prior default template is upgraded on read.
-  new-week target sums each assigned ACTIVE plan's daily amount times
-  seven; only unpaid plans active at the start of Monday qualify. The target is a
+  new-week target sums each assigned unpaid plan's daily amount times seven;
+  every account with a balance qualifies except CANCELLED and CLOSED, regardless
+  of lifecycle label or expected end date, when it started by Monday. The target is a
   full seven-day target and can differ from the week-prorated target shown in Staff
-  Performance when plans start or end midweek. Dedupe by staff and week prevents
+  Performance when plans start midweek. Dedupe by staff and week prevents
   repeats. A missing or unusable staff phone prevents queueing.
   Weekly customer payments entered at different times can change the available totals;
   each queued message uses the records present when the rank is calculated.
 - The weekly summary has **two wordings** and GLV picks one per customer. The
-  expected weekly amount is the daily amount of every plan that customer is still
-  collecting on (ACTIVE, OVERDUE or PROBATION with a balance), multiplied by seven.
+  expected weekly amount is the daily amount of every plan that customer still
+  owes money on, except CANCELLED and CLOSED accounts, multiplied by seven.
   Paying at or above that amount sends the encouraging "target met" message.
   Paying less sends the separate "below target" message, which carries the target
   and the shortfall and asks the customer to contact their staff member. The

@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { getProcurementList } from "@/lib/procurement";
 import { getEffectiveMonthlySalary } from "@/lib/salary-history";
 import { previousSalaryMonthStart, salaryMonthEnd } from "@/lib/salary-periods";
+import { collectionTargetForRange } from "@/lib/collection-targets";
 
 export function getCurrentWeekRange(now = new Date()) {
   const day = now.getDay();
@@ -40,27 +41,14 @@ function accountCost(account: {
   return account.product.costPrice + account.product.transportCost;
 }
 
-type CollectionTargetAccount = Pick<
-  CustomerAccount,
-  "status" | "startDate" | "expectedEndDate" | "balance" | "dailyAmount"
->;
+type CollectionTargetAccount = Pick<CustomerAccount, "status" | "startDate" | "balance" | "dailyAmount">;
 
 function isExpectedForDay(
   account: CollectionTargetAccount,
   dayStart: Date,
   dayEnd: Date
 ) {
-  const status = getEffectiveAccountStatus(account);
-
-  if (
-    account.balance <= 0 ||
-    account.startDate > dayEnd ||
-    (status !== AccountStatus.ACTIVE && status !== AccountStatus.OVERDUE)
-  ) {
-    return false;
-  }
-
-  return status === AccountStatus.OVERDUE || account.expectedEndDate >= dayStart;
+  return collectionTargetForRange([account], dayStart, dayEnd) > 0;
 }
 
 function expectedCollectionForRange(
@@ -68,37 +56,7 @@ function expectedCollectionForRange(
   rangeStart: Date,
   rangeEnd: Date
 ) {
-  return accounts.reduce((total, account) => {
-    const status = getEffectiveAccountStatus(account);
-
-    if (
-      account.balance <= 0 ||
-      account.startDate > rangeEnd ||
-      (status !== AccountStatus.ACTIVE && status !== AccountStatus.OVERDUE)
-    ) {
-      return total;
-    }
-
-    const activeStart =
-      account.startDate > rangeStart ? account.startDate : rangeStart;
-    const activeEnd =
-      status === AccountStatus.OVERDUE
-        ? rangeEnd
-        : account.expectedEndDate < rangeEnd
-          ? account.expectedEndDate
-          : rangeEnd;
-
-    if (activeEnd < activeStart) {
-      return total;
-    }
-
-    const activeDays =
-      Math.floor(
-        (activeEnd.getTime() - activeStart.getTime()) / (1000 * 60 * 60 * 24)
-      ) + 1;
-
-    return total + account.dailyAmount * activeDays;
-  }, 0);
+  return collectionTargetForRange(accounts, rangeStart, rangeEnd);
 }
 
 export async function getAdminReportSummary() {

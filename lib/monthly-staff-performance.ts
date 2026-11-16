@@ -1,5 +1,6 @@
 import { AccountStatus } from "@prisma/client";
 import { getEffectiveAccountStatus } from "@/lib/accounts";
+import { collectionTargetForRange } from "@/lib/collection-targets";
 import { prisma } from "@/lib/prisma";
 
 export type MonthlyStaffPerformanceRow = {
@@ -50,7 +51,7 @@ export async function getMonthlyStaffPerformanceReport(monthDate: Date) {
   const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const calendarEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999);
   const now = new Date();
-  const end = calendarEnd > now ? now : calendarEnd;
+  const end = start > now ? calendarEnd : calendarEnd > now ? now : calendarEnd;
   const [staff, accounts, deposits] = await Promise.all([
     prisma.staff.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, fullName: true } }),
     prisma.customerAccount.findMany({
@@ -64,17 +65,7 @@ export async function getMonthlyStaffPerformanceReport(monthDate: Date) {
 
   const rows = staff.map((member) => {
     const assigned = accounts.filter((account) => account.customer.staffId === member.id);
-    const monthlyTarget = assigned.reduce((total, account) => {
-      const status = getEffectiveAccountStatus(account);
-      if (account.balance <= 0 || (status !== AccountStatus.ACTIVE && status !== AccountStatus.OVERDUE) || account.startDate > end) return total;
-      const activeStart = account.startDate > start ? account.startDate : start;
-      const activeEnd = status === AccountStatus.OVERDUE
-        ? end
-        : account.expectedEndDate < end ? account.expectedEndDate : end;
-      if (activeEnd < activeStart) return total;
-      const activeDays = Math.floor((activeEnd.getTime() - activeStart.getTime()) / 86_400_000) + 1;
-      return total + account.dailyAmount * activeDays;
-    }, 0);
+    const monthlyTarget = collectionTargetForRange(assigned, start, end);
     const monthlyDeposits = deposits
       .filter((deposit) => deposit.staffId === member.id)
       .reduce((total, deposit) => total + deposit.amount, 0);

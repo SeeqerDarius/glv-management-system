@@ -198,12 +198,17 @@ test("weekly deposit summary praises the target, warns the shortfall and skips m
     { amount: 8, account: { customer: { id: "c2", fullName: "Esi Boateng", phone: "0201234567" } } },
     { amount: 40, account: { customer: { id: "c3", fullName: "Yaw Owusu", phone: null } } },
   ]);
-  // c1 owes 2.00 a day (14.00 a week) and beat it; c2 owes 5.00 a day (35.00 a week) and fell short.
-  mock.method(prisma.customerAccount, "findMany", async () => [
+  // c1's ACTIVE plan plus a DORMANT unpaid plan total 3.00 a day (21.00 a week).
+  // c2 owes 5.00 a day (35.00 a week) and fell short.
+  mock.method(prisma.customerAccount, "findMany", async ({ where }: { where: { status: { notIn: string[] } } }) => {
+    assert.deepEqual(where.status.notIn, ["CANCELLED", "CLOSED"]);
+    return [
     { customerId: "c1", dailyAmount: 2 },
+    { customerId: "c1", dailyAmount: 1 },
     { customerId: "c2", dailyAmount: 5 },
     { customerId: "c3", dailyAmount: 1 },
-  ]);
+    ];
+  });
   const bodies: string[] = [];
   mock.method(prisma.smsNotification, "createMany", async ({ data }: { data: Array<{ body: string }> }) => { bodies.push(data[0].body); return { count: 1 }; });
   mock.method(prisma.smsNotification, "updateMany", async () => ({ count: 1 }));
@@ -212,7 +217,7 @@ test("weekly deposit summary praises the target, warns the shortfall and skips m
   assert.equal(result.queued, 2);
   assert.deepEqual(bodies.sort(), [
     "Hello Esi, you paid GHS 8.00 of GHS 35.00 and are GHS 27.00 short.",
-    "Well done Kwame, you paid GHS 25.00 of GHS 14.00.",
+    "Well done Kwame, you paid GHS 25.00 of GHS 21.00.",
   ]);
 });
 test("dispatch suppresses completed reminders and concurrent duplicate workers", async () => {
