@@ -43,7 +43,7 @@ test("weekly staff performance template reports collection achievement rank and 
   });
   assert.match(message, /collected GHS 1,250\.00, reaching 83\.33% of target/);
   assert.match(message, /ranked 2 of 8 staff/);
-  assert.match(message, /target for this week is GHS 1,500\.00/);
+  assert.match(message, /This week's collection target is GHS 1,500\.00/);
   assert.throws(
     () => validateSmsTemplate("weeklyStaffPerformance", "Hello {{expectedAmount}}"),
     /not available/

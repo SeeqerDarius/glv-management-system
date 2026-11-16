@@ -277,6 +277,7 @@ model StaffDeposit {
 
   @@index([staffId, depositDate])
   @@index([depositDate])
+  @@index([createdAt])
 }
 
 model CustomerAccount {

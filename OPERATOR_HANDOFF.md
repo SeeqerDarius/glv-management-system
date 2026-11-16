@@ -384,6 +384,7 @@ The following migrations are applied to production:
 || `20261022110000_lifecycle_sweep_state` | Applied 2026-10-22 | Shared lifecycle sweep lease and last-completed timestamp. |
 || `20261022120000_receipt_counter_seed_prefixes` | Applied 2026-10-22 | Seeds counters for existing receipt numbers whose configured prefix contains slash-separated segments, such as `GLV/RCPT`. |
 || `20261028120000_weekly_staff_performance_sms` | Applied 2026-10-28 | Adds the editable weekly staff performance SMS template to `Setting`; the checksum was recorded and verified after applying the additive SQL through Supabase. |
+|| `20261116100000_catch_up_weekly_staff_sms` | Applied 2026-11-16 | Adds an index on `StaffDeposit.createdAt` for discovering recently entered late deposits. Weekly staff performance now catches completed reporting weeks touched by deposits entered in the last seven days; migration checksum is recorded in `_prisma_migrations`. |
 
 All previous migrations are applied to the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 
@@ -529,16 +530,21 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   refreshes the amount and the wording only while the summary remains PENDING.
   Customers who paid nothing that week receive no summary, and no customer receives
   another staff member's totals.
-- Weekly staff performance: on Monday, after a prior-week staff deposit is recorded,
-  the protected SMS cron and deposit action queue one personalized summary for every
-  active staff member who has a prior-week deposit. Performance rank compares each
+- Weekly staff performance: the protected SMS cron queues a personalized summary
+  for every active staff member with a deposit dated in the latest completed
+  Monday–Sunday week. It also catches completed weeks that have a staff deposit
+  recorded within the last seven days, including historical deposit dates. Recording
+  a new deposit for a completed week triggers this catch-up in the same transaction.
+  Performance rank compares each
   member's Monday-through-Sunday customer collections with their expected weekly
   target; the highest percentage achieved ranks first and ties share a rank. The
   new-week target sums each assigned ACTIVE plan's daily amount times
   seven; only unpaid plans active at the start of Monday qualify. The target is a
   full seven-day target and can differ from the week-prorated target shown in Staff
   Performance when plans start or end midweek. Dedupe is by staff and week. A missing
-  or unusable staff phone prevents queueing.
+  or unusable staff phone prevents queueing. Dedupe by staff and week prevents repeats.
+  Since late deposits can be recorded at different times, a later staff member's
+  ranking may include more recorded deposits than an earlier message for that week.
 - The weekly summary has **two wordings** and GLV picks one per customer. The
   expected weekly amount is the daily amount of every plan that customer is still
   collecting on (ACTIVE, OVERDUE or PROBATION with a balance), multiplied by seven.
