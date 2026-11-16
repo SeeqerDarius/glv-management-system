@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getEffectiveAccountStatus } from "@/lib/accounts";
 import { collectionTargetForWeek } from "@/lib/collection-targets";
 import {
   expectedWeeklyAmount, hasSmsRecipient, metWeeklyTarget, MISSED_PAYMENT_WINDOW_DAYS,
@@ -238,14 +239,10 @@ export async function queueWeeklyStaffPerformanceSms(
   }
 
   const accounts = await tx.customerAccount.findMany({
-    where: {
-      status: { notIn: ["CANCELLED", "CLOSED"] },
-      balance: { gt: 0 },
-      startDate: { lte: newWeekEnd },
-      customer: { staffId: { in: staff.map((member) => member.id) } },
-    },
+    where: { customer: { staffId: { in: staff.map((member) => member.id) } } },
     select: {
       status: true,
+      expectedEndDate: true,
       startDate: true,
       balance: true,
       dailyAmount: true,
@@ -254,17 +251,21 @@ export async function queueWeeklyStaffPerformanceSms(
   });
   const previousWeekTargets = new Map<string, number>();
   const newWeekTargets = new Map<string, number>();
+  const activeAccountsByStaff = new Map<string, number>();
   for (const account of accounts) {
     const staffId = account.customer.staffId;
-    if (staffId) {
-      previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, reportWeekStart));
-      newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, newWeekStart));
+    if (!staffId) continue;
+    if (getEffectiveAccountStatus(account) === "ACTIVE") {
+      activeAccountsByStaff.set(staffId, (activeAccountsByStaff.get(staffId) ?? 0) + 1);
     }
+    if (["CANCELLED", "CLOSED"].includes(account.status) || account.balance <= 0 || account.startDate > newWeekEnd) continue;
+    previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, reportWeekStart));
+    newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, newWeekStart));
   }
 
-  // Rank against the full eligible active team, not only staff who have a
-  // deposit row. Missing records count as zero for this reporting week.
-  const rankedStaff = staff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
+  // Rank on the active-account count shown in the Reports > Staff Performance
+  // table. Keep all active staff in the cohort, including those with zero.
+  const rankedStaff = staff;
   const member = triggeringStaff;
   const recipient = normalizeSmsPhone(member.phone);
   if (!recipient) return { queued: 0 };
@@ -273,15 +274,10 @@ export async function queueWeeklyStaffPerformanceSms(
   const collectedCents = Math.round(collected * 100);
   const targetCents = Math.round(target * 100);
   const achievement = targetCents > 0 ? collectedCents / targetCents : null;
-  const rank = achievement !== null
-    ? 1 + rankedStaff.filter((other) => {
-      if (other.id === member.id) return false;
-      const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
-      const otherCollectedCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
-      return otherTargetCents > 0 &&
-        otherCollectedCents * targetCents > collectedCents * otherTargetCents;
-    }).length
-    : null;
+  const activeAccountCount = activeAccountsByStaff.get(member.id) ?? 0;
+  const rank = 1 + rankedStaff.filter((other) =>
+    (activeAccountsByStaff.get(other.id) ?? 0) > activeAccountCount
+  ).length;
   const weekKey = reportWeekStart.toISOString().slice(0, 10);
   const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
     staffName: smsFirstName(member.fullName),

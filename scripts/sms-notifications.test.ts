@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { queueWeeklyStaffPerformanceSms } from "../lib/sms-notifications";
 
-test("one staff member's completed-week deposit triggers only their SMS; Weekly Recorded payments determine rank", async () => {
+test("one staff member's completed-week deposit triggers only their SMS; active account count determines rank", async () => {
   const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string; sourceId: string }> = [];
   const tx = {
     setting: {
@@ -40,17 +40,23 @@ test("one staff member's completed-week deposit triggers only their SMS; Weekly 
       },
     },
     customerAccount: {
-      findMany: async ({ where }: { where: { status: { notIn: string[] }; expectedEndDate?: unknown } }) => {
-        assert.deepEqual(where.status.notIn, ["CANCELLED", "CLOSED"]);
-        assert.equal(where.expectedEndDate, undefined);
-        return Array.from({ length: 8 }, (_, index) => ({
-          status: index === 2 ? "DORMANT" : "ACTIVE",
+      findMany: async ({ where }: { where: { customer: { staffId: { in: string[] } } } }) => {
+        assert.equal(where.customer.staffId.in.length, 8);
+        const makeAccount = (staffId: string, active: boolean, dailyAmount: number) => ({
+          status: active ? "ACTIVE" : "DORMANT",
           balance: 100,
           startDate: new Date("2026-11-09T00:00:00.000Z"),
-          expectedEndDate: new Date("2026-11-01T23:59:59.999Z"),
-          dailyAmount: index === 0 ? 10 : index === 1 ? 40 : 10,
-          customer: { staffId: `staff-${index + 1}` },
-        }));
+          expectedEndDate: new Date("2026-12-01T00:00:00.000Z"),
+          dailyAmount,
+          customer: { staffId },
+        });
+        return [
+          makeAccount("staff-1", true, 10),
+          makeAccount("staff-2", true, 40),
+          makeAccount("staff-2", true, 40),
+          makeAccount("staff-2", true, 40),
+          ...Array.from({ length: 6 }, (_, index) => makeAccount(`staff-${index + 3}`, false, 10)),
+        ];
       },
     },
     smsNotification: {
@@ -74,6 +80,8 @@ test("one staff member's completed-week deposit triggers only their SMS; Weekly 
     },
   ]);
   assert.match(messages[0].body, /last week you collected GHS 100\.00, reaching 142\.86% of target/);
+  // Ellen has the higher payment-to-target percentage, but Abigail has more
+  // active accounts, so the rank follows the Active count rather than deposits.
   assert.match(messages[0].body, /ranked 2 of 8 staff/);
 });
 

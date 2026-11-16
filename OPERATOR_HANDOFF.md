@@ -548,10 +548,12 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   is cancelled. The deposit amount only switches on sending and is not used for the
   performance figure or rank. The message's collection figure matches **Weekly
   Recorded** in Reports: assigned customer `Payment.amount` records whose
-  `paymentDate` falls Monday through Sunday in the completed week. Rank compares
-  each active staff member's recorded customer payments with their weekly target;
-  staff with no payments count as GHS 0, and only staff with a positive target are
-  in the ranking cohort. This weekly SMS rank is separate from Monthly Staff
+  `paymentDate` falls Monday through Sunday in the completed week. Rank is based
+  on each staff member's currently active account count, matching the **Active**
+  column in Reports > Staff Performance. All active staff are ranked, including
+  staff with zero active accounts; ties share a rank. Weekly recorded payments
+  and target achievement remain in the message but do not determine rank. This
+  weekly SMS rank is separate from Monthly Staff
   Performance, which ranks the selected month's deposits against monthly targets
   and includes new active accounts in its weighted score. The default wording is
   “GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}},

@@ -52,7 +52,7 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   },
   weeklyStaffPerformance: {
     label: "Weekly staff performance",
-    description: "The staff member's deposit for the completed Monday–Sunday week triggers this message. The weekly recorded collection amount and rank use customer payments under their assigned accounts for that week; the deposit amount only triggers sending. The legacy {{previousWeekDeposit}} placeholder remains an alias for the recorded collection total.",
+    description: "The staff member's deposit for the completed Monday–Sunday week triggers this message. The collection amount and target percentage use that week's recorded customer payments; rank is based on active account count, matching the Reports > Staff Performance Active column. The deposit amount only triggers sending. The legacy {{previousWeekDeposit}} placeholder remains an alias for the recorded collection total.",
     defaultTemplate: "GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
     placeholders: ["staffName", "previousWeekDeposit", "previousWeekCollection", "targetAchievement", "rank", "rankedStaffCount", "newWeekTarget", "previousWeekStart", "previousWeekEnd", "newWeekStart", "newWeekEnd"],
     previewValues: { staffName: "Ama", previousWeekDeposit: "GHS 1,250.00", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2", rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00", previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25", newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01" },
