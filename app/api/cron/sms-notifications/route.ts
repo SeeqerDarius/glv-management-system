@@ -1,5 +1,4 @@
-import { dispatchDueSms, queueMissedPaymentSms, queueWeeklyStaffPerformanceSms } from "@/lib/sms-notifications";
-import { prisma } from "@/lib/prisma";
+import { dispatchDueSms, queueMissedPaymentSms } from "@/lib/sms-notifications";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -10,9 +9,8 @@ export async function GET(request: Request) {
   }
   try {
     const reminders = await queueMissedPaymentSms();
-    const weeklyStaffPerformance = await prisma.$transaction((tx) => queueWeeklyStaffPerformanceSms(tx));
     const dispatch = await dispatchDueSms(100);
-    return Response.json({ ok: true, reminders, weeklyStaffPerformance, dispatch });
+    return Response.json({ ok: true, reminders, dispatch });
   } catch {
     console.error("SMS scheduled run failed.");
     return Response.json({ error: "SMS scheduled run failed." }, { status: 500 });

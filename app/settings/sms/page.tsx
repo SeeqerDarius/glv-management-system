@@ -69,7 +69,7 @@ export default async function SmsPage() {
           ["Missed payment", "An active or overdue account has no payment for 14 full days (2 weeks)", "Once per further unpaid two-week period"],
           ["Weekly summary — target met", "A staff deposit is recorded and the customer paid at least their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
           ["Weekly summary — below target", "A staff deposit is recorded and the customer paid less than their expected weekly amount", "Once per paying customer assigned to that staff member each week"],
-          ["Weekly staff performance", "A staff deposit for a completed Monday–Sunday week triggers the SMS", "Rank and performance use the customer payments recorded under each staff member's assigned accounts for that week; the deposit amount is not part of the rank. Missing payments count as zero. This is separate from the monthly ranking."],
+          ["Weekly staff performance", "A staff deposit for the completed Monday–Sunday week triggers the SMS for that staff member only", "The weekly recorded collection figure and rank use customer payments under each staff member's assigned accounts for that week. The deposit amount only switches on sending. Missing payments count as zero. This is separate from the monthly ranking."],
         ].map(row => <tr key={row[0]} className="border-t">{row.map(cell => <td key={cell} className="p-2">{cell}</td>)}</tr>)}</tbody>
       </table></div>
     </section>

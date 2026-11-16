@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { queueWeeklyStaffPerformanceSms } from "../lib/sms-notifications";
 
-test("staff deposits trigger weekly SMS, but recorded customer payments determine rank", async () => {
-  const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> = [];
+test("one staff member's completed-week deposit triggers only their SMS; Weekly Recorded payments determine rank", async () => {
+  const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string; sourceId: string }> = [];
   const tx = {
     setting: {
       findFirst: async () => ({
@@ -24,21 +24,15 @@ test("staff deposits trigger weekly SMS, but recorded customer payments determin
       ],
     },
     staffDeposit: {
-      findMany: async ({ where }: { where: { createdAt?: unknown; depositDate: { gte?: Date; lt?: Date } } }) => {
-        if (where.createdAt) return [{ depositDate: new Date("2026-11-08T00:00:00.000Z") }];
-        if (where.depositDate.gte?.toISOString() === "2026-11-09T00:00:00.000Z") return [];
-        assert.equal(where.depositDate.gte?.toISOString(), "2026-11-02T00:00:00.000Z");
-        assert.equal(where.depositDate.lt?.toISOString(), "2026-11-09T00:00:00.000Z");
-        return [
-          { staffId: "staff-1", amount: 900 },
-          { staffId: "staff-2", amount: 20 },
-        ];
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        assert.equal(where.id, "deposit-ellen");
+        return { id: "deposit-ellen", staffId: "staff-1", depositDate: new Date("2026-11-15T00:00:00.000Z") };
       },
     },
     payment: {
       findMany: async ({ where }: { where: { paymentDate: { gte: Date; lt: Date } } }) => {
-        assert.equal(where.paymentDate.gte.toISOString(), "2026-11-02T00:00:00.000Z");
-        assert.equal(where.paymentDate.lt.toISOString(), "2026-11-09T00:00:00.000Z");
+        assert.equal(where.paymentDate.gte.toISOString(), "2026-11-09T00:00:00.000Z");
+        assert.equal(where.paymentDate.lt.toISOString(), "2026-11-16T00:00:00.000Z");
         return [
           { amount: 100, account: { customer: { staffId: "staff-1" } } },
           { amount: 500, account: { customer: { staffId: "staff-2" } } },
@@ -52,7 +46,7 @@ test("staff deposits trigger weekly SMS, but recorded customer payments determin
         return Array.from({ length: 8 }, (_, index) => ({
           status: index === 2 ? "DORMANT" : "ACTIVE",
           balance: 100,
-          startDate: new Date("2026-11-02T00:00:00.000Z"),
+          startDate: new Date("2026-11-09T00:00:00.000Z"),
           expectedEndDate: new Date("2026-11-01T23:59:59.999Z"),
           dailyAmount: index === 0 ? 10 : index === 1 ? 40 : 10,
           customer: { staffId: `staff-${index + 1}` },
@@ -60,7 +54,7 @@ test("staff deposits trigger weekly SMS, but recorded customer payments determin
       },
     },
     smsNotification: {
-      createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> }) => {
+      createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string; body: string; sourceId: string }> }) => {
         messages.push(data[0]);
         return { count: 1 };
       },
@@ -68,26 +62,43 @@ test("staff deposits trigger weekly SMS, but recorded customer payments determin
     },
   };
 
-  const result = await queueWeeklyStaffPerformanceSms(
-    tx as never,
-    new Date("2026-11-16T12:00:00.000Z"),
-  );
+  const result = await queueWeeklyStaffPerformanceSms(tx as never, "deposit-ellen", new Date("2026-11-16T12:00:00.000Z"));
 
-  assert.deepEqual(result, { queued: 2 });
-  assert.deepEqual(messages.map(({ type, dedupeKey, recipient }) => ({ type, dedupeKey, recipient })), [
+  assert.deepEqual(result, { queued: 1 });
+  assert.deepEqual(messages.map(({ type, dedupeKey, recipient, sourceId }) => ({ type, dedupeKey, recipient, sourceId })), [
     {
       type: "WEEKLY_STAFF_PERFORMANCE",
-      dedupeKey: "WEEKLY_STAFF_PERFORMANCE:staff-1:2026-11-02",
+      dedupeKey: "WEEKLY_STAFF_PERFORMANCE:staff-1:2026-11-09",
       recipient: "+233241234567",
-    },
-    {
-      type: "WEEKLY_STAFF_PERFORMANCE",
-      dedupeKey: "WEEKLY_STAFF_PERFORMANCE:staff-2:2026-11-02",
-      recipient: "+233241234500",
+      sourceId: "deposit-ellen",
     },
   ]);
-  assert.match(messages[0].body, /customer payments recorded under your accounts last week totaled GHS 100\.00, reaching 142\.86% of target/);
+  assert.match(messages[0].body, /last week you collected GHS 100\.00, reaching 142\.86% of target/);
   assert.match(messages[0].body, /ranked 2 of 8 staff/);
-  assert.match(messages[1].body, /customer payments recorded under your accounts last week totaled GHS 500\.00, reaching 178\.57% of target/);
-  assert.match(messages[1].body, /ranked 1 of 8 staff/);
+});
+
+test("weekly performance SMS is not queued without that staff member's completed-week deposit", async () => {
+  const tx = {
+    setting: { findFirst: async () => ({ smsNotificationsEnabled: true }) },
+    staffDeposit: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        assert.equal(where.id, "missing-deposit");
+        return null;
+      },
+    },
+  };
+  assert.deepEqual(await queueWeeklyStaffPerformanceSms(tx as never, "missing-deposit"), { queued: 0 });
+});
+
+test("a deposit dated in the current week cannot trigger a previous-week SMS", async () => {
+  const tx = {
+    setting: { findFirst: async () => ({ smsNotificationsEnabled: true }) },
+    staffDeposit: {
+      findUnique: async () => ({ id: "current-week-deposit", staffId: "staff-1", depositDate: new Date("2026-11-16T00:00:00.000Z") }),
+    },
+  };
+  assert.deepEqual(
+    await queueWeeklyStaffPerformanceSms(tx as never, "current-week-deposit", new Date("2026-11-16T12:00:00.000Z")),
+    { queued: 0 },
+  );
 });

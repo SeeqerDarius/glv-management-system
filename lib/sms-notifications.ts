@@ -189,142 +189,128 @@ export async function queueWeeklyCustomerSummarySms(tx: Client, staffId: string,
   return { queued };
 }
 
-/** Queue performance updates for the latest completed week and recently recorded late deposits. */
-export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date()) {
+/** Queue one staff member's performance SMS after their completed-week deposit is recorded. */
+export async function queueWeeklyStaffPerformanceSms(
+  tx: Client,
+  depositId: string,
+  now = new Date(),
+) {
   const settings = await tx.setting.findFirst();
   if (!settings?.smsNotificationsEnabled) return { queued: 0 };
 
   const { start: currentWeekStart } = weekRange(now);
   const previousWeekStart = new Date(currentWeekStart);
   previousWeekStart.setDate(previousWeekStart.getDate() - 7);
-  // A deposit may be entered after Monday for an earlier reporting week. Use the
-  // creation window to discover those weeks, then dedupe each staff/week message.
-  const recentDeposits = await tx.staffDeposit.findMany({
-    where: {
-      createdAt: { gte: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) },
-      depositDate: { lt: currentWeekStart },
-    },
-    select: { depositDate: true },
+  const triggerDeposit = await tx.staffDeposit.findUnique({
+    where: { id: depositId },
+    select: { id: true, staffId: true, depositDate: true },
   });
-  const reportWeeks = new Map<string, Date>();
-  reportWeeks.set(previousWeekStart.toISOString(), previousWeekStart);
-  for (const deposit of recentDeposits) {
-    const { start } = weekRange(deposit.depositDate);
-    if (start < currentWeekStart) reportWeeks.set(start.toISOString(), start);
-  }
+  if (!triggerDeposit) return { queued: 0 };
+  const { start: reportWeekStart } = weekRange(triggerDeposit.depositDate);
+  // A performance message always describes the previous completed week. A
+  // deposit in the current week cannot trigger it, and older dates must not be
+  // described to staff as "last week".
+  if (reportWeekStart.getTime() !== previousWeekStart.getTime()) return { queued: 0 };
 
   const staff = await tx.staff.findMany({ where: { active: true }, orderBy: { fullName: "asc" } });
-  if (!staff.length) return { queued: 0 };
+  const triggeringStaff = staff.find((member) => member.id === triggerDeposit.staffId);
+  if (!triggeringStaff) return { queued: 0 };
 
-  let queued = 0;
-  for (const reportWeekStart of reportWeeks.values()) {
-    const newWeekStart = new Date(reportWeekStart);
-    newWeekStart.setDate(newWeekStart.getDate() + 7);
-    const { end: newWeekEnd } = weekRange(newWeekStart);
-    const previousWeekEnd = new Date(newWeekStart.getTime() - 1);
-    // StaffDeposit records are only the trigger for sending this SMS. The
-    // performance figure comes from customer payments recorded for the week.
-    const deposits = await tx.staffDeposit.findMany({
-      where: { depositDate: { gte: reportWeekStart, lt: newWeekStart }, staffId: { in: staff.map((member) => member.id) } },
-      select: { staffId: true, amount: true },
-    });
-    const staffWithDeposits = new Set(deposits.map((deposit) => deposit.staffId));
-    const eligibleStaff = staff.filter((member) => staffWithDeposits.has(member.id));
-    if (!eligibleStaff.length) continue;
-
-    const payments = await tx.payment.findMany({
-      where: {
-        paymentDate: { gte: reportWeekStart, lt: newWeekStart },
-        account: { customer: { staffId: { in: staff.map((member) => member.id) } } },
-      },
-      select: { amount: true, account: { select: { customer: { select: { staffId: true } } } } },
-    });
-    const collectionsByStaff = new Map<string, number>();
-    for (const payment of payments) {
-      const staffId = payment.account.customer.staffId;
-      if (staffId) {
-        collectionsByStaff.set(staffId, (collectionsByStaff.get(staffId) ?? 0) + payment.amount);
-      }
-    }
-
-    const accounts = await tx.customerAccount.findMany({
-      where: {
-        status: { notIn: ["CANCELLED", "CLOSED"] },
-        balance: { gt: 0 },
-        startDate: { lte: newWeekEnd },
-        customer: { staffId: { in: staff.map((member) => member.id) } },
-      },
-      select: {
-        status: true,
-        startDate: true,
-        balance: true,
-        dailyAmount: true,
-        customer: { select: { staffId: true } },
-      },
-    });
-    const previousWeekTargets = new Map<string, number>();
-    const newWeekTargets = new Map<string, number>();
-    for (const account of accounts) {
-      const staffId = account.customer.staffId;
-      if (staffId) {
-        previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, reportWeekStart));
-        newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, newWeekStart));
-      }
-    }
-
-    // Rank against the full eligible active team, not only staff who have a
-    // deposit row. Missing records count as zero for this reporting week.
-    const rankedStaff = staff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
-    const weekKey = reportWeekStart.toISOString().slice(0, 10);
-    for (const member of eligibleStaff) {
-      const recipient = normalizeSmsPhone(member.phone);
-      if (!recipient) continue;
-      const target = previousWeekTargets.get(member.id) ?? 0;
-      const collected = collectionsByStaff.get(member.id) ?? 0;
-      const collectedCents = Math.round(collected * 100);
-      const targetCents = Math.round(target * 100);
-      const achievement = targetCents > 0 ? collectedCents / targetCents : null;
-      const rank = achievement !== null
-        ? 1 + rankedStaff.filter((other) => {
-          if (other.id === member.id) return false;
-          const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
-          const otherCollectedCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
-          return otherTargetCents > 0 &&
-            otherCollectedCents * targetCents > collectedCents * otherTargetCents;
-        }).length
-        : null;
-      const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
-        staffName: smsFirstName(member.fullName),
-        previousWeekDeposit: money(collected, settings.defaultCurrency),
-        // Keep old operator templates compatible while reporting customer payments.
-        previousWeekCollection: money(collected, settings.defaultCurrency),
-        targetAchievement: achievement !== null
-          ? `${(achievement * 100).toFixed(2)}%`
-          : "N/A",
-        rank: rank === null ? "N/A" : String(rank),
-        rankedStaffCount: String(rankedStaff.length),
-        newWeekTarget: money(newWeekTargets.get(member.id) ?? 0, settings.defaultCurrency),
-        previousWeekStart: weekKey,
-        previousWeekEnd: previousWeekEnd.toISOString().slice(0, 10),
-        newWeekStart: newWeekStart.toISOString().slice(0, 10),
-        newWeekEnd: newWeekEnd.toISOString().slice(0, 10),
-      });
-      const dedupeKey = `WEEKLY_STAFF_PERFORMANCE:${member.id}:${weekKey}`;
-      const result = await queue(tx, {
-        type: "WEEKLY_STAFF_PERFORMANCE",
-        sourceId: member.id,
-        dedupeKey,
-        recipient: member.phone,
-        body,
-      });
-      queued += result.count;
-      await tx.smsNotification.updateMany({
-        where: { dedupeKey, status: "PENDING" },
-        data: { recipient, body, lastError: null },
-      });
+  const newWeekStart = new Date(reportWeekStart);
+  newWeekStart.setDate(newWeekStart.getDate() + 7);
+  const { end: newWeekEnd } = weekRange(newWeekStart);
+  const previousWeekEnd = new Date(newWeekStart.getTime() - 1);
+  // The deposit is only a send trigger. Weekly Recorded values and ranking
+  // come from customer Payment rows for all active staff.
+  const payments = await tx.payment.findMany({
+    where: {
+      paymentDate: { gte: reportWeekStart, lt: newWeekStart },
+      account: { customer: { staffId: { in: staff.map((member) => member.id) } } },
+    },
+    select: { amount: true, account: { select: { customer: { select: { staffId: true } } } } },
+  });
+  const collectionsByStaff = new Map<string, number>();
+  for (const payment of payments) {
+    const staffId = payment.account.customer.staffId;
+    if (staffId) {
+      collectionsByStaff.set(staffId, (collectionsByStaff.get(staffId) ?? 0) + payment.amount);
     }
   }
-  return { queued };
+
+  const accounts = await tx.customerAccount.findMany({
+    where: {
+      status: { notIn: ["CANCELLED", "CLOSED"] },
+      balance: { gt: 0 },
+      startDate: { lte: newWeekEnd },
+      customer: { staffId: { in: staff.map((member) => member.id) } },
+    },
+    select: {
+      status: true,
+      startDate: true,
+      balance: true,
+      dailyAmount: true,
+      customer: { select: { staffId: true } },
+    },
+  });
+  const previousWeekTargets = new Map<string, number>();
+  const newWeekTargets = new Map<string, number>();
+  for (const account of accounts) {
+    const staffId = account.customer.staffId;
+    if (staffId) {
+      previousWeekTargets.set(staffId, (previousWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, reportWeekStart));
+      newWeekTargets.set(staffId, (newWeekTargets.get(staffId) ?? 0) + collectionTargetForWeek(account, newWeekStart));
+    }
+  }
+
+  // Rank against the full eligible active team, not only staff who have a
+  // deposit row. Missing records count as zero for this reporting week.
+  const rankedStaff = staff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
+  const member = triggeringStaff;
+  const recipient = normalizeSmsPhone(member.phone);
+  if (!recipient) return { queued: 0 };
+  const target = previousWeekTargets.get(member.id) ?? 0;
+  const collected = collectionsByStaff.get(member.id) ?? 0;
+  const collectedCents = Math.round(collected * 100);
+  const targetCents = Math.round(target * 100);
+  const achievement = targetCents > 0 ? collectedCents / targetCents : null;
+  const rank = achievement !== null
+    ? 1 + rankedStaff.filter((other) => {
+      if (other.id === member.id) return false;
+      const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
+      const otherCollectedCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
+      return otherTargetCents > 0 &&
+        otherCollectedCents * targetCents > collectedCents * otherTargetCents;
+    }).length
+    : null;
+  const weekKey = reportWeekStart.toISOString().slice(0, 10);
+  const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
+    staffName: smsFirstName(member.fullName),
+    previousWeekDeposit: money(collected, settings.defaultCurrency),
+    previousWeekCollection: money(collected, settings.defaultCurrency),
+    targetAchievement: achievement !== null
+      ? `${(achievement * 100).toFixed(2)}%`
+      : "N/A",
+    rank: rank === null ? "N/A" : String(rank),
+    rankedStaffCount: String(rankedStaff.length),
+    newWeekTarget: money(newWeekTargets.get(member.id) ?? 0, settings.defaultCurrency),
+    previousWeekStart: weekKey,
+    previousWeekEnd: previousWeekEnd.toISOString().slice(0, 10),
+    newWeekStart: newWeekStart.toISOString().slice(0, 10),
+    newWeekEnd: newWeekEnd.toISOString().slice(0, 10),
+  });
+  const dedupeKey = `WEEKLY_STAFF_PERFORMANCE:${member.id}:${weekKey}`;
+  const result = await queue(tx, {
+    type: "WEEKLY_STAFF_PERFORMANCE",
+    sourceId: triggerDeposit.id,
+    dedupeKey,
+    recipient: member.phone,
+    body,
+  });
+  await tx.smsNotification.updateMany({
+    where: { dedupeKey, status: "PENDING" },
+    data: { sourceId: triggerDeposit.id, recipient, body, lastError: null },
+  });
+  return { queued: result.count };
 }
 
 async function currentRecipient(message: { type: string; sourceId: string; dedupeKey: string }) {
@@ -338,8 +324,18 @@ async function currentRecipient(message: { type: string; sourceId: string; dedup
     return customer && customer.staffId === staffId ? { phone: customer.phone } : null;
   }
   if (message.type === "WEEKLY_STAFF_PERFORMANCE") {
-    const staff = await prisma.staff.findUnique({ where: { id: message.sourceId }, select: { phone: true, active: true } });
-    return staff?.active ? { phone: staff.phone } : null;
+    const [, staffId, weekKey] = message.dedupeKey.split(":");
+    const weekStart = new Date(`${weekKey}T00:00:00`);
+    if (!staffId || !weekKey || Number.isNaN(weekStart.getTime())) return null;
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 7);
+    const [staff, triggerDeposit] = await Promise.all([
+      prisma.staff.findUnique({ where: { id: staffId }, select: { id: true, phone: true, active: true } }),
+      prisma.staffDeposit.findUnique({ where: { id: message.sourceId }, select: { id: true, staffId: true, depositDate: true } }),
+    ]);
+    if (!staff?.active || triggerDeposit?.staffId !== staff.id) return null;
+    const { start: depositWeekStart } = weekRange(triggerDeposit.depositDate);
+    return depositWeekStart.getTime() === weekStart.getTime() ? { phone: staff.phone } : null;
   }
   const account = await prisma.customerAccount.findUnique({ where: { id: message.sourceId }, include: accountInclude });
   if (!account || ["CLOSED", "CANCELLED", "ARCHIVED", "SUSPENDED"].includes(account.status)) return null;

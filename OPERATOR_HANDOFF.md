@@ -393,7 +393,7 @@ The following migrations are applied to production:
 || `20261022110000_lifecycle_sweep_state` | Applied 2026-10-22 | Shared lifecycle sweep lease and last-completed timestamp. |
 || `20261022120000_receipt_counter_seed_prefixes` | Applied 2026-10-22 | Seeds counters for existing receipt numbers whose configured prefix contains slash-separated segments, such as `GLV/RCPT`. |
 || `20261028120000_weekly_staff_performance_sms` | Applied 2026-10-28 | Adds the editable weekly staff performance SMS template to `Setting`; the checksum was recorded and verified after applying the additive SQL through Supabase. |
-|| `20261116100000_catch_up_weekly_staff_sms` | Applied 2026-11-16 | Adds an index on `StaffDeposit.createdAt` for discovering recently entered late deposits. Weekly staff performance now catches completed reporting weeks touched by deposits entered in the last seven days; migration checksum is recorded in `_prisma_migrations`. |
+|| `20261116100000_catch_up_weekly_staff_sms` | Applied 2026-11-16 | Adds an index on `StaffDeposit.createdAt`. The later event-driven behavior no longer scans that index: the completed-week performance SMS is queued only for the staff member whose deposit was just recorded. |
 
 All previous migrations are applied to the production Supabase project (`pgwpiujoghimdtjkzaed`), most recently:
 
@@ -539,25 +539,27 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   refreshes the amount and the wording only while the summary remains PENDING.
   Customers who paid nothing that week receive no summary, and no customer receives
   another staff member's totals.
-- Weekly staff performance: the protected SMS cron queues a personalized summary
-  for every active staff member with a deposit dated in the latest completed
-  Monday–Sunday week. It also catches completed weeks that have a staff deposit
-  recorded within the last seven days, including historical deposit dates. Recording
-  a new deposit for a completed week triggers this catch-up in the same transaction.
-  A `StaffDeposit` dated in the week is only the SMS trigger. Performance uses the
-  sum of `Payment.amount` for accounts assigned to each staff member, dated Monday
-  through Sunday, compared with their expected weekly target; the highest payment-
-  to-target percentage ranks first and ties share a rank. The ranking cohort includes
-  every active staff member with a positive weekly target, even when they have no
-  customer payments recorded for that week; a missing payment total counts as GHS 0
-  for rank calculation. A member's SMS is queued after that member has a staff
-  deposit recorded. The trigger deposit amount does not affect the rank. This weekly
-  SMS rank is separate from Monthly
-  Staff Performance, which ranks the selected month's deposits against monthly
-  targets and includes new active accounts in its weighted score. The
-  weekly SMS default wording reports customer collections. The legacy
-  `{{previousWeekDeposit}}` template placeholder remains an alias for that same
-  customer-payment total, and the exact prior default template is upgraded on read.
+- Weekly staff performance: recording a `StaffDeposit` for the immediately
+  previous completed Monday–Sunday week queues a performance SMS for that staff
+  member only. The message is queued inside that deposit's transaction and sent
+  after the transaction commits. The scheduled SMS cron dispatches pending messages
+  but does not create weekly performance messages. A trigger deposit is linked to
+  the queued message; if that exact deposit is deleted before dispatch, the message
+  is cancelled. The deposit amount only switches on sending and is not used for the
+  performance figure or rank. The message's collection figure matches **Weekly
+  Recorded** in Reports: assigned customer `Payment.amount` records whose
+  `paymentDate` falls Monday through Sunday in the completed week. Rank compares
+  each active staff member's recorded customer payments with their weekly target;
+  staff with no payments count as GHS 0, and only staff with a positive target are
+  in the ranking cohort. This weekly SMS rank is separate from Monthly Staff
+  Performance, which ranks the selected month's deposits against monthly targets
+  and includes new active accounts in its weighted score. The default wording is
+  “GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}},
+  reaching {{targetAchievement}} of target. You ranked {{rank}} of
+  {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}.
+  Keep going!” The legacy `{{previousWeekDeposit}}` placeholder remains an alias
+  for the recorded collection total. Previously shipped default templates are
+  upgraded on read; custom saved wording is preserved.
   new-week target sums each assigned unpaid plan's daily amount times seven;
   every account with a balance qualifies except CANCELLED and CLOSED, regardless
   of lifecycle label or expected end date, when it started by Monday. The target is a

@@ -113,7 +113,7 @@ export async function recordStaffDeposit(formData: FormData): Promise<void> {
     });
     await completeIdempotencyKey(tx, claim.id, deposit.id);
     await queueWeeklyCustomerSummarySms(tx, staff.id, deposit.depositDate);
-    await queueWeeklyStaffPerformanceSms(tx);
+    await queueWeeklyStaffPerformanceSms(tx, deposit.id);
   });
 
   after(() => dispatchDueSms().catch(() => console.error("Weekly customer SMS dispatch failed.")));

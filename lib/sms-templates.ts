@@ -52,8 +52,8 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   },
   weeklyStaffPerformance: {
     label: "Weekly staff performance",
-    description: "A previous-week staff deposit triggers this message. Performance and rank use customer payments recorded under the staff member's assigned accounts for that Monday–Sunday week. The legacy {{previousWeekDeposit}} placeholder remains an alias for the customer-payment total.",
-    defaultTemplate: "GLV: Hello {{staffName}}, customer payments recorded under your accounts last week totaled {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
+    description: "The staff member's deposit for the completed Monday–Sunday week triggers this message. The weekly recorded collection amount and rank use customer payments under their assigned accounts for that week; the deposit amount only triggers sending. The legacy {{previousWeekDeposit}} placeholder remains an alias for the recorded collection total.",
+    defaultTemplate: "GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
     placeholders: ["staffName", "previousWeekDeposit", "previousWeekCollection", "targetAchievement", "rank", "rankedStaffCount", "newWeekTarget", "previousWeekStart", "previousWeekEnd", "newWeekStart", "newWeekEnd"],
     previewValues: { staffName: "Ama", previousWeekDeposit: "GHS 1,250.00", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2", rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00", previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25", newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01" },
   },
@@ -81,7 +81,11 @@ export function renderSmsTemplate(key: SmsTemplateKey, template: string | null |
 
 export function smsTemplateValue(key: SmsTemplateKey, value: string | null | undefined) {
   const saved = value?.trim();
-  if (key === "weeklyStaffPerformance" && saved === "GLV: Hello {{staffName}}, last week you recorded deposits totaling {{previousWeekDeposit}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!") {
+  const previousDefaultTemplates = new Set([
+    "GLV: Hello {{staffName}}, last week you recorded deposits totaling {{previousWeekDeposit}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
+    "GLV: Hello {{staffName}}, customer payments recorded under your accounts last week totaled {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
+  ]);
+  if (key === "weeklyStaffPerformance" && saved && previousDefaultTemplates.has(saved)) {
     return SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
   }
   return saved || SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
