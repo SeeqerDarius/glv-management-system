@@ -52,8 +52,8 @@ export const SMS_TEMPLATE_DEFINITIONS: Record<SmsTemplateKey, {
   },
   weeklyStaffPerformance: {
     label: "Weekly staff performance",
-    description: "Sent after a previous-week staff deposit is recorded. Rank is based on the recorded deposit total as a percentage of the weekly target.",
-    defaultTemplate: "GLV: Hello {{staffName}}, last week you recorded deposits totaling {{previousWeekDeposit}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
+    description: "A previous-week staff deposit triggers this message. Performance and rank use customer payments recorded under the staff member's assigned accounts for that Monday–Sunday week. The legacy {{previousWeekDeposit}} placeholder remains an alias for the customer-payment total.",
+    defaultTemplate: "GLV: Hello {{staffName}}, customer payments recorded under your accounts last week totaled {{previousWeekCollection}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!",
     placeholders: ["staffName", "previousWeekDeposit", "previousWeekCollection", "targetAchievement", "rank", "rankedStaffCount", "newWeekTarget", "previousWeekStart", "previousWeekEnd", "newWeekStart", "newWeekEnd"],
     previewValues: { staffName: "Ama", previousWeekDeposit: "GHS 1,250.00", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2", rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00", previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25", newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01" },
   },
@@ -75,12 +75,16 @@ export function validateSmsTemplate(key: SmsTemplateKey, template: string) {
 }
 
 export function renderSmsTemplate(key: SmsTemplateKey, template: string | null | undefined, values: Record<string, string>) {
-  const source = validateSmsTemplate(key, template || SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate);
+  const source = validateSmsTemplate(key, smsTemplateValue(key, template));
   return source.replace(placeholderPattern, (_match, name: string) => values[name] ?? "");
 }
 
 export function smsTemplateValue(key: SmsTemplateKey, value: string | null | undefined) {
-  return value?.trim() || SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
+  const saved = value?.trim();
+  if (key === "weeklyStaffPerformance" && saved === "GLV: Hello {{staffName}}, last week you recorded deposits totaling {{previousWeekDeposit}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!") {
+    return SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
+  }
+  return saved || SMS_TEMPLATE_DEFINITIONS[key].defaultTemplate;
 }
 
 export function smsFirstName(fullName: string) {

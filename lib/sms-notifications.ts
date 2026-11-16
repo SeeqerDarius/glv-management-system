@@ -221,6 +221,8 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
     newWeekStart.setDate(newWeekStart.getDate() + 7);
     const { end: newWeekEnd } = weekRange(newWeekStart);
     const previousWeekEnd = new Date(newWeekStart.getTime() - 1);
+    // StaffDeposit records are only the trigger for sending this SMS. The
+    // performance figure comes from customer payments recorded for the week.
     const deposits = await tx.staffDeposit.findMany({
       where: { depositDate: { gte: reportWeekStart, lt: newWeekStart }, staffId: { in: staff.map((member) => member.id) } },
       select: { staffId: true, amount: true },
@@ -229,9 +231,19 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
     const eligibleStaff = staff.filter((member) => staffWithDeposits.has(member.id));
     if (!eligibleStaff.length) continue;
 
-    const depositsByStaff = new Map<string, number>();
-    for (const deposit of deposits) {
-      depositsByStaff.set(deposit.staffId, (depositsByStaff.get(deposit.staffId) ?? 0) + deposit.amount);
+    const payments = await tx.payment.findMany({
+      where: {
+        paymentDate: { gte: reportWeekStart, lt: newWeekStart },
+        account: { customer: { staffId: { in: staff.map((member) => member.id) } } },
+      },
+      select: { amount: true, account: { select: { customer: { select: { staffId: true } } } } },
+    });
+    const collectionsByStaff = new Map<string, number>();
+    for (const payment of payments) {
+      const staffId = payment.account.customer.staffId;
+      if (staffId) {
+        collectionsByStaff.set(staffId, (collectionsByStaff.get(staffId) ?? 0) + payment.amount);
+      }
     }
 
     const accounts = await tx.customerAccount.findMany({
@@ -273,24 +285,24 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
       const recipient = normalizeSmsPhone(member.phone);
       if (!recipient) continue;
       const target = previousWeekTargets.get(member.id) ?? 0;
-      const deposited = depositsByStaff.get(member.id) ?? 0;
-      const depositCents = Math.round(deposited * 100);
+      const collected = collectionsByStaff.get(member.id) ?? 0;
+      const collectedCents = Math.round(collected * 100);
       const targetCents = Math.round(target * 100);
-      const achievement = targetCents > 0 ? depositCents / targetCents : null;
+      const achievement = targetCents > 0 ? collectedCents / targetCents : null;
       const rank = achievement !== null
         ? 1 + rankedStaff.filter((other) => {
           if (other.id === member.id) return false;
           const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
-          const otherDepositCents = Math.round((depositsByStaff.get(other.id) ?? 0) * 100);
+          const otherCollectedCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
           return otherTargetCents > 0 &&
-            otherDepositCents * targetCents > depositCents * otherTargetCents;
+            otherCollectedCents * targetCents > collectedCents * otherTargetCents;
         }).length
         : null;
       const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
         staffName: smsFirstName(member.fullName),
-        previousWeekDeposit: money(deposited, settings.defaultCurrency),
-        // Keep the original placeholder working for operator-saved templates.
-        previousWeekCollection: money(deposited, settings.defaultCurrency),
+        previousWeekDeposit: money(collected, settings.defaultCurrency),
+        // Keep old operator templates compatible while reporting customer payments.
+        previousWeekCollection: money(collected, settings.defaultCurrency),
         targetAchievement: achievement !== null
           ? `${(achievement * 100).toFixed(2)}%`
           : "N/A",

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { queueWeeklyStaffPerformanceSms } from "../lib/sms-notifications";
 
-test("late prior-week deposits rank against all active staff with weekly targets", async () => {
+test("staff deposits trigger weekly SMS, but recorded customer payments determine rank", async () => {
   const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> = [];
   const tx = {
     setting: {
@@ -30,12 +30,21 @@ test("late prior-week deposits rank against all active staff with weekly targets
         assert.equal(where.depositDate.gte?.toISOString(), "2026-11-02T00:00:00.000Z");
         assert.equal(where.depositDate.lt?.toISOString(), "2026-11-09T00:00:00.000Z");
         return [
-          { staffId: "staff-1", amount: 100 },
-          { staffId: "staff-2", amount: 200 },
+          { staffId: "staff-1", amount: 900 },
+          { staffId: "staff-2", amount: 20 },
         ];
       },
     },
-    payment: { findMany: async () => [] },
+    payment: {
+      findMany: async ({ where }: { where: { paymentDate: { gte: Date; lt: Date } } }) => {
+        assert.equal(where.paymentDate.gte.toISOString(), "2026-11-02T00:00:00.000Z");
+        assert.equal(where.paymentDate.lt.toISOString(), "2026-11-09T00:00:00.000Z");
+        return [
+          { amount: 100, account: { customer: { staffId: "staff-1" } } },
+          { amount: 500, account: { customer: { staffId: "staff-2" } } },
+        ];
+      },
+    },
     customerAccount: {
       findMany: async () => Array.from({ length: 8 }, (_, index) => ({
           startDate: new Date("2026-11-02T00:00:00.000Z"),
@@ -71,8 +80,8 @@ test("late prior-week deposits rank against all active staff with weekly targets
       recipient: "+233241234500",
     },
   ]);
-  assert.match(messages[0].body, /deposits totaling GHS 100\.00, reaching 142\.86% of target/);
-  assert.match(messages[0].body, /ranked 1 of 8 staff/);
-  assert.match(messages[1].body, /deposits totaling GHS 200\.00, reaching 71\.43% of target/);
-  assert.match(messages[1].body, /ranked 2 of 8 staff/);
+  assert.match(messages[0].body, /customer payments recorded under your accounts last week totaled GHS 100\.00, reaching 142\.86% of target/);
+  assert.match(messages[0].body, /ranked 2 of 8 staff/);
+  assert.match(messages[1].body, /customer payments recorded under your accounts last week totaled GHS 500\.00, reaching 178\.57% of target/);
+  assert.match(messages[1].body, /ranked 1 of 8 staff/);
 });

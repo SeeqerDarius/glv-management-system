@@ -34,16 +34,19 @@ test("weekly summary templates identify the customer total, target and week", ()
   // The shortfall figure only belongs in the below-target wording.
   assert.throws(() => validateSmsTemplate("weeklySummary", "Short by {{shortfallAmount}}"), /not available/);
 });
-test("weekly staff performance template reports recorded deposit achievement rank and new-week target", () => {
-  const message = renderSmsTemplate("weeklyStaffPerformance", null, {
+test("weekly staff performance template reports customer payment achievement rank and new-week target", () => {
+  const values = {
     staffName: "Ama", previousWeekDeposit: "GHS 1,250.00", previousWeekCollection: "GHS 1,250.00", targetAchievement: "83.33%", rank: "2",
     rankedStaffCount: "8", newWeekTarget: "GHS 1,500.00",
     previousWeekStart: "2026-10-19", previousWeekEnd: "2026-10-25",
     newWeekStart: "2026-10-26", newWeekEnd: "2026-11-01",
-  });
-  assert.match(message, /recorded deposits totaling GHS 1,250\.00, reaching 83\.33% of target/);
+  };
+  const message = renderSmsTemplate("weeklyStaffPerformance", null, values);
+  assert.match(message, /customer payments recorded under your accounts last week totaled GHS 1,250\.00, reaching 83\.33% of target/);
   assert.match(message, /ranked 2 of 8 staff/);
   assert.match(message, /This week's collection target is GHS 1,500\.00/);
+  const previousDefault = "GLV: Hello {{staffName}}, last week you recorded deposits totaling {{previousWeekDeposit}}, reaching {{targetAchievement}} of target. You ranked {{rank}} of {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}. Keep going!";
+  assert.equal(renderSmsTemplate("weeklyStaffPerformance", previousDefault, values), message);
   assert.throws(
     () => validateSmsTemplate("weeklyStaffPerformance", "Hello {{expectedAmount}}"),
     /not available/
