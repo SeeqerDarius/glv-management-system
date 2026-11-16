@@ -638,7 +638,7 @@ export default async function ReportsPage({
           </div>
         </div>
         <p className="mb-3 text-xs text-gray-500">
-          Score: 80% from target attainment (capped at 120%) and 20% from the staff member’s share of new active accounts. Targets use assigned active or overdue plans’ daily amounts for eligible days in {formatMonth(monthlyPerformance.start)}. The current month runs through today.
+          This is a monthly ranking, separate from the weekly staff SMS rank. Score: 80% from target attainment (capped at 120%) and 20% from the staff member’s share of new active accounts. Targets use assigned active or overdue plans’ daily amounts for eligible days in {formatMonth(monthlyPerformance.start)}. The current month runs through today.
           Historical account status is not versioned, so past-month targets and new active account counts are reconstructed from the current account status and should be treated as estimates.
         </p>
         <ReportTable

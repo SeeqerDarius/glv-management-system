@@ -265,7 +265,9 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
       }
     }
 
-    const rankedStaff = eligibleStaff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
+    // Rank against the full eligible active team, not only staff who have a
+    // deposit row. Missing records count as zero for this reporting week.
+    const rankedStaff = staff.filter((member) => (previousWeekTargets.get(member.id) ?? 0) > 0);
     const weekKey = reportWeekStart.toISOString().slice(0, 10);
     for (const member of eligibleStaff) {
       const recipient = normalizeSmsPhone(member.phone);

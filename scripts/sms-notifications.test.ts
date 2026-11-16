@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { queueWeeklyStaffPerformanceSms } from "../lib/sms-notifications";
 
-test("late prior-week deposits queue SMS and rank by recorded deposit totals", async () => {
+test("late prior-week deposits rank against all active staff with weekly targets", async () => {
   const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> = [];
   const tx = {
     setting: {
@@ -16,6 +16,11 @@ test("late prior-week deposits queue SMS and rank by recorded deposit totals", a
       findMany: async () => [
         { id: "staff-1", fullName: "Ellen Doe", phone: "0241234567" },
         { id: "staff-2", fullName: "Abigail Doe", phone: "0241234500" },
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `staff-${index + 3}`,
+          fullName: `Staff ${index + 3}`,
+          phone: `02412345${String(index + 1).padStart(2, "0")}`,
+        })),
       ],
     },
     staffDeposit: {
@@ -32,20 +37,12 @@ test("late prior-week deposits queue SMS and rank by recorded deposit totals", a
     },
     payment: { findMany: async () => [] },
     customerAccount: {
-      findMany: async () => [
-        {
+      findMany: async () => Array.from({ length: 8 }, (_, index) => ({
           startDate: new Date("2026-11-02T00:00:00.000Z"),
           expectedEndDate: new Date("2026-11-30T23:59:59.999Z"),
-          dailyAmount: 10,
-          customer: { staffId: "staff-1" },
-        },
-        {
-          startDate: new Date("2026-11-02T00:00:00.000Z"),
-          expectedEndDate: new Date("2026-11-30T23:59:59.999Z"),
-          dailyAmount: 40,
-          customer: { staffId: "staff-2" },
-        },
-      ],
+          dailyAmount: index === 0 ? 10 : index === 1 ? 40 : 10,
+          customer: { staffId: `staff-${index + 1}` },
+        })),
     },
     smsNotification: {
       createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> }) => {
@@ -75,7 +72,7 @@ test("late prior-week deposits queue SMS and rank by recorded deposit totals", a
     },
   ]);
   assert.match(messages[0].body, /deposits totaling GHS 100\.00, reaching 142\.86% of target/);
-  assert.match(messages[0].body, /ranked 1 of 2 staff/);
+  assert.match(messages[0].body, /ranked 1 of 8 staff/);
   assert.match(messages[1].body, /deposits totaling GHS 200\.00, reaching 71\.43% of target/);
-  assert.match(messages[1].body, /ranked 2 of 2 staff/);
+  assert.match(messages[1].body, /ranked 2 of 8 staff/);
 });

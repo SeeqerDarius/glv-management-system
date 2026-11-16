@@ -537,15 +537,22 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   a new deposit for a completed week triggers this catch-up in the same transaction.
   Performance rank compares each member's total `StaffDeposit.amount` dated
   Monday through Sunday with their expected weekly target; the highest deposit-to-
-  target percentage ranks first and ties share a rank. Customer `Payment` records do
-  not determine this staff ranking. The
+  target percentage ranks first and ties share a rank. The ranking cohort includes
+  every active staff member with a positive weekly target, even when they have no
+  recorded deposit for that week; a missing deposit record counts as GHS 0 for rank
+  calculation. A member's SMS is queued after that member has a deposit recorded.
+  The triggering deposit is included in the complete set of records for its dated
+  week; it does not limit the ranking to depositors. Customer `Payment` records do
+  not determine this staff ranking. This weekly SMS rank is separate from Monthly
+  Staff Performance, which ranks the selected month's deposits against prorated
+  monthly targets and includes new active accounts in its weighted score. The
   new-week target sums each assigned ACTIVE plan's daily amount times
   seven; only unpaid plans active at the start of Monday qualify. The target is a
   full seven-day target and can differ from the week-prorated target shown in Staff
   Performance when plans start or end midweek. Dedupe by staff and week prevents
   repeats. A missing or unusable staff phone prevents queueing.
-  Since late deposits can be recorded at different times, a later staff member's
-  ranking may include more recorded deposits than an earlier message for that week.
+  Weekly deposits entered at different times can change the available week totals;
+  each queued message uses the records present when the rank is calculated.
 - The weekly summary has **two wordings** and GLV picks one per customer. The
   expected weekly amount is the daily amount of every plan that customer is still
   collecting on (ACTIVE, OVERDUE or PROBATION with a balance), multiplied by seven.
