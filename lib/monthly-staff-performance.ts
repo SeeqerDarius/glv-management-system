@@ -10,41 +10,28 @@ export type MonthlyStaffPerformanceRow = {
   monthlyDeposits: number;
   monthlyTarget: number;
   targetAttainment: number;
+  activeAccounts: number;
   newActiveAccounts: number;
-  score: number;
   rank: number;
 };
 
 export function rankMonthlyStaffPerformance<
-  T extends Pick<MonthlyStaffPerformanceRow, "staffCode" | "monthlyDeposits" | "monthlyTarget" | "newActiveAccounts">
+  T extends Pick<MonthlyStaffPerformanceRow, "staffCode" | "monthlyDeposits" | "monthlyTarget" | "activeAccounts" | "newActiveAccounts">
 >(rows: T[]) {
-  const maxNewAccounts = Math.max(0, ...rows.map((row) => row.newActiveAccounts));
   const ranked = rows
     .map((row) => {
       const targetAttainment = row.monthlyTarget > 0
         ? row.monthlyDeposits / row.monthlyTarget
         : 0;
-      // Target delivery contributes 80 points (capped at 120% attainment); new
-      // active accounts contribute 20 points relative to the month's top count.
-      const score =
-        (Math.min(targetAttainment, 1.2) / 1.2) * 80 +
-        (maxNewAccounts > 0 ? row.newActiveAccounts / maxNewAccounts : 0) * 20;
-      return { ...row, targetAttainment, score: Math.round(score * 100) / 100 };
+      return { ...row, targetAttainment };
     })
-    .sort((a, b) => b.score - a.score || b.targetAttainment - a.targetAttainment ||
+    .sort((a, b) => b.activeAccounts - a.activeAccounts || b.targetAttainment - a.targetAttainment ||
       b.newActiveAccounts - a.newActiveAccounts || a.staffCode.localeCompare(b.staffCode))
-    .map((row, index) => ({
+    .map((row) => ({
       ...row,
-      rank: index + 1,
+      rank: 1 + rows.filter((other) => other.activeAccounts > row.activeAccounts).length,
     }));
-  let previousScore: number | undefined;
-  let previousRank = 0;
-  return ranked.map((row) => {
-    const rank = row.score === previousScore ? previousRank : row.rank;
-    previousScore = row.score;
-    previousRank = rank;
-    return { ...row, rank };
-  });
+  return ranked;
 }
 
 export async function getMonthlyStaffPerformanceReport(monthDate: Date) {
@@ -73,12 +60,16 @@ export async function getMonthlyStaffPerformanceReport(monthDate: Date) {
       account.createdAt >= start && account.createdAt <= end && account.balance > 0 &&
       getEffectiveAccountStatus(account) === AccountStatus.ACTIVE
     ).length;
+    const activeAccounts = assigned.filter((account) =>
+      getEffectiveAccountStatus(account) === AccountStatus.ACTIVE
+    ).length;
     return {
       staffId: member.id,
       staffCode: member.code,
       staffName: member.fullName,
       monthlyDeposits,
       monthlyTarget,
+      activeAccounts,
       newActiveAccounts,
     };
   });

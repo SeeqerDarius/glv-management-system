@@ -131,14 +131,14 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
   from the plan start date through each eligible day in the selected month.
   Expected end date and lifecycle labels do not stop the target while money is
   still owed. The current month runs through today; future selected months show
-  the full month's target. Attainment is
-  deposits divided by expected collections. The overall score is 80 points for
-  attainment (capped at 120%) plus up to 20 points based on the staff member's
-  share of newly opened accounts that remain ACTIVE with a balance. The table
-  and PDF/Excel exports show deposits, target, attainment, new active accounts,
-  score and rank. Historical status has no effective-date history, so past
-  targets and active-new-account counts are reconstructed from current account
-  status and should be treated as current-state estimates.
+  the full month's target. Attainment is deposits divided by expected
+  collections. Monthly ranking is based on each staff member's current count of
+  ACTIVE accounts, matching the Active column in Staff Performance; all listed
+  staff are included, zero counts rank too, and ties share rank. Deposits,
+  target, attainment, and new active accounts remain separate report measures.
+  PDF/Excel exports show the same data. Historical status has no effective-date
+  history, so past targets and active-account counts are reconstructed from
+  current account status and should be treated as current-state estimates.
 - `/activity`: collection/activity charts. Administrators see weekly daily
   collection trends split into one curved line per staff member, with a keyed
   legend; staff users see only their own payment-count trend.
@@ -169,13 +169,13 @@ The first-login/password-reset loop was previously fixed. Do not regress it.
 - Reports has a selectable monthly staff performance report and PDF/Excel
   exports. It compares recorded monthly deposits with expected daily collections
   for every assigned unpaid account except Cancelled and Closed over eligible
-  dates. Ranking uses a visible
-  100-point formula: 80 points from target attainment capped at 120%, and 20
-  points from the staff member's share of new active account plans. New active
-  accounts are plans opened in the selected month that remain ACTIVE with a
-  positive balance. Because account status is not versioned, historical plan
-  eligibility is reconstructed from current state; the report labels this
-  limitation.
+  dates. Ranking uses each staff member's current active account count, matching
+  the Active column in Staff Performance. Ties share rank. Deposits, target
+  attainment, and new active account plans remain visible as separate measures.
+  New active accounts are plans opened in the selected month that remain ACTIVE
+  with a positive balance. Because account status is not versioned, historical
+  plan eligibility and active counts are reconstructed from current state; the
+  report labels this limitation.
 
 - `app/api/notifications/route.ts` exposes protected computed attention counts.
   It groups module badges for account/customer follow-up, today's customer,
@@ -553,9 +553,9 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   column in Reports > Staff Performance. All active staff are ranked, including
   staff with zero active accounts; ties share a rank. Weekly recorded payments
   and target achievement remain in the message but do not determine rank. This
-  weekly SMS rank is separate from Monthly Staff
-  Performance, which ranks the selected month's deposits against monthly targets
-  and includes new active accounts in its weighted score. The default wording is
+  weekly SMS rank uses the same active-account basis as Monthly Staff
+  Performance; the monthly report still shows monthly deposits, targets,
+  attainment, and new active accounts as separate measures. The default wording is
   “GLV: Hello {{staffName}}, last week you collected {{previousWeekCollection}},
   reaching {{targetAchievement}} of target. You ranked {{rank}} of
   {{rankedStaffCount}} staff. This week's collection target is {{newWeekTarget}}.

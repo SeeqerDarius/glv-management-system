@@ -610,7 +610,7 @@ export default async function ReportsPage({
       <ReportSection
         id="monthly-staff-performance"
         title="Monthly Staff Performance"
-        description="Monthly recorded deposits against expected active-plan collections, with a balanced score for target delivery and newly opened active accounts."
+        description="Monthly deposits and target attainment, ranked by each staff member's current active account count."
       >
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-lg border bg-white p-4">
           <form method="get" action="/reports" className="flex flex-wrap items-end gap-3">
@@ -638,28 +638,28 @@ export default async function ReportsPage({
           </div>
         </div>
         <p className="mb-3 text-xs text-gray-500">
-          This is a monthly ranking, separate from the weekly staff SMS rank. Score: 80% from target attainment (capped at 120%) and 20% from the staff member’s share of new active accounts. Targets count daily amounts for every assigned account with a balance remaining, except Cancelled and Closed accounts, from its start date through each day in {formatMonth(monthlyPerformance.start)}. The current month runs through today; a future month shows the full month’s target.
-          Historical account status is not versioned, so past-month targets and new active account counts are reconstructed from the current account status and should be treated as estimates.
+          Monthly staff ranking uses each staff member’s current active account count, matching the Active column in Staff Performance. Staff with equal active counts share a rank. Monthly deposits, collection target, target attainment, and new active accounts remain visible as separate measures; they do not change the rank. Targets count daily amounts for every assigned account with a balance remaining, except Cancelled and Closed accounts, from its start date through each day in {formatMonth(monthlyPerformance.start)}. The current month runs through today; a future month shows the full month’s target.
+          Account status is not versioned, so historical monthly targets and current active account counts reflect today’s account state.
         </p>
         <ReportTable
           minWidthClass="min-w-[920px]"
           isEmpty={monthlyPerformance.rows.length === 0}
           emptyMessage="No staff records are available for this month."
           columns={[
-            { label: "Rank" }, { label: "Staff" }, { label: "Deposited", align: "right" },
+            { label: "Rank" }, { label: "Staff" }, { label: "Active Accounts", align: "right" }, { label: "Deposited", align: "right" },
             { label: "Collection Target", align: "right" }, { label: "Deposits / Target", align: "right" },
-            { label: "New Active Accounts", align: "right" }, { label: "Overall Score", align: "right" },
+            { label: "New Active Accounts", align: "right" },
           ]}
         >
           {monthlyPerformance.rows.map((row) => (
             <Row key={row.staffId}>
               <Cell><Badge variant={row.rank === 1 ? "default" : "secondary"}>#{row.rank}</Badge></Cell>
               <Cell><p className="font-semibold">{row.staffCode}</p><p className="text-xs text-gray-500">{row.staffName}</p></Cell>
+              <Cell align="right" numeric>{row.activeAccounts}</Cell>
               <Cell align="right" numeric>{formatMoney(row.monthlyDeposits)}</Cell>
               <Cell align="right" numeric>{formatMoney(row.monthlyTarget)}</Cell>
               <Cell align="right" numeric>{row.monthlyTarget > 0 ? `${(row.targetAttainment * 100).toFixed(1)}%` : "N/A"}</Cell>
               <Cell align="right" numeric>{row.newActiveAccounts}</Cell>
-              <Cell align="right" numeric>{row.score.toFixed(2)} / 100</Cell>
             </Row>
           ))}
         </ReportTable>

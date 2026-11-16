@@ -117,20 +117,20 @@ export async function GET(request: NextRequest) {
       if (match && (reportDate.getMonth() + 1 !== Number(match[2]) || reportDate > new Date())) return NextResponse.json({ error: "Choose a valid past or current month." }, { status: 400 });
       const monthly = await getMonthlyStaffPerformanceReport(reportDate);
       const monthLabel = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" }).format(monthly.start);
-      const lines = ["Monthly deposits are compared with assigned active/overdue plans' expected collections for eligible days.", "Overall score = 80% target attainment (capped at 120%) + 20% relative share of new active accounts.", "Historic target and new-account eligibility use current account status because status history is not stored.", "", ...monthly.rows.map((row) => `#${row.rank} ${row.staffCode} ${row.staffName} | Deposits GHS ${row.monthlyDeposits.toFixed(2)} | Collection target GHS ${row.monthlyTarget.toFixed(2)} | Deposits/target ${row.monthlyTarget > 0 ? `${(row.targetAttainment * 100).toFixed(1)}%` : "N/A"} | New active accounts ${row.newActiveAccounts} | Score ${row.score.toFixed(2)}/100`)];
+      const lines = ["Monthly deposits are compared with assigned accounts' expected collections for eligible days.", "Staff are ranked by current active account count; ties share rank. Deposit and target attainment figures are reported separately.", "Historic target and active-account figures use current account status because status history is not stored.", "", ...monthly.rows.map((row) => `#${row.rank} ${row.staffCode} ${row.staffName} | Active accounts ${row.activeAccounts} | Deposits GHS ${row.monthlyDeposits.toFixed(2)} | Collection target GHS ${row.monthlyTarget.toFixed(2)} | Deposits/target ${row.monthlyTarget > 0 ? `${(row.targetAttainment * 100).toFixed(1)}%` : "N/A"} | New active accounts ${row.newActiveAccounts}`)];
       if (format === "pdf") return new NextResponse(buildTextPdf(`GLV Monthly Staff Performance - ${monthLabel}`, lines), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="GLV-Staff-Performance-${monthValue}.pdf"`, "Cache-Control": "no-store" } });
       if (format !== "xlsx") return NextResponse.json({ error: "Choose xlsx or pdf." }, { status: 400 });
       const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("Monthly Staff Performance");
       sheet.addRow([`GLV Monthly Staff Performance - ${monthLabel}`]); sheet.mergeCells("A1:H1");
-      sheet.addRow(["Deposits compared with expected collections for active assigned plans. Score: 80% target attainment (capped at 120%) + 20% share of new active accounts."]); sheet.mergeCells("A2:H2");
-      sheet.addRow(["Rank", "Staff Code", "Staff Name", "Monthly Deposits (GHS)", "Monthly Target (GHS)", "Target Attainment", "New Active Accounts", "Overall Score / 100"]);
-      monthly.rows.forEach((row) => sheet.addRow([row.rank, row.staffCode, row.staffName, row.monthlyDeposits, row.monthlyTarget, row.monthlyTarget > 0 ? row.targetAttainment : null, row.newActiveAccounts, row.score]));
+      sheet.addRow(["Monthly deposits and target attainment are reported separately; rank is based on current active account count."]); sheet.mergeCells("A2:H2");
+      sheet.addRow(["Rank", "Staff Code", "Staff Name", "Active Accounts", "Monthly Deposits (GHS)", "Monthly Target (GHS)", "Target Attainment", "New Active Accounts"]);
+      monthly.rows.forEach((row) => sheet.addRow([row.rank, row.staffCode, row.staffName, row.activeAccounts, row.monthlyDeposits, row.monthlyTarget, row.monthlyTarget > 0 ? row.targetAttainment : null, row.newActiveAccounts]));
       sheet.columns = [{ width: 10 }, { width: 14 }, { width: 28 }, { width: 24 }, { width: 23 }, { width: 20 }, { width: 21 }, { width: 22 }];
       sheet.views = [{ state: "frozen", ySplit: 3 }]; sheet.autoFilter = { from: "A3", to: "H3" };
       sheet.getRow(1).font = { bold: true, size: 16 }; sheet.getRow(3).font = { bold: true, color: { argb: "FFFFFFFF" } };
       sheet.getRow(3).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF17351F" } };
-      [4, 5].forEach((column) => { sheet.getColumn(column).numFmt = '"GHS" #,##0.00'; });
-      sheet.getColumn(6).numFmt = "0.0%"; sheet.getColumn(8).numFmt = "0.00";
+      [5, 6].forEach((column) => { sheet.getColumn(column).numFmt = '"GHS" #,##0.00'; });
+      sheet.getColumn(7).numFmt = "0.0%";
       const buffer = await workbook.xlsx.writeBuffer();
       return new NextResponse(Buffer.from(buffer), { headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
