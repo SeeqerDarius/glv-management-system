@@ -229,17 +229,9 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
     const eligibleStaff = staff.filter((member) => staffWithDeposits.has(member.id));
     if (!eligibleStaff.length) continue;
 
-    const payments = await tx.payment.findMany({
-      where: {
-        paymentDate: { gte: reportWeekStart, lt: newWeekStart },
-        account: { customer: { staffId: { in: staff.map((member) => member.id) } } },
-      },
-      select: { amount: true, account: { select: { customer: { select: { staffId: true } } } } },
-    });
-    const collectionsByStaff = new Map<string, number>();
-    for (const payment of payments) {
-      const staffId = payment.account.customer.staffId;
-      if (staffId) collectionsByStaff.set(staffId, (collectionsByStaff.get(staffId) ?? 0) + payment.amount);
+    const depositsByStaff = new Map<string, number>();
+    for (const deposit of deposits) {
+      depositsByStaff.set(deposit.staffId, (depositsByStaff.get(deposit.staffId) ?? 0) + deposit.amount);
     }
 
     const accounts = await tx.customerAccount.findMany({
@@ -279,22 +271,24 @@ export async function queueWeeklyStaffPerformanceSms(tx: Client, now = new Date(
       const recipient = normalizeSmsPhone(member.phone);
       if (!recipient) continue;
       const target = previousWeekTargets.get(member.id) ?? 0;
-      const collected = collectionsByStaff.get(member.id) ?? 0;
-      const collectionCents = Math.round(collected * 100);
+      const deposited = depositsByStaff.get(member.id) ?? 0;
+      const depositCents = Math.round(deposited * 100);
       const targetCents = Math.round(target * 100);
-      const achievement = targetCents > 0 ? collectionCents / targetCents : null;
+      const achievement = targetCents > 0 ? depositCents / targetCents : null;
       const rank = achievement !== null
         ? 1 + rankedStaff.filter((other) => {
           if (other.id === member.id) return false;
           const otherTargetCents = Math.round((previousWeekTargets.get(other.id) ?? 0) * 100);
-          const otherCollectionCents = Math.round((collectionsByStaff.get(other.id) ?? 0) * 100);
+          const otherDepositCents = Math.round((depositsByStaff.get(other.id) ?? 0) * 100);
           return otherTargetCents > 0 &&
-            otherCollectionCents * targetCents > collectionCents * otherTargetCents;
+            otherDepositCents * targetCents > depositCents * otherTargetCents;
         }).length
         : null;
       const body = renderSmsTemplate("weeklyStaffPerformance", settings.smsWeeklyStaffPerformanceTemplate, {
         staffName: smsFirstName(member.fullName),
-        previousWeekCollection: money(collected, settings.defaultCurrency),
+        previousWeekDeposit: money(deposited, settings.defaultCurrency),
+        // Keep the original placeholder working for operator-saved templates.
+        previousWeekCollection: money(deposited, settings.defaultCurrency),
         targetAchievement: achievement !== null
           ? `${(achievement * 100).toFixed(2)}%`
           : "N/A",

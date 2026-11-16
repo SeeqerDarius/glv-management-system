@@ -535,14 +535,15 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   Monday–Sunday week. It also catches completed weeks that have a staff deposit
   recorded within the last seven days, including historical deposit dates. Recording
   a new deposit for a completed week triggers this catch-up in the same transaction.
-  Performance rank compares each
-  member's Monday-through-Sunday customer collections with their expected weekly
-  target; the highest percentage achieved ranks first and ties share a rank. The
+  Performance rank compares each member's total `StaffDeposit.amount` dated
+  Monday through Sunday with their expected weekly target; the highest deposit-to-
+  target percentage ranks first and ties share a rank. Customer `Payment` records do
+  not determine this staff ranking. The
   new-week target sums each assigned ACTIVE plan's daily amount times
   seven; only unpaid plans active at the start of Monday qualify. The target is a
   full seven-day target and can differ from the week-prorated target shown in Staff
-  Performance when plans start or end midweek. Dedupe is by staff and week. A missing
-  or unusable staff phone prevents queueing. Dedupe by staff and week prevents repeats.
+  Performance when plans start or end midweek. Dedupe by staff and week prevents
+  repeats. A missing or unusable staff phone prevents queueing.
   Since late deposits can be recorded at different times, a later staff member's
   ranking may include more recorded deposits than an earlier message for that week.
 - The weekly summary has **two wordings** and GLV picks one per customer. The

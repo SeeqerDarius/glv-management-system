@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { queueWeeklyStaffPerformanceSms } from "../lib/sms-notifications";
 
-test("a late prior-week staff deposit queues performance SMS on a weekday", async () => {
-  const messages: Array<{ type: string; dedupeKey: string; recipient: string }> = [];
+test("late prior-week deposits queue SMS and rank by recorded deposit totals", async () => {
+  const messages: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> = [];
   const tx = {
     setting: {
       findFirst: async () => ({
@@ -26,14 +26,29 @@ test("a late prior-week staff deposit queues performance SMS on a weekday", asyn
         assert.equal(where.depositDate.lt?.toISOString(), "2026-11-09T00:00:00.000Z");
         return [
           { staffId: "staff-1", amount: 100 },
-          { staffId: "staff-2", amount: 100 },
+          { staffId: "staff-2", amount: 200 },
         ];
       },
     },
     payment: { findMany: async () => [] },
-    customerAccount: { findMany: async () => [] },
+    customerAccount: {
+      findMany: async () => [
+        {
+          startDate: new Date("2026-11-02T00:00:00.000Z"),
+          expectedEndDate: new Date("2026-11-30T23:59:59.999Z"),
+          dailyAmount: 10,
+          customer: { staffId: "staff-1" },
+        },
+        {
+          startDate: new Date("2026-11-02T00:00:00.000Z"),
+          expectedEndDate: new Date("2026-11-30T23:59:59.999Z"),
+          dailyAmount: 40,
+          customer: { staffId: "staff-2" },
+        },
+      ],
+    },
     smsNotification: {
-      createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string }> }) => {
+      createMany: async ({ data }: { data: Array<{ type: string; dedupeKey: string; recipient: string; body: string }> }) => {
         messages.push(data[0]);
         return { count: 1 };
       },
@@ -59,4 +74,8 @@ test("a late prior-week staff deposit queues performance SMS on a weekday", asyn
       recipient: "+233241234500",
     },
   ]);
+  assert.match(messages[0].body, /deposits totaling GHS 100\.00, reaching 142\.86% of target/);
+  assert.match(messages[0].body, /ranked 1 of 2 staff/);
+  assert.match(messages[1].body, /deposits totaling GHS 200\.00, reaching 71\.43% of target/);
+  assert.match(messages[1].body, /ranked 2 of 2 staff/);
 });
