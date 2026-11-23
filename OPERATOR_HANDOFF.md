@@ -539,12 +539,16 @@ Support to answer. Without it the chat returns the "not configured yet" message.
   refreshes the amount and the wording only while the summary remains PENDING.
   Customers who paid nothing that week receive no summary, and no customer receives
   another staff member's totals.
-- Weekly staff performance: recording a `StaffDeposit` for the immediately
-  previous completed Monday–Sunday week queues a performance SMS for that staff
-  member only. The message is queued inside that deposit's transaction and sent
-  after the transaction commits. The scheduled SMS cron dispatches pending messages
-  but does not create weekly performance messages. A trigger deposit is linked to
-  the queued message; if that exact deposit is deleted before dispatch, the message
+- Weekly staff performance: recording a `StaffDeposit` dated in the current or
+  immediately preceding Monday–Sunday week queues a performance SMS for that staff
+  member only. `depositDate`, including a Sunday backdate, determines the reporting
+  week. Messages wait until Monday at 08:00 Ghana time; deposits entered after
+  that time are dispatched after their recording transaction commits. The
+  protected `/api/cron/weekly-staff-performance` runs every Monday at 08:00 UTC
+  and dispatches due performance messages; the general SMS cron remains in place
+  for other notification types. Figures are recalculated just before dispatch to
+  include payments recorded through Sunday. A trigger deposit is linked to the
+  queued message; if that exact deposit is deleted before dispatch, the message
   is cancelled. The deposit amount only switches on sending and is not used for the
   performance figure or rank. The message's collection figure matches **Weekly
   Recorded** in Reports: assigned customer `Payment.amount` records whose
